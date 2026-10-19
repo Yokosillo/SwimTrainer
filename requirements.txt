@@ -1,0 +1,11 @@
+# Entrenador - dependencias del motor
+# Instalacion (este .venv no trae pip): uv pip install --python .venv/Scripts/python.exe -r requirements.txt
+# o:                                 .venv/Scripts/python.exe -m ensurepip && .venv/Scripts/python.exe -m pip install -r requirements.txt
+#
+# El motor y la suite son de biblioteca estandar salvo estas tres:
+fitdecode==0.11.0        # leer los .fit del reloj (importar.py)
+gpxpy==1.6.2             # leer los .gpx (bici y carrera)
+garminconnect==0.3.17    # puerta automatica a Garmin Connect (scripts/garmin_conectar.py)
+# websockets: solo lo pide sueno.py si se usa la via de websockets; no esta instalado y no hace falta para nada mas.
+#
+# El portal se prueba con jsdom (Node), no con Python: ver package.json (devDependencies).

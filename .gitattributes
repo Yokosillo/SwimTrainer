@@ -1,0 +1,7 @@
+# Normalizacion de finales de linea: el codigo viaja en LF (como el de Python y el de git-bash),
+# y los .bat se quedan en CRLF, que es lo que espera cmd.exe en Windows.
+* text=auto eol=lf
+*.bat text eol=crlf
+*.png binary
+*.jpg binary
+*.zip binary

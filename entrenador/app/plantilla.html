@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="es" data-tema="oscuro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Entrenamiento · Nombre Atleta Lacalle</title>
+<meta name="description" content="Panel local de entrenamiento de natacion, gimnasio y bici de Nombre Atleta Lacalle.">
+<style>__CSS__</style>
+</head>
+<body>
+
+<!-- Iconos (trazo, sin dependencias) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-resumen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13h4l2 5 3-12 3 7h6"/></symbol>
+  <symbol id="i-copa" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/><path d="M12 14v4M9 20h6"/></symbol>
+  <symbol id="i-plan" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M9 14h2M14 14h2M9 17h2"/></symbol>
+  <symbol id="i-entrenos" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12c2-2.5 4-2.5 6 0s4 2.5 6 0 4-2.5 6 0"/><path d="M3 17c2-2.5 4-2.5 6 0s4 2.5 6 0 4-2.5 6 0"/><circle cx="17" cy="6" r="2.2"/></symbol>
+  <symbol id="i-gym" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6M2 11v2M20 9v6M22 11v2M7 12h10"/><rect x="5.5" y="7.5" width="3" height="9" rx="1"/><rect x="15.5" y="7.5" width="3" height="9" rx="1"/></symbol>
+  <symbol id="i-apuntar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></symbol>
+  <symbol id="i-parte" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13.5" r="7.5"/><path d="M12 10v3.5l2.4 2M9 2.5h6M18.5 7l1.5-1.5"/></symbol>
+  <symbol id="i-volumen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
+  <symbol id="i-bici" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="17" r="3.2"/><circle cx="18" cy="17" r="3.2"/><path d="M9 17l3-8 3 8M10 9h4M12 9l3.2-3.4"/></symbol>
+  <symbol id="i-sol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+  <symbol id="i-luna" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></symbol>
+  <symbol id="i-aviso" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 2.5 20h19z"/><path d="M12 9.5v4.5M12 17h.01"/></symbol>
+  <symbol id="i-descarga" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 11l5 5 5-5M4 20h16"/></symbol>
+  <symbol id="i-subir" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V9M7 13l5-5 5 5M4 4h16"/></symbol>
+  <symbol id="i-copiar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></symbol>
+  <symbol id="i-mas" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-papelera" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></symbol>
+  <symbol id="i-imprimir" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9V3h10v6M7 19H4v-7h16v7h-3M7 15h10v6H7z"/></symbol>
+</svg>
+
+<script id="datos" type="application/json">__DATOS__</script>
+
+<div class="app">
+
+  <!-- ===================== Barra lateral ===================== -->
+  <aside class="lateral">
+    <div class="marca">
+      <div class="marca-sello">FO</div>
+      <div class="marca-txt">
+        <strong>Nombre Atleta</strong>
+        <span>C.N. Club · master</span>
+      </div>
+    </div>
+
+    <div class="cuenta-atras" id="cuentaAtras"></div>
+
+    <nav class="nav" aria-label="Secciones">
+      <div class="nav-titulo">Mi entrenamiento</div>
+      <a href="#resumen" data-vista="resumen"><svg class="ico" aria-hidden="true"><use href="#i-resumen"/></svg>Resumen<span class="cuenta-item" id="cResumen"></span></a>
+      <a href="#competicion" data-vista="competicion"><svg class="ico" aria-hidden="true"><use href="#i-copa"/></svg>Competicion<span class="cuenta-item" id="cCompeticion"></span></a>
+      <a href="#plan" data-vista="plan"><svg class="ico" aria-hidden="true"><use href="#i-plan"/></svg>Plan<span class="cuenta-item" id="cPlan"></span></a>
+      <a href="#entrenos" data-vista="entrenos"><svg class="ico" aria-hidden="true"><use href="#i-entrenos"/></svg>Entrenamientos<span class="cuenta-item" id="cEntrenos"></span></a>
+      <a href="#reglas" data-vista="reglas"><svg class="ico" aria-hidden="true"><use href="#i-plan"/></svg>Reglas<span class="cuenta-item" id="cReglas"></span></a>
+      <div class="nav-titulo">Gimnasio y registro</div>
+      <a href="#gimnasio" data-vista="gimnasio"><svg class="ico" aria-hidden="true"><use href="#i-gym"/></svg>Gimnasio<span class="cuenta-item" id="cGimnasio"></span></a>
+      <div class="nav-titulo">Analisis</div>
+      <a href="#volumen" data-vista="volumen"><svg class="ico" aria-hidden="true"><use href="#i-volumen"/></svg>Volumen</a>
+      <a href="#pruebas" data-vista="pruebas"><svg class="ico" aria-hidden="true"><use href="#i-volumen"/></svg>Pruebas</a>
+      <a href="strava/index.html"><svg class="ico" aria-hidden="true"><use href="#i-bici"/></svg>Portal de bici</a>
+    </nav>
+
+    <div class="lateral-pie">
+      <div class="sello-datos" id="selloDatos"></div>
+      <div class="acciones-pie">
+        <button class="boton mini suave" id="btTema" type="button" title="Cambiar entre modo oscuro y claro"><svg class="ico" aria-hidden="true"><use href="#i-luna"/></svg><span id="btTemaTxt">Modo claro</span></button>
+        <button class="boton mini suave" id="btImprimir" type="button" title="Imprimir o guardar en PDF"><svg class="ico" aria-hidden="true"><use href="#i-imprimir"/></svg>PDF</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===================== Contenido ===================== -->
+  <main class="principal">
+    <header class="cabecera">
+      <div class="cabecera-txt">
+        <div class="migas" id="migas">Panel</div>
+        <h1 id="tituloVista">Resumen</h1>
+        <p class="sub" id="subVista"></p>
+      </div>
+      <div class="cabecera-acciones" id="accionesVista"></div>
+    </header>
+
+    <div class="contenedor">
+
+      <!-- ---------- RESUMEN ---------- -->
+      <section class="vista activa" id="vista-resumen">
+        <div class="kpis" id="kpis"></div>
+
+        <!-- La valoracion del entrenador: se compone con los datos reales en cada pasada de `analizar`. -->
+        <div class="tarjeta entrenador mt" id="resumenEntrenador"></div>
+
+        <h2 class="mt" style="margin-top:26px">Como voy</h2>
+        <div class="rejilla k2 mt" id="preparacion"></div>
+
+        <div class="rejilla side mt">
+          <div class="tarjeta">
+            <header><h3>Volumen por ano</h3><span class="pista">metros nadados</span></header>
+            <div class="tarjeta-cuerpo" id="volumenAnual"></div>
+          </div>
+          <div class="tarjeta">
+            <header><h3>Ultimos 12 meses</h3><span class="pista">metros y sesiones</span></header>
+            <div class="tarjeta-cuerpo" id="volumenMensual"></div>
+          </div>
+        </div>
+
+        <div class="tarjeta mt">
+          <header>
+            <h3>Calendario de piscina</h3>
+            <div class="cal-nav">
+              <button class="boton-mini" id="calAnt" title="Mes anterior" aria-label="Mes anterior">&#8249;</button>
+              <span class="cal-mes" id="calMes"></span>
+              <button class="boton-mini" id="calSig" title="Mes siguiente" aria-label="Mes siguiente">&#8250;</button>
+              <button class="boton-mini" id="calHoy">Hoy</button>
+            </div>
+          </header>
+          <div class="tarjeta-cuerpo">
+            <div class="cal-cabecera" id="calCabecera"></div>
+            <div class="cal-rejilla" id="calendario"></div>
+            <div class="niveles" id="calLeyenda"></div>
+            <p class="pista" id="calPista"></p>
+          </div>
+        </div>
+
+        <div class="tarjeta mt">
+          <header><h3>Las pruebas, de menos a mas</h3><span class="pista">los tres mejores de cada una, con su tiempo y su fecha</span></header>
+          <div class="tarjeta-cuerpo">
+            <div class="tabla-envoltura" id="resPruebas"></div>
+            <p class="pista">Cada prueba se mide con lo que manda en ella: el 1.500 por tiempo total, la escalera y
+              la serie de 100 cada 1:30 por ritmo, y los 30 minutos por metros. Se compara el mismo nombre y los
+              mismos metros: la misma prueba contigo mismo, de una epoca a otra.</p>
+          </div>
+        </div>
+
+        <div class="tarjeta mt">
+          <header><h3>Ultimas sesiones</h3><span class="pista">del reloj y apuntadas a mano</span></header>
+          <div class="tabla-envoltura" id="recientes"></div>
+        </div>
+      </section>
+
+      <!-- ---------- COMPETICION ---------- -->
+      <section class="vista" id="vista-competicion">
+        <div class="kpis" id="compKpis"></div>
+
+        <div class="fila entre mt" style="margin-top:22px">
+          <div class="pestanas" role="tablist" aria-label="Vistas de competicion">
+            <button role="tab" id="tab-c-mejores" aria-controls="c-mejores" aria-selected="true" data-p="c-mejores">Mejores marcas</button>
+            <button role="tab" id="tab-c-comparador" aria-controls="c-comparador" aria-selected="false" data-p="c-comparador">Por temporadas</button>
+            <button role="tab" id="tab-c-todas" aria-controls="c-todas" aria-selected="false" data-p="c-todas">Todas las marcas</button>
+            <button role="tab" id="tab-c-pases" aria-controls="c-pases" aria-selected="false" data-p="c-pases">Mis pases</button>
+          </div>
+          <div class="ayuda" id="compResumen"></div>
+        </div>
+
+        <div class="panel-pestana activa" id="c-mejores" role="tabpanel" aria-labelledby="tab-c-mejores">
+          <div class="rejilla side">
+            <div class="apilar">
+              <div class="tarjeta">
+                <header><h3>Mis mejores 400 libre, marca a marca</h3><span class="pista" id="h400Pista"></span></header>
+                <div class="tarjeta-cuerpo">
+                  <div id="objetivo400" class="destacado"></div>
+                  <div class="tabla-envoltura envoltura-alta mt" id="h400Tabla"></div>
+                </div>
+              </div>
+              <div class="tarjeta">
+                <header><h3>Mis 3.000 libre</h3><span class="pista">prueba de fondo, objetivo del 18/03/2027</span></header>
+                <div class="tabla-envoltura" id="h3000Tabla"></div>
+              </div>
+            </div>
+            <div class="tarjeta">
+              <header><h3>Mejor marca de cada prueba</h3><span class="pista" id="mejoresPista"></span></header>
+              <div class="tarjeta-cuerpo estrecho">
+                <label class="solo-lectores" for="fMejoresPiscina">Piscina</label>
+                <select id="fMejoresPiscina"><option value="">Todas las piscinas</option><option value="25">25 m</option><option value="50">50 m</option></select>
+                <div class="tabla-envoltura envoltura-alta mt" id="mejoresTabla"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-pestana" id="c-comparador" role="tabpanel" aria-labelledby="tab-c-comparador">
+          <div class="rejilla side">
+            <div class="tarjeta">
+              <header>
+                <h3>Evolucion por temporadas</h3>
+                <span class="pista">la temporada de natacion va de septiembre a agosto</span>
+              </header>
+              <div class="tarjeta-cuerpo">
+                <div class="fila-campos">
+                  <div class="campo">
+                    <label for="cmpPrueba">Prueba</label>
+                    <select id="cmpPrueba"></select>
+                  </div>
+                  <div class="campo">
+                    <label for="cmpPiscina">Piscina</label>
+                    <select id="cmpPiscina"></select>
+                  </div>
+                  <div class="campo">
+                    <label for="cmpDesde">Desde la temporada</label>
+                    <select id="cmpDesde"></select>
+                  </div>
+                </div>
+                <div class="grafico mt" id="cmpGrafico"><div class="globo" id="cmpGlobo"></div></div>
+                <div class="tabla-envoltura mt" id="cmpTabla"></div>
+              </div>
+            </div>
+            <div class="apilar">
+              <div class="tarjeta nota" id="cmpTarjeta">
+                <header><h3>Lectura de la tendencia</h3></header>
+                <div class="tarjeta-cuerpo" id="cmpLectura"></div>
+              </div>
+              <div class="tarjeta">
+                <header><h3>Mejor de cada temporada</h3><span class="pista" id="cmpPista"></span></header>
+                <div class="tabla-envoltura" id="cmpMejores"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-pestana" id="c-todas" role="tabpanel" aria-labelledby="tab-c-todas">
+          <div class="tarjeta">
+            <header>
+              <h3>Historial completo de la federacion</h3>
+              <span class="pista" id="fCuenta"></span>
+            </header>
+            <div class="tarjeta-cuerpo">
+              <div class="fila-campos">
+                <div class="campo"><label for="fEstilo">Estilo</label><select id="fEstilo"></select></div>
+                <div class="campo"><label for="fDistancia">Distancia</label><select id="fDistancia"></select></div>
+                <div class="campo"><label for="fPiscina">Piscina</label><select id="fPiscina"></select></div>
+                <div class="campo"><label for="fTemporada">Temporada</label><select id="fTemporada"></select></div>
+                <div class="campo"><label for="fTipo">Tipo de fila</label>
+                  <select id="fTipo">
+                    <option value="completas">Solo marcas mias</option>
+                    <option value="">Todo el historial</option>
+                    <option value="pases">Solo pases (tramos de otra prueba)</option>
+                    <option value="raras">Solo datos raros</option>
+                  </select>
+                </div>
+                <div class="campo"><label for="fLugar">Sede o club <small>(texto)</small></label><input type="search" id="fLugar" placeholder="p. ej. Piscina-C"></div>
+              </div>
+              <div class="fila mt">
+                <button class="boton mini suave" type="button" id="fLimpiar">Quitar filtros</button>
+                <span class="ayuda">Para ordenar, pincha en el titulo de una columna. Y donde ponga «pases», para ver los tramos que ese dia hice dentro de esa prueba.</span>
+                <span class="ayuda" id="fAviso"></span>
+              </div>
+              <div class="tabla-envoltura envoltura-alta mt" id="fTabla"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-pestana" id="c-pases" role="tabpanel" aria-labelledby="tab-c-pases">
+          <div class="rejilla side">
+            <div class="tarjeta">
+              <header>
+                <h3>Mis tramos, competicion a competicion</h3>
+                <span class="pista" id="psPista"></span>
+              </header>
+              <div class="tarjeta-cuerpo">
+                <div class="fila-campos">
+                  <div class="campo"><label for="psPrueba">Prueba</label><select id="psPrueba"></select></div>
+                  <div class="campo"><label for="psPaso">Tramo a seguir</label><select id="psPaso"></select></div>
+                  <div class="campo"><label for="psPiscina">Piscina</label><select id="psPiscina"></select></div>
+                </div>
+                <div class="grafico mt" id="psGrafico"><div class="globo" id="psGlobo"></div></div>
+                <div class="tabla-envoltura mt" id="psTabla"></div>
+              </div>
+            </div>
+            <div class="apilar">
+              <div class="tarjeta nota">
+                <header><h3>Que dicen tus tramos</h3></header>
+                <div class="tarjeta-cuerpo" id="psLectura"></div>
+              </div>
+              <div class="tarjeta">
+                <header><h3>Tu mejor dia, tramo a tramo</h3><span class="pista" id="psMejorPista"></span></header>
+                <div class="tabla-envoltura" id="psMejor"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---------- PLAN ---------- -->
+      <section class="vista" id="vista-plan">
+        <div class="rejilla k2" id="objetivosPlan"></div>
+        <div class="tarjeta nota mt" id="planEntrenador"></div>
+        <h2 class="mt" style="margin-top:26px">Semanas</h2>
+        <div class="semanas mt" id="planSemanas"></div>
+        <div class="rejilla side mt">
+          <div class="tarjeta">
+            <header><h3>Bloques hasta el 3.000</h3><span class="pista">del 400 al fondo de marzo</span></header>
+            <div class="tabla-envoltura" id="planBloques"></div>
+          </div>
+          <div class="apilar">
+            <div class="tarjeta">
+              <header><h3>Reglas de carga</h3></header>
+              <div class="tarjeta-cuerpo"><ul class="limpia" id="planReglas"></ul></div>
+            </div>
+            <div class="tarjeta">
+              <header><h3>Decisiones tomadas</h3></header>
+              <div class="tarjeta-cuerpo"><ul class="limpia" id="planDecisiones"></ul></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tarjeta mt">
+          <header><h3>Como va el plan</h3><span class="pista" id="evalPista"></span></header>
+          <div class="tarjeta-cuerpo" id="evalSemanas"></div>
+        </div>
+
+        <div class="tarjeta mt">
+          <header><h3>Con que comparo</h3><span class="pista">los cortes de tu propio historico</span></header>
+          <div class="tarjeta-cuerpo" id="parteCortes"></div>
+        </div>
+      </section>
+
+      <!-- ---------- ENTRENAMIENTOS ---------- -->
+      <section class="vista" id="vista-entrenos">
+        <div class="tarjeta">
+          <header>
+            <h3>Sesiones del reloj</h3>
+            <span class="pista" id="entrenosCuenta"></span>
+          </header>
+          <div class="tarjeta-cuerpo">
+            <div class="acciones-parte">
+              <button class="boton principal" type="button" id="garmTraer"><svg class="ico" aria-hidden="true"><use href="#i-descarga"/></svg>Traer lo nuevo del Garmin</button>
+              <button class="boton" type="button" id="evalUltimo"><svg class="ico" aria-hidden="true"><use href="#i-parte"/></svg>Evaluar el ultimo entrenamiento</button>
+              <span class="ayuda">Baja de Garmin Connect las sesiones que todavia no estan en la base (ultimas 3 semanas, natacion y lo demas) y las mete aqui. Puede tardar un poco.</span>
+            </div>
+            <p class="ayuda mt" id="garmAviso" hidden></p>
+            <div id="evalUltimoCaja"></div>
+            <div class="fila-campos">
+              <div class="campo"><label for="entrenosBuscar">Buscar</label><input type="search" id="entrenosBuscar" placeholder="nombre, piscina, sensacion..."></div>
+            </div>
+            <p class="ayuda">Para ordenar por fecha o por tiempo (o por cualquier otra columna), pincha en el titulo de esa columna.</p>
+            <div class="tabla-envoltura envoltura-alta mt" id="entrenosTabla"></div>
+            <p class="ayuda mt">Pincha una sesion de piscina y se abre su <b>parte</b>: los intervalos agrupados en series,
+            el material, la intensidad y el SWOLF.</p>
+          </div>
+        </div>
+
+        <div class="tarjeta mt" id="entrenosCajaParte" hidden>
+          <header>
+            <h3>Parte de la sesion</h3>
+            <span class="pista" id="entrenosPartePista"></span>
+          </header>
+          <div class="tarjeta-cuerpo" id="entrenosDetalle"></div>
+        </div>
+
+        <div class="tarjeta mt">
+          <header><h3>Partes que ya constan</h3><span class="pista">de la base, ya subidos</span></header>
+          <div class="tabla-envoltura" id="parteImportados"></div>
+        </div>
+
+        <div class="rejilla side mt">
+          <div class="tarjeta">
+            <header><h3>Tramos que repito</h3><span class="pista" id="segmentosCuenta"></span></header>
+            <div class="tarjeta-cuerpo">
+              <input type="search" id="segmentosBuscar" placeholder="buscar un tramo: 400, 1000, 6x100...">
+              <div class="tabla-envoltura envoltura-alta mt" id="segmentosTabla"></div>
+            </div>
+          </div>
+          <div class="tarjeta">
+            <header><h3>Piezas de fondo</h3><span class="pista">mas de 800 m de una tirada</span></header>
+            <div class="tabla-envoltura envoltura-alta" id="bloquesLargos"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---------- GIMNASIO ---------- -->
+      <section class="vista" id="vista-gimnasio">
+        <div class="kpis" id="gimKpis"></div>
+
+        <h2 class="mt" style="margin-top:26px">Lo que haces habitualmente</h2>
+        <p class="ayuda">Marca lo que has hecho hoy: <strong>series, repeticiones y kilos</strong>, y dale a Guardar.
+        La proxima vez los campos vienen con lo ultimo que levantaste. Si hoy has hecho algo que no esta en la lista,
+        lo anades en la ultima fila: en cuanto lo guardes, ese ejercicio pasa a ser uno de los habituales.</p>
+        <div class="fila-campos mt">
+          <div class="campo">
+            <label for="gimFecha">Dia</label>
+            <input type="date" id="gimFecha">
+          </div>
+          <button class="boton principal" id="gimGuardar" type="button">Guardar</button>
+          <span class="pista" id="gimAviso"></span>
+        </div>
+        <div class="mt" id="gimPlantilla"></div>
+
+        <h3 class="mt">La fuerza que sostiene el hombro</h3>
+        <p class="pista">La dosis preventiva del anexo T.7: dos sesiones por semana, cinco ejercicios y muchas
+          repeticiones, doce semanas. Aqui se ve si esta empezada, si ya toca avisar por dejarla y que carga lleva
+          la semana. Los kilos solo suman cuando se apuntan: el reloj no sabe de ejercicios.</p>
+        <div id="fueDosis" class="mt"></div>
+        <div id="fueCarga" class="mt"></div>
+        <div id="fueSeguro" class="mt"></div>
+
+        <h3 class="mt">Ultimas sesiones apuntadas</h3>
+        <div id="gimHistorico" class="mt"></div>
+
+        <h2 class="mt" style="margin-top:26px">Solicitar trabajo de gimnasio</h2>
+        <div class="rejilla side mt">
+          <div class="tarjeta">
+            <header><h3>Pedir una sesion</h3><span class="pista">se guarda como peticion y el agente la escribe</span></header>
+            <div class="tarjeta-cuerpo">
+              <div class="fila-campos">
+                <div class="campo">
+                  <label for="gsObjetivo">Que quieres trabajar</label>
+                  <select id="gsObjetivo">
+                    <option value="Pecho y brazos">Pecho y brazos</option>
+                    <option value="Core">Core</option>
+                    <option value="Traccion (espalda)">Traccion (espalda)</option>
+                    <option value="Tren inferior">Tren inferior</option>
+                    <option value="Sesion completa">Sesion completa</option>
+                    <option value="Solo movilidad y gomas">Solo movilidad y gomas</option>
+                  </select>
+                </div>
+                <div class="campo">
+                  <label for="gsMinutos">Cuanto tiempo tienes <small>(min)</small></label>
+                  <input class="num" type="number" id="gsMinutos" min="10" max="120" step="5" value="45">
+                </div>
+                <div class="campo">
+                  <label for="gsDonde">Donde</label>
+                  <select id="gsDonde">
+                    <option value="Gimnasio">Gimnasio</option>
+                    <option value="Casa">Casa</option>
+                  </select>
+                </div>
+                <div class="campo">
+                  <label for="gsCuando">Para cuando</label>
+                  <input type="date" id="gsCuando">
+                </div>
+              </div>
+              <div class="campo mt">
+                <label>Material que tienes</label>
+                <div class="opciones" id="gsMaterial"></div>
+              </div>
+              <div class="campo mt">
+                <label for="gsMolestias">Molestias o cosas a evitar</label>
+                <input type="text" id="gsMolestias" value="Hombro: sin press por encima de la cabeza si molesta">
+              </div>
+              <div class="campo mt">
+                <label for="gsNotas">Notas <small>(opcional)</small></label>
+                <textarea id="gsNotas" rows="2" placeholder="p. ej. vengo de nadar 2 km, quiero algo corto"></textarea>
+              </div>
+              <div class="fila mt">
+                <button class="boton principal" type="button" id="gsAnadir"><svg class="ico" aria-hidden="true"><use href="#i-mas"/></svg>Solicitar trabajo de gimnasio</button>
+                <button class="boton suave" type="button" id="gsEjemplo">Rellenar un ejemplo</button>
+                <span class="ayuda" id="gsAviso"></span>
+              </div>
+            </div>
+          </div>
+          <div class="tarjeta">
+            <header><h3>Peticiones</h3><span class="pista" id="gsCuentaDe">0</span></header>
+            <div class="tarjeta-cuerpo">
+              <div class="lista" id="gsLista"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rejilla side mt">
+          <div class="tarjeta">
+            <header><h3>Sesiones que me ha mandado el agente</h3><span class="pista">prescritas</span></header>
+            <div class="tarjeta-cuerpo" id="gimPrescritas"></div>
+          </div>
+          <div class="tarjeta">
+            <header><h3>Sesiones de gimnasio del reloj</h3><span class="pista">solo duracion</span></header>
+            <div class="tabla-envoltura envoltura-alta" id="gimReloj"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---------- APUNTAR ---------- -->
+      <section class="vista" id="vista-apuntar">
+        <div class="rejilla side">
+          <div class="tarjeta">
+            <header><h3>Apuntar un entrenamiento</h3><span class="pista">lo que el reloj no registra</span></header>
+            <div class="tarjeta-cuerpo">
+              <div class="fila-campos">
+                <div class="campo"><label for="apFecha">Fecha</label><input type="date" id="apFecha"></div>
+                <div class="campo"><label for="apTipo">Tipo</label>
+                  <select id="apTipo">
+                    <option value="natacion">Natacion</option>
+                    <option value="gimnasio">Gimnasio</option>
+                    <option value="bici">Bici</option>
+                    <option value="otro">Otro</option>
+                    <option value="sueno">Sueno (como he dormido)</option>
+                  </select>
+                </div>
+                <div class="campo"><label for="apDistancia">Distancia <small>(m o km)</small></label><input class="num" type="number" id="apDistancia" step="50" placeholder="2000"></div>
+                <div class="campo"><label for="apMinutos">Minutos</label><input class="num" type="number" id="apMinutos" step="1" placeholder="55"></div>
+                <div class="campo"><label for="apPiscina">Piscina <small>(m)</small></label><input class="num" type="number" id="apPiscina" step="1" placeholder="25"></div>
+                <div class="campo"><label for="apFc">Pulso medio</label><input class="num" type="number" id="apFc" step="1" placeholder="130"></div>
+                <div class="campo"><label for="apMaterial">Material</label>
+                  <select id="apMaterial">
+                    <option value="">Sin material</option>
+                    <option value="palas">Palas</option>
+                    <option value="aletas">Aletas</option>
+                    <option value="pull">Pull</option>
+                    <option value="tabla">Tabla</option>
+                    <option value="varios">Varios</option>
+                  </select>
+                </div>
+                <div class="campo"><label for="apSensacion">Sensacion <small>(0-100; si es el sueno, como te has levantado)</small></label><input class="num" type="number" id="apSensacion" min="0" max="100" step="5" placeholder="75"></div>
+                <div class="campo"><label for="apSueno">Horas dormidas <small>(solo si el tipo es sueno)</small></label><input class="num" type="number" id="apSueno" min="0" max="24" step="0.5" placeholder="6"></div>
+              </div>
+              <div class="campo mt"><label for="apNotas">Notas</label><textarea id="apNotas" rows="3" placeholder="como ha ido, que me ha costado, que cambie..."></textarea></div>
+              <div class="fila mt">
+                <button class="boton principal" type="button" id="apAnadir"><svg class="ico" aria-hidden="true"><use href="#i-mas"/></svg>Anadir a la lista</button>
+                <span class="ayuda" id="apAviso"></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="tarjeta">
+            <header>
+              <h3>Lo que tengo apuntado sin subir</h3>
+              <span class="pista" id="apCuenta"></span>
+            </header>
+            <div class="tarjeta-cuerpo">
+              <div class="lista" id="apLista"></div>
+              <div class="fila mt">
+                <button class="boton principal" type="button" id="apDescargar"><svg class="ico" aria-hidden="true"><use href="#i-descarga"/></svg>Descargar fichero</button>
+                <button class="boton" type="button" id="apCopiar"><svg class="ico" aria-hidden="true"><use href="#i-copiar"/></svg>Copiar todo</button>
+              </div>
+              <p class="ayuda mt">El fichero va a tu carpeta de Descargas como <code class="ahora">partes_entrenador.json</code>.
+              Luego se mete en la base con <code class="ahora">python -m entrenador.cli apuntes --importar</code>.
+              Esta lista no sale de este ordenador.</p>
+              <div id="apBase"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tarjeta mt">
+          <header><h3>Ya importado a la base</h3><span class="pista">apuntes que constan</span></header>
+          <div class="tabla-envoltura" id="apImportados"></div>
+        </div>
+      </section>
+
+      <!-- ---------- VOLUMEN ---------- -->
+      <section class="vista" id="vista-volumen">
+        <div class="rejilla side">
+          <div class="tarjeta">
+            <header><h3>Metros por mes</h3><span class="pista">todo el historico de piscina</span></header>
+            <div class="tarjeta-cuerpo" id="volGrafico"></div>
+          </div>
+          <div class="tarjeta">
+            <header><h3>Resumen por ano</h3></header>
+            <div class="tabla-envoltura envoltura-alta" id="volTabla"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---------- PRUEBAS ---------- -->
+      <section class="vista" id="vista-pruebas">
+        <div class="rejilla side" id="pruebasCaja"></div>
+      </section>
+
+      <!-- ---------- BICI ---------- -->
+      <section class="vista" id="vista-bici">
+        <div class="kpis" id="biciKpis"></div>
+        <div class="rejilla side mt">
+          <div class="tarjeta">
+            <header><h3>Tramos que repito en bici</h3><span class="pista">del portal de bici</span></header>
+            <div class="tabla-envoltura envoltura-alta" id="biciSegmentos"></div>
+          </div>
+          <div class="tarjeta">
+            <header><h3>Ultimas salidas</h3></header>
+            <div class="tabla-envoltura envoltura-alta" id="biciSalidas"></div>
+          </div>
+        </div>
+        <div class="tarjeta mt">
+          <header><h3>Portal de bici completo</h3><span class="pista">mapas, tramos y comparativas</span></header>
+          <div class="tarjeta-cuerpo">
+            <a class="boton" href="strava/index.html">Abrir el portal de bici</a>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+      <section class="vista" id="vista-reglas">
+        <div class="rejilla side">
+          <div class="tarjeta">
+            <header><h3>Lo que te propone el entrenador</h3><span class="pista">cada dia, con los numeros que lo sostienen</span></header>
+            <div class="tarjeta-cuerpo">
+              <div class="fila-campos mt">
+                <button class="boton principal" id="regGenerar" type="button">Guardar la propuesta de esta semana</button>
+                <span class="pista" id="reglasAviso"></span>
+              </div>
+              <div class="mt" id="entrenadorKpis"></div>
+              <div class="mt" id="entrenadorLista"></div>
+            </div>
+          </div>
+          <div class="tarjeta">
+            <header><h3>El credito de cada regla</h3><span class="pista">cuantas veces se propone, que decides tu y si acierta</span></header>
+            <div class="tarjeta-cuerpo">
+              <div id="reglasCredito"></div>
+              <p class="pista mt">Mientras una regla no tenga una medida despues de la ventana, su veredicto es
+                <strong>sin datos</strong>: no se finge. Pincha una regla y se abre de donde sale, como se comprueba y en que
+                propuestas se ha usado.</p>
+            </div>
+          </div>
+        </div>
+        <div class="tarjeta mt">
+          <header><h3>La base de conocimiento</h3><span class="pista">el anexo T: que dice, con que respaldo y quien lo ha firmado</span></header>
+          <div class="tarjeta-cuerpo">
+            <div id="conocimientoKpis"></div>
+            <div class="mt" id="conocimientoLista"></div>
+            <p class="pista mt">Una seccion sin firma aparece <strong>sin revisar</strong>, y una afirmacion sin cita
+              literal aparece <strong>criterio</strong>: el motor no firma por nadie.</p>
+          </div>
+        </div>
+
+        <div class="tarjeta mt oculto" id="reglasDetalle">
+          <header><h3 id="reglasDetalleTitulo">El porque</h3><span class="pista">dato · regla · seccion del anexo T</span>
+            <button class="boton mini suave" id="reglasDetalleCerrar" type="button">Cerrar</button></header>
+          <div class="tarjeta-cuerpo" id="reglasDetalleCuerpo"></div>
+        </div>
+      </section>
+
+  </main>
+</div>
+
+<script>__JS__</script>
+</body>
+</html>

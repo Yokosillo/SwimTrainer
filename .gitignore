@@ -1,0 +1,28 @@
+# Lo que NO se sube al repositorio
+
+# Entorno y dependencias (se reinstalan; ver requirements.txt y package.json)
+.venv/
+node_modules/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+
+# Datos personales del atleta: nunca al repositorio
+data/
+export_*.zip
+*.db
+*.db-wal
+*.db-shm
+*.fit
+*.gpx
+*.tcx
+
+# Salidas generadas (se rehacen con `cli analizar`)
+cuadro/
+data/derived/
+
+# Cosas sueltas de una sesion de trabajo
+*.log
+tmp-*
+*.tmp
