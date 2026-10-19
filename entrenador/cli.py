@@ -410,7 +410,7 @@ def _conocimiento(cn, args) -> int:
         if not conocimiento.seccion(args.revisar):
             print(f"No existe la seccion {args.revisar} en el anexo.")
             return 1
-        quien = args.quien or "el atleta"
+        quien = args.quien or "atleta"
         conocimiento.marcar_revision(cn, args.revisar, quien, args.notas or "")
         firma = quien.strip().lower() in conocimiento.FIRMANTES
         print(f"{args.revisar} revisada por {quien}" +

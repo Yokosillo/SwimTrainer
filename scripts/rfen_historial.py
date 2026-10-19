@@ -142,7 +142,7 @@ def historial(e: str, opcion: str = "ResultadosNatacion", pausa: float = 0.3,
 
 
 def segundos(marca: str) -> float | None:
-    """'00:05:10.00' -> 299.39 segundos. None si la marca es imposible.
+    """'00:05:10.00' -> 310.0 segundos. None si la marca es imposible.
 
     En la base de la RFEN hay marcas corruptas tipo '00:1394:14.12' (minutos > 59):
     se descartan para que no figuren como 'mejor' marca de una prueba.

@@ -27,7 +27,7 @@ conservaban esos objetos.
 - Cualquier clon antiguo debe descartarse y volver a clonar.
 - GitHub puede conservar objetos antiguos en caché hasta que los purgue. No había forks.
   Si se quiere eliminación completa, hay que abrir una petición a GitHub Support.
-- La imagen Docker local contiene `plan_local.py` y `perfil_local.py`; **no se publica**.
+- La imagen Docker local contiene `plan_local.py`; **no se publica**. `perfil_local.py` es opcional y, si no existe, el panel se pinta sin nombre.
 
 ## Verificación reproducible
 
@@ -35,8 +35,8 @@ conservaban esos objetos.
 git log --all --oneline -- informes
 git log --all --oneline -- entrenador/plan.py
 git rev-list --all --objects | grep ' informes/'
-git grep -n -i -E 'oteiza|francisco|iregua|malia|pamplona|logro|vitoria|santurti' $(git rev-list --all)
 ```
 
-El resultado esperado es vacío (salvo el prefijo histórico `iregua` de la migración de
-`localStorage`, que no identifica a nadie).
+La búsqueda de identificadores concretos se hace con el patrón privado que vive en el repositorio
+privado, no en esta documentación pública. El resultado esperado es vacío (salvo el prefijo
+histórico de la migración de `localStorage`, que no identifica a nadie).

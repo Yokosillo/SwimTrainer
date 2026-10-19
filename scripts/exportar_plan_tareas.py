@@ -72,7 +72,7 @@ def main() -> int:
         fila["estado"] = anteriores.get(fila["id"], "pendiente")
     with open(args.salida, "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=["id", "fase", "fase_nombre", "tarea", "depende_de",
-                                          "aceptacion", "prueba", "estado"])
+                                          "aceptacion", "prueba", "estado"], lineterminator="\n")
         w.writeheader()
         w.writerows(filas)
     print(f"{len(filas)} tareas exportadas a {args.salida}")
