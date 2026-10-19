@@ -26,9 +26,11 @@ import os
 import re
 import sqlite3
 import tomllib
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+from types import MappingProxyType
 
 RUTA_CONOCIMIENTO = "conocimiento"
 FICHEROS = (
@@ -70,9 +72,18 @@ def _num(valor) -> float | None:
         return None
 
 
-def _dict(valor) -> dict:
-    """Una tabla TOML; si el fichero trae otra cosa, se trata como vacia y el validador lo dice."""
-    return dict(valor) if isinstance(valor, dict) else {}
+def _congelar(valor):
+    """Convierte dicts/listas anidadas en mapas y tuplas inmutables."""
+    if isinstance(valor, Mapping):
+        return MappingProxyType({str(k): _congelar(v) for k, v in valor.items()})
+    if isinstance(valor, (list, tuple)):
+        return tuple(_congelar(x) for x in valor)
+    return valor
+
+
+def _mapa(valor) -> Mapping:
+    """Una tabla TOML inmutable; si el fichero trae otra cosa, se trata como vacia y el validador lo dice."""
+    return _congelar(valor) if isinstance(valor, Mapping) else MappingProxyType({})
 
 
 def _ent(valor) -> int | None:
@@ -234,6 +245,7 @@ class Conocimiento:
     version: str = ""
     hash: str = ""
     ficheros: tuple[tuple[str, str], ...] = ()
+    errores_carga: tuple[dict, ...] = ()
 
     def hay_conocimiento(self) -> bool:
         return bool(self.fuentes or self.afirmaciones or self.parametros or self.reglas
@@ -244,8 +256,17 @@ class Conocimiento:
 # --------------------------------------------------------------------------- carga
 
 
+def _a_json(dato):
+    """Convierte mapas inmutables y tuplas a algo que `json.dumps` serialice igual."""
+    if isinstance(dato, Mapping):
+        return {str(k): _a_json(v) for k, v in dato.items()}
+    if isinstance(dato, (list, tuple)):
+        return [_a_json(x) for x in dato]
+    return dato
+
+
 def _json_canonico(dato) -> str:
-    return json.dumps(dato, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
+    return json.dumps(_a_json(dato), ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
 
 
 def _sha256_texto(texto: str) -> str:
@@ -256,12 +277,20 @@ def _sha256_fichero(ruta: Path) -> str:
     return hashlib.sha256(ruta.read_bytes()).hexdigest()
 
 
-def _leer_toml(base: Path, nombre: str) -> dict:
+def _leer_toml(base: Path, nombre: str, errores: list[dict]) -> dict:
     ruta = base / nombre
     if not ruta.is_file():
         return {}
-    with ruta.open("rb") as f:
-        return tomllib.load(f)
+    try:
+        with ruta.open("rb") as f:
+            return tomllib.load(f)
+    except tomllib.TOMLDecodeError as exc:
+        errores.append({"tipo": "toml_invalido", "fichero": nombre,
+                        "detalle": f"{nombre}: sintaxis TOML rota: {exc}"})
+    except (OSError, UnicodeDecodeError) as exc:
+        errores.append({"tipo": "toml_ilegible", "fichero": nombre,
+                        "detalle": f"{nombre}: no se puede leer: {exc}"})
+    return {}
 
 
 def _fuente(d: dict) -> Fuente:
@@ -303,10 +332,10 @@ def _parametro(d: dict) -> Parametro:
 def _regla(d: dict) -> Regla:
     return Regla(
         id=_s(d.get("id")), version=_ent(d.get("version")) or 1, enunciado=_s(d.get("enunciado")),
-        cuando=_dict(d.get("cuando")), entonces=_dict(d.get("entonces")),
+        cuando=_mapa(d.get("cuando")), entonces=_mapa(d.get("entonces")),
         evidencia=_lista(d.get("evidencia")), parametros=_lista(d.get("parametros")),
         contraindicaciones=_lista(d.get("contraindicaciones")),
-        metrica_exito=_dict(d.get("metrica_exito")),
+        metrica_exito=_mapa(d.get("metrica_exito")),
         revisar_en_dias=_ent(d.get("revisar_en_dias")), confianza=_num(d.get("confianza")),
         estado=_s(d.get("estado")) or "revisada", estimulo=_s(d.get("estimulo")),
         notas=_s(d.get("notas")),
@@ -346,7 +375,7 @@ def _receta(d: dict) -> Receta:
 
 
 def _calendario(d: dict) -> Calendario:
-    d = _dict(d)
+    d = _mapa(d)
     return Calendario(
         dias_entrenador=_lista(d.get("dias_entrenador")), dias_propios=_lista(d.get("dias_propios")),
         dia_bici=_s(d.get("dia_bici")), dias_calidad=_lista(d.get("dias_calidad")),
@@ -361,10 +390,11 @@ def cargar(ruta: str = RUTA_CONOCIMIENTO) -> Conocimiento:
     `Conocimiento` vacio con `version=""`; el validador lo rechaza (`sin_conocimiento`).
     """
     base = Path(ruta)
-    crudos: dict[str, dict] = {nombre: _leer_toml(base, nombre) for nombre in FICHEROS}
+    errores_carga: list[dict] = []
+    crudos: dict[str, dict] = {nombre: _leer_toml(base, nombre, errores_carga) for nombre in FICHEROS}
     canonico = _json_canonico(crudos)
     hash_ = _sha256_texto(canonico)
-    hay = any(bool(v) for v in crudos.values())
+    hay = any(bool(v) for v in crudos.values()) and not errores_carga
     ficheros = tuple(sorted((nombre, _sha256_fichero(base / nombre))
                             for nombre in FICHEROS if (base / nombre).is_file()))
     return Conocimiento(
@@ -384,6 +414,7 @@ def cargar(ruta: str = RUTA_CONOCIMIENTO) -> Conocimiento:
         version=(f"KV-{hash_[:16]}" if hay else ""),
         hash=(hash_ if hay else ""),
         ficheros=ficheros,
+        errores_carga=tuple(errores_carga),
     )
 
 
@@ -399,6 +430,7 @@ def estructura(c: Conocimiento | None = None, ruta: str = RUTA_CONOCIMIENTO) -> 
         "hash": c.hash,
         "ficheros": [{"nombre": n, "sha256": h} for n, h in c.ficheros],
         "conteos": _conteos(c),
+        "errores_carga": list(c.errores_carga),
     }
 
 
@@ -436,6 +468,28 @@ def _aviso(avisos: list, tipo: str, detalle: str, **extra) -> None:
     avisos.append({"tipo": tipo, "detalle": detalle, **extra})
 
 
+def _requerido(errores: list, entidad: str, id_: str, campo: str, valor) -> None:
+    """Error estructurado para un campo obligatorio vacio."""
+    if not _s(valor):
+        _error(errores, "campo_obligatorio", f"{entidad} {id_}: falta `{campo}`",
+               id=id_, campo=campo, entidad=entidad)
+
+
+def _normaliza(texto: str) -> str:
+    return re.sub(r"\s+", " ", _s(texto).strip().strip('"').strip("'")).strip().lower()
+
+
+def _cita_en_fuente(cita_local: str, fuente: Fuente) -> bool:
+    """La cita local tiene que estar literalmente en alguna cita de la fuente (sin espacios de mas)."""
+    buscada = _normaliza(cita_local)
+    if not buscada:
+        return False
+    citas = list(fuente.citas) or []
+    if fuente.cita:
+        citas.append(fuente.cita)
+    return any(buscada in _normaliza(c) for c in citas)
+
+
 def validar(c: Conocimiento | None = None, ruta: str = RUTA_CONOCIMIENTO) -> dict:
     """Valida el TOML. Devuelve `{ok, errores, avisos, version, hash, conteos}`.
 
@@ -445,6 +499,7 @@ def validar(c: Conocimiento | None = None, ruta: str = RUTA_CONOCIMIENTO) -> dic
     c = c or cargar(ruta)
     errores: list[dict] = []
     avisos: list[dict] = []
+    errores.extend(c.errores_carga)
     if not c.hay_conocimiento():
         _error(errores, "sin_conocimiento", f"no hay conocimiento en {ruta} (faltan los TOML o estan vacios)")
         return {"ok": False, "errores": errores, "avisos": avisos, "version": "", "hash": "",
@@ -494,8 +549,12 @@ def validar(c: Conocimiento | None = None, ruta: str = RUTA_CONOCIMIENTO) -> dic
             if ref.id not in fuentes:
                 _error(errores, "fuente_inexistente",
                        f"{a.id} cita {ref.id}, que no existe", id=a.id, fuente=ref.id)
-            if not ref.cita_local:
-                _aviso(avisos, "cita_local_vacia", f"{a.id} cita {ref.id} sin cita local", id=a.id)
+            elif not ref.cita_local:
+                _error(errores, "cita_local_vacia",
+                       f"{a.id} cita {ref.id} sin cita local", id=a.id, fuente=ref.id)
+            elif not _cita_en_fuente(ref.cita_local, fuentes[ref.id]):
+                _error(errores, "cita_local_inexistente",
+                       f"{a.id}: la cita_local no aparece en {ref.id}", id=a.id, fuente=ref.id)
         if a.criterio_firmado and not a.firmado_por:
             _aviso(avisos, "firma_pendiente", f"{a.id} es criterio firmado pero no tiene firma", id=a.id)
 
@@ -503,6 +562,7 @@ def validar(c: Conocimiento | None = None, ruta: str = RUTA_CONOCIMIENTO) -> dic
     for p in c.parametros:
         if not p.nombre:
             _error(errores, "parametro_sin_nombre", f"{p.id} no tiene nombre", id=p.id)
+        _requerido(errores, "parametro", p.id, "valor", p.valor)
         if p.procedencia not in PROCEDENCIAS:
             _error(errores, "parametro_sin_procedencia",
                    f"{p.id} tiene procedencia {p.procedencia!r}; validas: {', '.join(PROCEDENCIAS)}", id=p.id)
@@ -549,6 +609,7 @@ def validar(c: Conocimiento | None = None, ruta: str = RUTA_CONOCIMIENTO) -> dic
     for e in c.estimulos:
         if not e.nombre:
             _error(errores, "estimulo_sin_nombre", f"{e.id} no tiene nombre", id=e.id)
+        _requerido(errores, "estimulo", e.id, "entrena", e.entrena)
         for af in e.afirmaciones:
             if af not in afirmaciones:
                 _error(errores, "afirmacion_inexistente", f"{e.id} cita {af}", id=e.id, afirmacion=af)
@@ -572,11 +633,13 @@ def validar(c: Conocimiento | None = None, ruta: str = RUTA_CONOCIMIENTO) -> dic
 
     # Fuentes huerfanas: definidas y no citadas por afirmaciones ni parametros.
     for f in c.fuentes:
+        for campo in ("tipo", "titulo", "url"):
+            _requerido(errores, "fuente", f.id, campo, getattr(f, campo))
+        if not f.cita and not f.citas:
+            _requerido(errores, "fuente", f.id, "cita", "")
         if f.id not in citadas:
             _aviso(avisos, "fuente_huerfana",
                    f"{f.id} esta definida y no se cita en el piloto", fuente=f.id)
-        if not f.citas and not f.cita:
-            _error(errores, "fuente_sin_cita", f"{f.id} no trae cita literal", fuente=f.id)
 
     if not c.calendario.dias_entrenador and not c.calendario.dias_propios:
         _aviso(avisos, "calendario_vacio", "calendario.toml no declara dias del entrenador ni propios")
