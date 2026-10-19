@@ -3815,6 +3815,13 @@ def pruebas_motor_conocimiento_f3() -> None:
               == golden._normalizar_salida("Plan recalculado el 2026-10-20 (x)")
               and golden._normalizar_salida("Quedan 26 dias")
               == golden._normalizar_salida("Quedan 27 dias"))
+    if os.path.isdir("data/derived/golden/f1"):
+        import subprocess
+        proc = subprocess.run([sys.executable, "scripts/golden.py", "--comparar",
+                               "--dir", "data/derived/golden/f1"],
+                              cwd=os.getcwd(), capture_output=True, text=True)
+        comprobar("F3-R-06: golden f1 5/5 con la fecha de hoy",
+                  proc.returncode == 0, (proc.stdout or proc.stderr)[-300:])
 
     with tempfile.TemporaryDirectory() as d:
         dst = os.path.join(d, "conocimiento")
