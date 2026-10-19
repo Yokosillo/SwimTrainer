@@ -70,6 +70,11 @@ def _num(valor) -> float | None:
         return None
 
 
+def _dict(valor) -> dict:
+    """Una tabla TOML; si el fichero trae otra cosa, se trata como vacia y el validador lo dice."""
+    return dict(valor) if isinstance(valor, dict) else {}
+
+
 def _ent(valor) -> int | None:
     if valor is None or valor == "":
         return None
@@ -298,10 +303,10 @@ def _parametro(d: dict) -> Parametro:
 def _regla(d: dict) -> Regla:
     return Regla(
         id=_s(d.get("id")), version=_ent(d.get("version")) or 1, enunciado=_s(d.get("enunciado")),
-        cuando=dict(d.get("cuando") or {}), entonces=dict(d.get("entonces") or {}),
+        cuando=_dict(d.get("cuando")), entonces=_dict(d.get("entonces")),
         evidencia=_lista(d.get("evidencia")), parametros=_lista(d.get("parametros")),
         contraindicaciones=_lista(d.get("contraindicaciones")),
-        metrica_exito=dict(d.get("metrica_exito") or {}),
+        metrica_exito=_dict(d.get("metrica_exito")),
         revisar_en_dias=_ent(d.get("revisar_en_dias")), confianza=_num(d.get("confianza")),
         estado=_s(d.get("estado")) or "revisada", estimulo=_s(d.get("estimulo")),
         notas=_s(d.get("notas")),
@@ -341,7 +346,7 @@ def _receta(d: dict) -> Receta:
 
 
 def _calendario(d: dict) -> Calendario:
-    d = d or {}
+    d = _dict(d)
     return Calendario(
         dias_entrenador=_lista(d.get("dias_entrenador")), dias_propios=_lista(d.get("dias_propios")),
         dia_bici=_s(d.get("dia_bici")), dias_calidad=_lista(d.get("dias_calidad")),
