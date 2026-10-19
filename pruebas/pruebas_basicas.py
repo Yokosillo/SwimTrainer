@@ -3389,14 +3389,18 @@ def pruebas_conocimiento_toml() -> None:
 
     from entrenador import cli, conocimiento_toml as ct, db
 
-    c = ct.cargar()
+    # F2 se prueba sobre el conocimiento publico: la capa local de F3 se prueba aparte.
+    publico = tempfile.mkdtemp(prefix="f2-publico-")
+    destino_publico = os.path.join(publico, "conocimiento")
+    shutil.copytree("conocimiento", destino_publico, ignore=shutil.ignore_patterns("local"))
+    c = ct.cargar(destino_publico)
     comprobar("F2-02: el TOML carga las 22 fuentes y el piloto R2",
               len(c.fuentes) == 22 and len(c.afirmaciones) == 2 and len(c.parametros) == 2
-              and len(c.reglas) == 1 and len(c.estimulos) == 1 and len(c.recetas) == 1,
+              and len(c.reglas) == 1 and len(c.estimulos) == 10 and len(c.recetas) == 7,
               str(ct.estructura(c)["conteos"]))
     comprobar("F2-05: la version es KV-* y el hash es sha256",
               c.version.startswith("KV-") and len(c.hash) == 64)
-    comprobar("F2-05: misma entrada, mismo hash", ct.cargar().version == c.version)
+    comprobar("F2-05: misma entrada, mismo hash", ct.cargar(destino_publico).version == c.version)
 
     v = ct.validar(c)
     comprobar("F2-03: el piloto valida sin errores", v["ok"] and not v["errores"], str(v["errores"]))
@@ -3414,7 +3418,7 @@ def pruebas_conocimiento_toml() -> None:
 
     def copia(base: str) -> str:
         dst = os.path.join(base, "conocimiento")
-        shutil.copytree("conocimiento", dst)
+        shutil.copytree("conocimiento", dst, ignore=shutil.ignore_patterns("local"))
         return dst
 
     def append(ruta: str, texto: str) -> None:
@@ -3582,12 +3586,12 @@ def pruebas_conocimiento_toml() -> None:
     cuenta = lambda t: cn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
     comprobar("F2-04: la sincronizacion crea las tablas y las filas",
               r["ok"] and cuenta("fuente") == 22 and cuenta("afirmacion") == 2
-              and cuenta("parametro") == 2 and cuenta("regla") == 1 and cuenta("receta") == 1
-              and cuenta("receta_paso") == 3 and cuenta("conocimiento_version") == 1,
+              and cuenta("parametro") == 2 and cuenta("regla") == 1 and cuenta("receta") == 7
+              and cuenta("receta_paso") == 19 and cuenta("conocimiento_version") == 1,
               str({t: cuenta(t) for t in ("fuente", "afirmacion", "parametro", "regla", "receta", "receta_paso")}))
     ct.sincronizar(cn, c)
     comprobar("F2-04: sincronizar dos veces no duplica",
-              cuenta("fuente") == 22 and cuenta("receta_paso") == 3 and cuenta("conocimiento_version") == 1)
+              cuenta("fuente") == 22 and cuenta("receta_paso") == 19 and cuenta("conocimiento_version") == 1)
     fila = cn.execute("SELECT cuando_json, metrica_exito_json FROM regla WHERE id='RG-002'").fetchone()
     comprobar("F2-08: RG-002 conserva condicion y metrica", "especifico_400" in fila[0]
               and "ritmo_serie" in fila[1], str(tuple(fila)))
@@ -3640,21 +3644,125 @@ def pruebas_conocimiento_toml() -> None:
     # CLI: version, estructura y validacion JSON.
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
-        rc = cli.main(["conocimiento", "--version"])
+        rc = cli.main(["conocimiento", "--ruta-toml", destino_publico, "--version"])
     comprobar("F2-08: cli conocimiento --version", rc == 0 and "KV-" in buf.getvalue(), buf.getvalue().strip())
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
-        rc = cli.main(["conocimiento", "--estructura", "--json"])
+        rc = cli.main(["conocimiento", "--ruta-toml", destino_publico, "--estructura", "--json"])
     estructura = _json.loads(buf.getvalue())
     comprobar("F2-08: cli conocimiento --estructura --json",
               rc == 0 and estructura["conteos"]["fuentes"] == 22, str(estructura.get("conteos")))
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
-        rc = cli.main(["conocimiento", "--validar", "--json"])
+        rc = cli.main(["conocimiento", "--ruta-toml", destino_publico, "--validar", "--json"])
     val = _json.loads(buf.getvalue())
     comprobar("F2-08: cli conocimiento --validar --json es valido y ok",
               rc == 0 and val["ok"] and val["toml"]["ok"] and val["version"] == c.version,
               f"rc={rc}")
+    shutil.rmtree(publico, ignore_errors=True)
+
+
+def pruebas_motor_conocimiento_f3() -> None:
+    """F3: overlay publico+local, adaptador v1/v2/dual, firmas y no duplicacion."""
+    print("\nF3. Motor de conocimiento: publico + local y adaptador v1/v2")
+    import contextlib
+    import io
+    import shutil
+
+    from entrenador import cli, conocimiento_toml as ct, estimulos, motor_conocimiento, planificador, reglas
+
+    c = ct.cargar()
+    comprobar("F3-00: el loader mergea publico + local",
+              c.local and len(c.estimulos) == 10 and len(c.materiales) == 3
+              and len(c.reglas) == 9 and len(c.recetas) == 7,
+              str(ct._conteos(c)))
+    comprobar("F3-00: la version incluye el local", c.version.startswith("KV-") and bool(c.hash))
+    v = ct.validar(c)
+    comprobar("F3-00/02/03: el conocimiento mergeado valida", v["ok"] and not v["errores"], str(v["errores"]))
+
+    # Ausencia de local: publico solo, aviso y sin reventar.
+    with tempfile.TemporaryDirectory() as d:
+        dst = os.path.join(d, "conocimiento")
+        shutil.copytree("conocimiento", dst, ignore=shutil.ignore_patterns("local"))
+        c_pub = ct.cargar(dst)
+        comprobar("F3-00: sin local, el publico se carga y la version cambia",
+                  not c_pub.local and c_pub.version and c_pub.version != c.version,
+                  f"{c_pub.version} vs {c.version}")
+        v_pub = ct.validar(c_pub)
+        comprobar("F3-00: sin local, se avisa y no falla",
+                  v_pub["ok"] and any(a["tipo"] == "sin_conocimiento_local" for a in v_pub["avisos"]),
+                  str([a["tipo"] for a in v_pub["avisos"]][:5]))
+        datos_pub = motor_conocimiento.datos(c_pub)
+        comprobar("F3-00: sin local, el adaptador tiene el publico y no revienta",
+                  len(datos_pub["clases"]) == 10 and len(datos_pub["reglas"]) == 1
+                  and len(datos_pub["recetas"]) == 7, str({k: len(x) for k, x in datos_pub.items() if hasattr(x, '__len__')}))
+
+    datos = motor_conocimiento.datos(c)
+    comprobar("F3-01/05: el adaptador reproduce CLASES y MATERIAL de v1",
+              datos["clases"] == estimulos.CLASES and datos["material"] == estimulos.MATERIAL)
+    comprobar("F3-02/05: el adaptador reproduce REGLAS, REPARTO y MINIMOS de v1",
+              datos["reglas"] == reglas.REGLAS and datos["reparto"] == reglas.REPARTO_OBJETIVO
+              and datos["minimos"] == reglas.MINIMOS_OBLIGATORIOS)
+    comprobar("F3-03/05: el adaptador reproduce RECETAS y RECETA_DE_CLASE de v1",
+              datos["recetas"] == estimulos.RECETAS
+              and datos["receta_de_clase"] == estimulos.RECETA_DE_CLASE)
+    comprobar("F3-05: el adaptador reproduce el calendario de v1",
+              datos["calendario"]["dias"] == planificador.DIAS
+              and datos["calendario"]["dias_entrenador"] == planificador.DIAS_ENTRENADOR
+              and datos["calendario"]["dias_propios"] == planificador.DIAS_PROPIOS
+              and datos["calendario"]["duro_h"] == planificador.DURO_H)
+    comprobar("F3-08: dual no encuentra diferencias v1/v2",
+              motor_conocimiento._diferencias(datos, datos) == [])
+    datos_mal = {**datos, "clases": {**datos["clases"], "ritmo_prueba": {
+        **datos["clases"]["ritmo_prueba"], "nombre": "mutado"}}}
+    comprobar("F3-08: dual detecta una diferencia si se toca el conocimiento",
+              bool(motor_conocimiento._diferencias(datos, datos_mal)))
+
+    # Referencias validas y criterios pendientes.
+    af_ids = {a.id for a in c.afirmaciones}
+    pa_ids = {p.id for p in c.parametros}
+    es_ids = {e.id for e in c.estimulos}
+    re_ids = {r.id for r in c.recetas}
+    referencias = all(set(r.evidencia) <= af_ids and set(r.parametros) <= pa_ids for r in c.reglas)
+    referencias = referencias and all(e.estimulo in es_ids for e in c.reglas if e.estimulo)
+    referencias = referencias and all(r.estimulo in es_ids for r in c.recetas if r.estimulo)
+    comprobar("F3-02/03: reglas y recetas apuntan a IDs existentes", referencias)
+    locales_af = [a for a in c.afirmaciones if a.id.startswith("AF-1")]
+    locales_pa = [p for p in c.parametros if p.id.startswith("PA-1")]
+    comprobar("F3-07: 22 criterios locales pendientes de firma",
+              len(locales_af) == 22 and all(a.criterio_firmado and not a.firmado_por for a in locales_af),
+              f"{len(locales_af)} criterios")
+    comprobar("F3-07: los parametros locales son criterio firmado pendiente",
+              len(locales_pa) == 10 and all(p.procedencia == "criterio_firmado" and not p.firmado_por
+                                            for p in locales_pa), f"{len(locales_pa)} parametros")
+
+    with tempfile.TemporaryDirectory() as d:
+        dst = os.path.join(d, "conocimiento")
+        shutil.copytree("conocimiento", dst)
+        r = ct.firmar(dst, id_="AF-101", quien="entrenador", fecha="2026-10-19", notas="firmado en test")
+        c2 = ct.cargar(dst)
+        af = next((a for a in c2.afirmaciones if a.id == "AF-101"), None)
+        comprobar("F3-07: --firmar deja la firma en local y el validador la ve",
+                  r["firmado_por"] == "entrenador" and af is not None
+                  and af.firmado_por == "entrenador" and af.firmado_en == "2026-10-19"
+                  and os.path.isfile(os.path.join(dst, "local", "firmas.toml")),
+                  str(r))
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = cli.main(["conocimiento", "--ruta-toml", dst, "--firmar", "PA-101",
+                           "--quien", "entrenador", "--json"])
+        comprobar("F3-07: el CLI --firmar funciona", rc == 0 and "PA-101" in buf.getvalue(), buf.getvalue()[:80])
+
+    # F3-06: constantes viejas marcadas y el merge no duplica.
+    fuentes = {}
+    for f in ("entrenador/estimulos.py", "entrenador/reglas.py", "entrenador/planificador.py"):
+        fuentes[f] = open(f, encoding="utf-8").read()
+    comprobar("F3-06: las constantes viejas estan marcadas DEPRECATED",
+              all("DEPRECATED (F3)" in x for x in fuentes.values())
+              and "# DEPRECATED (F3): la fuente nueva es conocimiento/estimulos.toml" in fuentes["entrenador/estimulos.py"])
+    comprobar("F3-06: el merge no duplica clases, reglas, recetas ni materiales",
+              len(c.estimulos) == 10 and len(c.reglas) == 9 and len(c.recetas) == 7
+              and len(c.materiales) == 3, str(ct._conteos(c)))
 
 
 if __name__ == "__main__":
@@ -3675,6 +3783,7 @@ if __name__ == "__main__":
     pruebas_conocimiento_fuentes()
     pruebas_plan_local_y_fallback()
     pruebas_conocimiento_toml()
+    pruebas_motor_conocimiento_f3()
     pruebas_reparto_por_dia()
     pruebas_motor_en_el_discurso()
     pruebas_plan_vivo()

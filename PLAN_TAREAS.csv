@@ -21,14 +21,15 @@ F2-05,F2,Base estructurada y compilador,Hash canónico y `KV-*`,F2-04,Mismo cont
 F2-06,F2,Base estructurada y compilador,Exportador a Markdown,F2-02,"Markdown generado ≈ actual, diff revisado",Diff,hecha
 F2-07,F2,Base estructurada y compilador,Script de migración con `--dry-run` y diff,F2-02,No escribe sin `--apply`,Ejecución en copia,hecha
 F2-08,F2,Base estructurada y compilador,Tests de esquema y validación,F2-03,Cobertura de todos los errores,Suite,hecha
-F3-01,F3,Migración del conocimiento hardcodeado,"Migrar `estimulos.CLASES`, `CONOCIMIENTO`, `MATERIAL`",F2,Cada clase tiene `ES-*` y afirmaciones,Golden,pendiente
-F3-02,F3,Migración del conocimiento hardcodeado,"Migrar `reglas.REGLAS`, `REPARTO_OBJETIVO`, `MINIMOS_OBLIGATORIOS`",F2,"Cada regla tiene `RG-*`, parámetros y métrica",Golden,pendiente
-F3-03,F3,Migración del conocimiento hardcodeado,"Migrar `RECETAS`, `RECETA_DE_CLASE`, calendario y recuperación",F2,"Cada receta tiene `RE-*`, progresión y regresión",Golden,pendiente
-F3-04,F3,Migración del conocimiento hardcodeado,Separar plan escrito (dato del atleta) de conocimiento (reglas),F3-03,`plan.py` conserva su API; parámetros fuera,Golden,pendiente
-F3-05,F3,Migración del conocimiento hardcodeado,Adaptador de compatibilidad,F3-01..04,Las funciones actuales siguen funcionando,Suite,pendiente
-F3-06,F3,Migración del conocimiento hardcodeado,Eliminar o marcar `DEPRECATED` las constantes viejas,F3-05,0 duplicados,Grep + test,pendiente
-F3-07,F3,Migración del conocimiento hardcodeado,Firmar o marcar los criterios y los parámetros,F1-06,Cada `PA-*` tiene procedencia,Validación,pendiente
-F3-08,F3,Migración del conocimiento hardcodeado,Golden diff v1 vs v2 con la base real,F3-05,Diferencias justificadas una a una,Informe,pendiente
+F3-00,F3,Migración del conocimiento hardcodeado,"Separar conocimiento público (`conocimiento/`) y local (`conocimiento/local/`, gitignored + repo privado); overlay en el loader; hash con ambos; sin local funciona y avisa",F2,"Merge, hash y ausencia de local probados",Tests,hecha
+F3-01,F3,Migración del conocimiento hardcodeado,"Migrar `estimulos.CLASES`, `CONOCIMIENTO`, `MATERIAL`",F2,Cada clase tiene `ES-*` y afirmaciones,Golden,hecha
+F3-02,F3,Migración del conocimiento hardcodeado,"Migrar `reglas.REGLAS`, `REPARTO_OBJETIVO`, `MINIMOS_OBLIGATORIOS`",F2,"Cada regla tiene `RG-*`, parámetros y métrica",Golden,hecha
+F3-03,F3,Migración del conocimiento hardcodeado,"Migrar `RECETAS`, `RECETA_DE_CLASE`, calendario y recuperación",F2,"Cada receta tiene `RE-*`, progresión y regresión",Golden,hecha
+F3-04,F3,Migración del conocimiento hardcodeado,Separar plan escrito (dato del atleta) de conocimiento (reglas),F3-03,`plan.py` conserva su API; parámetros fuera,Golden,hecha
+F3-05,F3,Migración del conocimiento hardcodeado,Adaptador de compatibilidad,F3-01..04,Las funciones actuales siguen funcionando,Suite,hecha
+F3-06,F3,Migración del conocimiento hardcodeado,Eliminar o marcar `DEPRECATED` las constantes viejas,F3-05,0 duplicados,Grep + test,hecha
+F3-07,F3,Migración del conocimiento hardcodeado,Firmar o marcar los criterios y los parámetros,F1-06,Cada `PA-*` tiene procedencia,Validación,hecha
+F3-08,F3,Migración del conocimiento hardcodeado,Golden diff v1 vs v2 con la base real,F3-05,Diferencias justificadas una a una,Informe,hecha
 F4-01,F4,Estado del atleta,Esquema `EstadoAtleta`,F3,Documentado,Revisión,pendiente
 F4-02,F4,Estado del atleta,Métricas de rendimiento y carga,F4-01,Cálculos reproducibles,Unit test,pendiente
 F4-03,F4,Estado del atleta,"Recuperación, fuerza, restricciones y adherencia",F4-01,Incluye fuentes y limitaciones,Unit test,pendiente

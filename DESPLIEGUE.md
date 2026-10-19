@@ -39,9 +39,12 @@ El plan personal y el perfil tambien son privados. Se copian desde el repositori
 ```bash
 cp -a ../SwimTrainer-personal/entrenador/plan_local.py entrenador/
 cp -a ../SwimTrainer-personal/entrenador/perfil_local.py entrenador/ 2>/dev/null || true
+mkdir -p conocimiento/local
+cp -a ../SwimTrainer-personal/conocimiento/local/. conocimiento/local/
 ```
 
-Sin `plan_local.py` la aplicacion arranca igual, pero con el plan vacio.
+Sin `plan_local.py` la aplicacion arranca igual, pero con el plan vacio. Sin
+`conocimiento/local/`, el motor v2 usa solo el conocimiento publico.
 
 ## 2. Contrasenia
 
@@ -89,12 +92,14 @@ docker compose exec entrenador python -m entrenador.cli portal \
 ### Datos privados dentro de la imagen local
 
 La imagen `entrenador:local` se construye en esta maquina y **no se publica**. El `Dockerfile` copia
-`entrenador/` completo, asi que `entrenador/perfil_local.py` y `entrenador/plan_local.py` (privados y
-en `.gitignore`) van dentro de la imagen. No se sube a ningun registro ni se comparte.
+`entrenador/` completo y `conocimiento/` completo, asi que `entrenador/perfil_local.py`,
+`entrenador/plan_local.py` y `conocimiento/local/` (privados y en `.gitignore`) van dentro de la
+imagen. No se sube a ningun registro ni se comparte.
 
 Si algun dia se publica o se comparte la imagen, hay que reconstruirla sin esos dos ficheros o
 montarlos como volumen de solo lectura. Sin `plan_local.py` la app arranca igual: el plan queda vacio
-(`plan.SEMANAS == []`) y el panel no muestra plan; sin `perfil_local.py` el panel no lleva nombre.
+(`plan.SEMANAS == []`) y el panel no muestra plan; sin `perfil_local.py` el panel no lleva nombre; sin
+`conocimiento/local/` el motor v2 usa solo el conocimiento publico y avisa.
 
 ### Version del motor de conocimiento
 

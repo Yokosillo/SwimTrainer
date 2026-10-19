@@ -833,6 +833,7 @@ Markdown. El motor sigue en `v1`; `RG-002` no se usa todavía. Evidencia en `doc
 
 | Tarea | Entregable | Depende de | Aceptación | Prueba |
 |---|---|---|---|---|
+| F3-00 | Separar conocimiento público (`conocimiento/`) y local (`conocimiento/local/`, gitignored + repo privado); overlay en el loader; hash con ambos; sin local funciona y avisa | F2 | Merge, hash y ausencia de local probados | Tests |
 | F3-01 | Migrar `estimulos.CLASES`, `CONOCIMIENTO`, `MATERIAL` | F2 | Cada clase tiene `ES-*` y afirmaciones | Golden |
 | F3-02 | Migrar `reglas.REGLAS`, `REPARTO_OBJETIVO`, `MINIMOS_OBLIGATORIOS` | F2 | Cada regla tiene `RG-*`, parámetros y métrica | Golden |
 | F3-03 | Migrar `RECETAS`, `RECETA_DE_CLASE`, calendario y recuperación | F2 | Cada receta tiene `RE-*`, progresión y regresión | Golden |
@@ -841,6 +842,12 @@ Markdown. El motor sigue en `v1`; `RG-002` no se usa todavía. Evidencia en `doc
 | F3-06 | Eliminar o marcar `DEPRECATED` las constantes viejas | F3-05 | 0 duplicados | Grep + test |
 | F3-07 | Firmar o marcar los criterios y los parámetros | F1-06 | Cada `PA-*` tiene procedencia | Validación |
 | F3-08 | Golden diff v1 vs v2 con la base real | F3-05 | Diferencias justificadas una a una | Informe |
+
+**Implementación (2026-10-19):** `conocimiento/local/` (privado) + `entrenador/motor_conocimiento.py`
+(adaptador v1/v2/dual). El público tiene las 10 clases, 3 materiales, 7 recetas y el calendario; el
+local las 9 reglas, el reparto/minimos, los 22 criterios y las firmas pendientes. `MOTOR_CONOCIMIENTO`
+sigue en `v1` por defecto; v2 y dual reproducen v1 (golden 5/5, dual 0 diferencias). Evidencia en
+`docs/evidencias/F3.md`.
 
 **Criterio de salida:** el motor lee del TOML; no hay conocimiento duplicado; v1 y v2 producen lo mismo salvo diferencias aprobadas.
 

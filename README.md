@@ -165,6 +165,7 @@ node pruebas/comprobar_portal.js cuadro/panel.html    # a mano: comprueba ids, v
 .venv/Scripts/python.exe -m entrenador.cli conocimiento --version
 .venv/Scripts/python.exe -m entrenador.cli conocimiento --sincronizar
 .venv/Scripts/python.exe -m entrenador.cli conocimiento --exportar-md
+.venv/Scripts/python.exe -m entrenador.cli conocimiento --firmar AF-101 --quien entrenador
 ```
 
 La orden `conocimiento --validar` comprueba el **TOML nuevo** (`conocimiento/*.toml`) y el anexo
@@ -172,7 +173,10 @@ Markdown: IDs duplicados o mal formados, afirmaciones sin fuente, reglas con ref
 métrica de éxito, parámetros sin procedencia, recetas incompletas, citas y fuentes. Si el TOML no
 existe o está vacío, **falla cerrado** (`sin_conocimiento`). En el anexo Markdown, una cita rota, un ID
 duplicado o una fuente duplicada es error; una fuente huérfana o sin cita literal es aviso. El código
-de salida es 0 solo si ambos validan.
+de salida es 0 solo si ambos validan. El conocimiento publico vive en `conocimiento/`; el overlay
+privado (reglas, criterios y textos del atleta) en `conocimiento/local/`, que no se versiona.
+`MOTOR_CONOCIMIENTO=v1` es el valor por defecto; `v2` usa el TOML y `dual` compara ambos y deja
+`data/derived/conocimiento/dual_*.json`.
 
 `--criterios` lista las cláusulas marcadas `[criterio]`, con su estado: `firmada` (solo si firma
 `entrenador` o `atleta`), `revisada_por_asistente` (sigue pendiente) o `pendiente`. El anexo tiene 21
