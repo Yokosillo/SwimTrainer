@@ -31,6 +31,22 @@ import sqlite3
 # El anexo vive en el proyecto. La ruta se puede cambiar (pruebas, otro idioma, otro documento) sin tocar codigo.
 RUTA_ANEXO = os.path.join("informes", "T_base_de_conocimiento.md")
 
+# Version del motor de conocimiento. Se lee del entorno en ESTE unico sitio: el resto del codigo pregunta
+# por `motor_version()` y nunca por la variable. Hoy solo existe `v1` (el motor actual); `v2` se activara
+# en F5. La bandera no cambia ningun comportamiento todavia (F0-04): deja preparada la vuelta atras.
+MOTOR_POR_DEFECTO = "v1"
+MOTORES = ("v1", "v2")
+
+
+def motor_version() -> str:
+    """La version del motor de conocimiento activa (`MOTOR_CONOCIMIENTO=v1|v2`).
+
+    Un valor desconocido o vacio cae a `v1`: la bandera no puede dejar el sistema sin motor. Es el unico
+    punto donde se lee la variable de entorno (INV-08 del plan).
+    """
+    valor = (os.environ.get("MOTOR_CONOCIMIENTO") or "").strip().lower()
+    return valor if valor in MOTORES else MOTOR_POR_DEFECTO
+
 # Claves de conocimiento que no son ni una clase ni una regla del motor: se citan por su nombre.
 CLAVES: dict[str, str] = {
     "que_pide_cada_prueba": "T.1",

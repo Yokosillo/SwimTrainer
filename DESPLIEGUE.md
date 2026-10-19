@@ -77,6 +77,20 @@ docker compose exec entrenador python -m entrenador.cli portal \
     --destino /app/cuadro/strava/index.html
 ```
 
+### Version del motor de conocimiento
+
+La bandera `MOTOR_CONOCIMIENTO` elige que motor de conocimiento usa la aplicacion. Hoy el unico
+implementado es `v1` (el actual); `v2` llegara con el motor nuevo (F5) y se activara entonces. El
+valor por defecto es `v1` y un valor desconocido cae a `v1`: la bandera no puede dejar el sistema
+sin motor. Se lee en un unico sitio (`conocimiento.motor_version()`).
+
+```bash
+# en .env
+MOTOR_CONOCIMIENTO=v1
+```
+
+No cambia ningun comportamiento todavia: deja preparada la vuelta atras.
+
 ## 4. Caddy (`/entrenador/`)
 
 Caddy ya escucha en `:80` en dalmacia. La ruta se activa cuando existe
