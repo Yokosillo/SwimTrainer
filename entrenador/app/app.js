@@ -3182,22 +3182,27 @@ function pintarReglas() {
   const cono = ent.conocimiento || {};
   pintar("conocimientoKpis", [
     kpi("Secciones del anexo", entero(cono.total), "lo que el motor sabe"),
-    kpi("Revisadas", entero(cono.revisadas), "con firma y fecha"),
+    kpi("Firmadas", entero(cono.revisadas), "por entrenador o atleta"),
     kpi("Criterios sin firma", entero(cono.sin_fuente), "criterio del entrenador"),
   ]);
   const listaCono = q("conocimientoLista");
   if (listaCono) {
     listaCono.innerHTML = (cono.secciones || []).map((x) => {
-      const firma = x.revisado_por ? ("Firmada por " + esc(x.revisado_por) + " el " + esc(fechaCorta(x.revisado_en)))
-        : "Sin revisar";
+      const estado = x.estado_revision || (x.revisado_por ? "revisada_por_asistente" : "sin_revisar");
+      const firma = estado === "firmada"
+        ? ("Firmada por " + esc(x.revisado_por) + " el " + esc(fechaCorta(x.revisado_en)))
+        : (estado === "revisada_por_asistente"
+          ? ("Revisada por " + esc(x.revisado_por) + " (asistente), pendiente de firma")
+          : "Sin revisar");
+      const marca = estado === "firmada" ? ["etiqueta ok", "firmada"]
+        : (estado === "revisada_por_asistente" ? ["etiqueta ojo", "asistente"] : ["etiqueta", "sin revisar"]);
       const respaldo = x.con_fuente ? ("Fuentes " + (x.fuentes || []).map((n) => "[" + n + "]").join(" "))
         : (x.criterio ? "Criterio (sin cita literal)" : "Sección de método");
       return '<div class="item"><i class="i-marca"></i><div class="i-txt"><strong>' + esc(x.seccion) + " · "
         + esc(x.titulo || "") + "</strong><span>" + respaldo + (x.criterios ? " · " + entero(x.criterios)
         + " afirmacion(es) marcadas" : "") + '</span><span class="gris mini-txt">' + firma
         + (x.notas ? " · " + esc(x.notas) : "") + "</span></div>"
-        + '<span class="' + (x.revisado_por ? "etiqueta ok" : "etiqueta") + '">'
-        + (x.revisado_por ? "firmada" : "sin revisar") + "</span></div>";
+        + '<span class="' + marca[0] + '">' + marca[1] + "</span></div>";
     }).join("") || '<div class="vacio"><strong>No encuentro el anexo</strong>El motor no puede leer informes/T_base_de_conocimiento.md.</div>';
   }
 

@@ -28,6 +28,7 @@ from __future__ import annotations
 import os
 import re
 import sqlite3
+from datetime import datetime
 
 # El anexo vive en el proyecto. La ruta se puede cambiar (pruebas, otro idioma, otro documento) sin tocar codigo.
 RUTA_ANEXO = os.path.join("informes", "T_base_de_conocimiento.md")
@@ -72,6 +73,10 @@ RE_TITULO_FUENTES = re.compile(r"^##\s+Sources\b", re.IGNORECASE)
 # afirmaciones que haya que respaldar ni revisar, asi que quedan fuera de las listas de trabajo.
 # `T.10` es el cierre del anexo (que lee el motor y que no): tampoco es una afirmacion sobre natacion.
 META: tuple[str, ...] = ("T.0", "T.9", "T.10")
+
+# Solo estas personas firman. `asistente` puede revisar (y se ve que lo hizo) pero NO cuenta como firma:
+# el sistema no se autofirma (INV-03 y D-05 del plan). La comparacion no distingue mayusculas.
+FIRMANTES: tuple[str, ...] = ("entrenador", "atleta")
 
 
 def _camino(ruta: str | None = None) -> str:
@@ -219,24 +224,22 @@ def _frase(secciones_clave: list[str], grado: str, sin_fuente: list[str]) -> str
     return base
 
 
-def fuentes(ruta: str | None = None) -> dict[int, dict]:
-    """El bloque `## Sources` del anexo, indexado por numero.
+def _leer_fuentes(ruta: str | None = None) -> tuple[dict[int, dict], list[dict]]:
+    """Lee el bloque `## Sources` y devuelve (fuentes, duplicadas).
 
-    Cada fuente sale como `{'n', 'url', 'titulo', 'citas'}`. `citas` son las lineas `>` que van debajo
-    (la cita literal, sin el `>` ni las comillas de fuera). Si un numero se define dos veces, se queda
-    la primera y el duplicado no se mezcla: la validacion lo denuncia.
-
-    No se confunde con `secciones(...)['fuentes']`, que son los numeros que **cita** cada seccion. Esto
-    es el catalogo de lo que hay definido.
+    `fuentes` se queda con la primera definicion de cada numero; `duplicadas` anota las repeticiones
+    con su linea para que el validador las denuncie como error (R-04). El bloque termina en el
+    siguiente titulo `## ` (el cierre T.10, por ejemplo).
     """
     camino = _camino(ruta)
     if not os.path.isfile(camino):
-        return {}
+        return {}, []
     fuera: dict[int, dict] = {}
+    duplicadas: list[dict] = []
     dentro = False
     actual: int | None = None
     with open(camino, encoding="utf-8") as f:
-        for linea in f:
+        for numero, linea in enumerate(f, start=1):
             linea = linea.rstrip("\n")
             if RE_TITULO_FUENTES.match(linea):
                 dentro = True
@@ -249,7 +252,8 @@ def fuentes(ruta: str | None = None) -> dict[int, dict]:
             m = RE_SOURCE.match(linea.strip())
             if m:
                 n = int(m.group(1))
-                if n in fuera:                # duplicado: se queda la primera definicion
+                if n in fuera:                # duplicado: se queda la primera y se denuncia
+                    duplicadas.append({"n": n, "linea": numero})
                     actual = None
                     continue
                 resto = m.group(3) or ""
@@ -266,92 +270,174 @@ def fuentes(ruta: str | None = None) -> dict[int, dict]:
                     cita = cita[1:-1]
                 if cita:
                     fuera[actual]["citas"].append(cita)
+    return fuera, duplicadas
+
+
+def fuentes(ruta: str | None = None) -> dict[int, dict]:
+    """El bloque `## Sources` del anexo, indexado por numero (primera definicion si hay duplicados).
+
+    Cada fuente sale como `{'n', 'url', 'titulo', 'citas'}`. `citas` son las lineas `>` que van debajo
+    (la cita literal, sin el `>` ni las comillas de fuera). No se confunde con
+    `secciones(...)['fuentes']`, que son los numeros que **cita** cada seccion. Esto es el catalogo
+    de lo que hay definido.
+    """
+    return _leer_fuentes(ruta)[0]
+
+
+def fuentes_duplicadas(ruta: str | None = None) -> list[dict]:
+    """Los numeros de fuente definidos mas de una vez en `## Sources`, con su linea (R-04)."""
+    return _leer_fuentes(ruta)[1]
+
+
+def sin_fuente(ruta: str | None = None, cn: sqlite3.Connection | None = None) -> list[dict]:
+    """Las secciones que traen afirmaciones sin fuente (criterio) y que hay que firmar.
+
+    Una seccion puede citar cuatro fuentes y tener dentro frases marcadas `[criterio]`. Se devuelven
+    las secciones que tienen alguna (con su cuenta en `criterios`). Las secciones de metodo (T.0, T.9
+    y T.10) quedan fuera: no son saber de natacion.
+
+    Si se pasa `cn`, cada seccion lleva `estado_revision` (`firmada`, `revisada_por_asistente` o
+    `sin_revisar`) y `firmada` (solo entrenador/atleta cuentan). Asi una revision del asistente no se
+    disfraza de firma (R-03).
+    """
+    firmas = _firmas(cn) if cn is not None else {}
+    fuera = []
+    for s in secciones(ruta).values():
+        if s["id"] in META or not s["criterios"]:
+            continue
+        fila = dict(s)
+        if cn is not None:
+            estado = estado_revision(firmas.get(s["id"]))
+            fila["estado_revision"] = estado
+            fila["firmada"] = estado == "firmada"
+            fila["revisado_por"] = (firmas.get(s["id"]) or {}).get("revisado_por")
+        fuera.append(fila)
     return fuera
 
 
-def sin_fuente(ruta: str | None = None) -> list[dict]:
-    """Las secciones que traen afirmaciones sin fuente (criterio) y que hay que firmar.
+# Una frase acaba en . ! o ? (puede llevar citas [n] pegadas) y sigue con mayuscula o signo de apertura.
+# Partir por ahi evita arrastrar la frase anterior (que puede tener fuente) a un criterio.
+_RE_FIN_FRASE = re.compile(r"(?<=[.!?])(?:\[\d+\])*\s+(?=[A-ZÁÉÍÓÚÑÜ¿¡])")
 
-    Ya no es solo la seccion entera sin fuentes: una seccion puede citar cuatro fuentes y tener dentro
-    frases marcadas `[criterio]`. Se devuelven las secciones que tienen alguna (con su cuenta en
-    `criterios`). Las secciones de metodo (T.0, T.9 y T.10) quedan fuera: no son saber de natacion.
+
+def _frases(texto: str) -> list[str]:
+    return [x.strip() for x in _RE_FIN_FRASE.split(texto) if x.strip()]
+
+
+def _clausulas_de_prosa(lineas: list[str]) -> list[str]:
+    """Las frases con `[criterio]` de un bloque de prosa, partiendo por frases y por marca."""
+    bloques: list[str] = []
+    actual: list[str] = []
+    for linea in lineas:
+        if not linea.strip():
+            if actual:
+                bloques.append(" ".join(actual))
+                actual = []
+            continue
+        actual.append(linea.strip())
+    if actual:
+        bloques.append(" ".join(actual))
+    fuera: list[str] = []
+    for parrafo in bloques:
+        for frase in _frases(parrafo):
+            if "[criterio]" not in frase:
+                continue
+            if frase.count("[criterio]") == 1:
+                fuera.append(frase)
+                continue
+            partes = frase.split("[criterio]")
+            for i in range(len(partes) - 1):
+                trozo = partes[i]
+                if i > 0:
+                    # Quitar la coletilla de la marca anterior: desde el final de su frase.
+                    trozo = re.split(r"(?<=[.!?])\s+", trozo, maxsplit=1)[-1]
+                fuera.append(trozo)
+    return fuera
+
+
+def _criterios_de_seccion(s: dict) -> list[str]:
+    """Las clausulas exactas con `[criterio]` de una seccion, en orden y sin solaparse.
+
+    - En las tablas de T.8 se usa la primera columna (la afirmacion), no la fila entera.
+    - En prosa se parte por frases (`.`/`!`/`?`) y se queda solo la frase que lleva el marcador.
+    - Si una frase lleva dos marcas, se divide por marca: son dos criterios distintos.
+    - Se deduplica por texto limpio.
     """
-    return [s for s in secciones(ruta).values() if s["criterios"] and s["id"] not in META]
+    fuera: list[str] = []
+    prosa: list[str] = []
+    for linea in s["texto"].splitlines():
+        if linea.strip().startswith("|"):
+            fuera.extend(_clausulas_de_prosa(prosa))
+            prosa = []
+            if "[criterio]" in linea:
+                celdas = [c.strip() for c in linea.strip().strip("|").split("|")]
+                if celdas and celdas[0]:
+                    fuera.append(celdas[0])
+            continue
+        prosa.append(linea)
+    fuera.extend(_clausulas_de_prosa(prosa))
+    limpio: list[str] = []
+    vistos: set[str] = set()
+    for x in fuera:
+        x = _limpia(x).strip(" .;:")
+        if x and x not in vistos:
+            vistos.add(x)
+            limpio.append(x)
+    return limpio
 
 
-def criterios(ruta: str | None = None) -> list[dict]:
-    """Las afirmaciones marcadas `[criterio]` que esperan firma, con la seccion a la que pertenecen.
+def criterios(ruta: str | None = None, cn: sqlite3.Connection | None = None) -> list[dict]:
+    """Las afirmaciones marcadas `[criterio]` que esperan firma, con su seccion y su estado.
 
     Es la lista de trabajo de verdad: una seccion puede tener cuatro fuentes y una frase sin respaldo
     dentro. Las secciones de metodo (T.0, T.9 y T.10) quedan fuera: no son afirmaciones sobre natacion.
 
-    El anexo va partido en lineas de 120 columnas, asi que la frase se reconstruye con la linea
-    anterior si el marcador cayo al principio de la siguiente (`_contexto`). Se cuenta **una por linea
-    marcada**, que es el criterio que fijo el plan (21): la linea de T.5 con dos marcas es un solo
-    criterio porque la segunda marca es una coletilla de la misma frase.
+    Cada marca `[criterio]` es un criterio: el anexo tiene 21 lineas marcadas, pero T.5 lleva dos
+    marcas en la misma linea, asi que salen **22 clausulas** distintas. Antes se contaban lineas y
+    salian 21; el plan usa ese numero historico, pero la lista no son 21 afirmaciones distintas (R-06).
+
+    Si se pasa `cn`, cada fila lleva `estado` (`firmada`, `revisada_por_asistente` o `pendiente`) y
+    `revisado_por`. Solo entrenador/atleta firman (R-03).
     """
+    firmas = _firmas(cn) if cn is not None else {}
     fuera = []
     for s in secciones(ruta).values():
         if s["id"] in META:
             continue
-        lineas = s["texto"].splitlines()
-        for i, linea in enumerate(lineas):
-            if "[criterio]" not in linea:
-                continue
-            fuera.append({"seccion": s["id"], "afirmacion": _limpia(_afirmacion_de(lineas, i))})
+        for afirmacion in _criterios_de_seccion(s):
+            fila = {"seccion": s["id"], "afirmacion": afirmacion}
+            if cn is not None:
+                estado = estado_revision(firmas.get(s["id"]))
+                fila["estado"] = "pendiente" if estado == "sin_revisar" else estado
+                fila["revisado_por"] = (firmas.get(s["id"]) or {}).get("revisado_por")
+            fuera.append(fila)
     return fuera
 
 
-_FIN_DE_FRASE = (".", ":", ";", "!", "?", "|")
-
-
-def _afirmacion_de(lineas: list[str], i: int) -> str:
-    """La frase que lleva el `[criterio]` de la linea `i`, con su contexto si venia partida.
-
-    En las tablas de T.8 el criterio vive en una fila: se usa la primera columna (la afirmacion), no
-    la fila entera con el estado y la justificacion.
-    """
-    linea = lineas[i].strip()
-    if linea.startswith("|"):
-        celdas = [c.strip() for c in linea.strip("|").split("|")]
-        if celdas and celdas[0]:
-            return celdas[0]
-    partes = [linea]
-    j = i - 1
-    while j >= 0:
-        previa = lineas[j].strip()
-        if not previa or previa.startswith("#") or previa.startswith("|"):
-            break
-        if "[criterio]" in previa:
-            # La frase empieza despues del ultimo marcador de la linea anterior; no se duplica.
-            cola = previa.rsplit("[criterio]", 1)[1].lstrip("`").lstrip()
-            cola = re.sub(r"^[.:;]\s*", "", cola)
-            if cola:
-                partes.insert(0, cola)
-            break
-        partes.insert(0, previa)
-        if previa.endswith(_FIN_DE_FRASE):
-            break
-        j -= 1
-    # Si el marcador cae a mitad de la frase, la frase sigue en las lineas de abajo: se completa
-    # hasta el punto (o hasta el siguiente marcador, que ya es otro criterio).
-    cola_actual = linea.rsplit("[criterio]", 1)[1].strip().lstrip("`").strip()
-    if cola_actual and not cola_actual.endswith(_FIN_DE_FRASE):
-        k = i + 1
-        while k < len(lineas):
-            siguiente = lineas[k].strip()
-            if not siguiente or siguiente.startswith("#") or siguiente.startswith("|"):
-                break
-            if "[criterio]" in siguiente:
-                antes = siguiente.split("[criterio]", 1)[0].strip()
-                if antes:
-                    partes.append(antes)
-                break
-            partes.append(siguiente)
-            if siguiente.endswith(_FIN_DE_FRASE):
-                break
-            k += 1
-    return " ".join(p.strip() for p in partes)
+def criterios_markdown(filas: list[dict], fecha: str | None = None) -> str:
+    """La lista de criterios como Markdown reproducible (R-10), con su estado y una nota de conteo."""
+    fecha = fecha or datetime.now().astimezone().isoformat(timespec="seconds")
+    lineas = [
+        "# Criterios sin fuente pendientes de firma",
+        "",
+        f"- **Generado:** {fecha}",
+        "- **Documento:** `informes/T_base_de_conocimiento.md` (anexo T)",
+        "- **Como se genera:** `python -m entrenador.cli conocimiento --criterios --formato md`",
+        f"- **Conteo:** {len(filas)} clausulas. El anexo tiene 21 lineas con marca `[criterio]`; T.5 "
+        "lleva dos marcas en una linea, asi que salen 22 clausulas distintas (no son 21 afirmaciones).",
+        "- **Firma:** solo cuentan `entrenador` y `atleta`. Una seccion revisada por `asistente` se "
+        "muestra como revisada por asistente y **sigue pendiente de firma**.",
+        "- **Que hacer:** leer cada frase y, o se convierte en cita (con su `[n]`), o se firma como "
+        "criterio del entrenador, o se corrige/tira. Sin firma no puede motivar una recomendacion.",
+        "",
+        "| # | Seccion | Estado | Afirmacion |",
+        "|---|---|---|---|",
+    ]
+    for i, x in enumerate(filas, 1):
+        texto = str(x.get("afirmacion") or "").replace("|", "\\|").replace("\n", " ")
+        lineas.append(f"| {i} | {x.get('seccion', '')} | {x.get('estado', 'pendiente')} | {texto} |")
+    lineas.append("")
+    return "\n".join(lineas)
 
 
 def afirmaciones_sin_fuente(ruta: str | None = None) -> list[dict]:
@@ -359,22 +445,59 @@ def afirmaciones_sin_fuente(ruta: str | None = None) -> list[dict]:
     return criterios(ruta)
 
 
+def _resultado_validacion(camino: str, secs: dict, defs: dict, usadas: dict,
+                          errores: list[dict], avisos: list[dict]) -> dict:
+    return {
+        "anexo": camino,
+        "secciones": len(secs),
+        "fuentes": len(defs),
+        "citas_usadas": len(usadas),
+        "errores": errores,
+        "avisos": avisos,
+        "ok": not errores,
+    }
+
+
 def validar(ruta: str | None = None) -> dict:
     """Valida el anexo: IDs de seccion, citas y fuentes del bloque `## Sources`.
 
     Devuelve `{'anexo', 'secciones', 'fuentes', 'citas_usadas', 'errores', 'avisos', 'ok'}`.
-    Un error invalida el documento (cita rota o seccion duplicada); un aviso no (fuente definida y no
-    citada, o fuente sin cita literal). El CLI devuelve 0 solo si `ok` y no hay errores.
+    Falla cerrado (R-02): si el anexo no existe, esta vacio o no tiene secciones `T.#`, devuelve
+    `ok=False` con `anexo_ausente` / `anexo_vacio`. Un error invalida el documento (cita rota, ID de
+    seccion duplicado o fuente duplicada); un aviso no (fuente definida y no citada, o fuente sin
+    cita literal). El CLI devuelve 0 solo si `ok` y no hay errores.
     """
-    secs = secciones(ruta)
-    defs = fuentes(ruta)
+    camino = _camino(ruta)
     errores: list[dict] = []
     avisos: list[dict] = []
+
+    if not os.path.isfile(camino):
+        errores.append({"tipo": "anexo_ausente", "detalle": f"no existe {camino}"})
+        return _resultado_validacion(camino, {}, {}, {}, errores, avisos)
+    try:
+        with open(camino, encoding="utf-8") as f:
+            texto = f.read()
+    except (OSError, UnicodeDecodeError) as exc:   # permisos, es un directorio, no es UTF-8...
+        errores.append({"tipo": "anexo_ilegible", "detalle": f"{camino}: {exc}"})
+        return _resultado_validacion(camino, {}, {}, {}, errores, avisos)
+    if not texto.strip():
+        errores.append({"tipo": "anexo_vacio", "detalle": f"{camino} esta vacio"})
+        return _resultado_validacion(camino, {}, {}, {}, errores, avisos)
+
+    secs = secciones(ruta)
+    if not secs:
+        errores.append({"tipo": "anexo_vacio", "detalle": f"{camino} no tiene secciones T.#"})
+        return _resultado_validacion(camino, {}, {}, {}, errores, avisos)
+    defs = fuentes(ruta)
 
     for d in duplicados(ruta):
         errores.append({"tipo": "seccion_duplicada",
                         "detalle": f"{d['id']} aparece otra vez en la linea {d['linea']}",
                         "id": d["id"]})
+    for d in fuentes_duplicadas(ruta):
+        errores.append({"tipo": "fuente_duplicada",
+                        "detalle": f"[{d['n']}] esta definida otra vez en la linea {d['linea']}",
+                        "fuente": d["n"]})
 
     usadas: dict[int, list[str]] = {}
     for sid, s in secs.items():
@@ -396,15 +519,7 @@ def validar(ruta: str | None = None) -> dict:
                            "detalle": f"[{n}] no trae cita literal (linea \"> ...\")",
                            "fuente": n})
 
-    return {
-        "anexo": _camino(ruta),
-        "secciones": len(secs),
-        "fuentes": len(defs),
-        "citas_usadas": len(usadas),
-        "errores": errores,
-        "avisos": avisos,
-        "ok": not errores,
-    }
+    return _resultado_validacion(camino, secs, defs, usadas, errores, avisos)
 
 
 def _limpia(linea: str) -> str:
@@ -413,6 +528,27 @@ def _limpia(linea: str) -> str:
     frase = re.sub(r"[ \t]+([.,;:])", r"\1", frase)      # "proyecto ." -> "proyecto."
     frase = re.sub(r"[ \t]{2,}", " ", frase)
     return frase.strip().strip("`").strip()
+
+
+def _firmas(cn: sqlite3.Connection) -> dict[str, dict]:
+    """Las filas de `conocimiento_revision` por seccion (vacio si la tabla no existe todavia)."""
+    try:
+        return {r["seccion"]: dict(r) for r in
+                cn.execute("SELECT seccion, revisado_por, revisado_en, notas FROM conocimiento_revision")}
+    except sqlite3.OperationalError:
+        return {}
+
+
+def estado_revision(fila: dict | None) -> str:
+    """`firmada` (entrenador/atleta), `revisada_por_asistente` o `sin_revisar` (R-03).
+
+    Una revision del asistente no es una firma: el sistema no se autofirma (INV-03, D-05).
+    """
+    if not fila or not (fila.get("revisado_por") or "").strip():
+        return "sin_revisar"
+    if (fila.get("revisado_por") or "").strip().lower() in FIRMANTES:
+        return "firmada"
+    return "revisada_por_asistente"
 
 
 def revision(cn: sqlite3.Connection, sid: str) -> dict | None:
@@ -426,6 +562,7 @@ def marcar_revision(cn: sqlite3.Connection, sid: str, quien: str, notas: str = "
     """Marca una seccion como revisada por alguien.
 
     Idempotente: la misma seccion se actualiza, no se duplica (por eso la clave primaria es la seccion).
+    Si `quien` no es entrenador/atleta se guarda como revision del asistente y **no** cuenta como firma.
     """
     from . import db
 
@@ -441,33 +578,44 @@ def marcar_revision(cn: sqlite3.Connection, sid: str, quien: str, notas: str = "
 
 
 def revisadas(cn: sqlite3.Connection) -> list[str]:
-    """Las secciones que ya tienen revision, por orden."""
-    return [r[0] for r in cn.execute("SELECT seccion FROM conocimiento_revision ORDER BY seccion")]
+    """Las secciones **firmadas** por entrenador/atleta, por orden (R-03)."""
+    return sorted(r[0] for r in cn.execute(
+        "SELECT seccion, revisado_por FROM conocimiento_revision ORDER BY seccion")
+        if (r[1] or "").strip().lower() in FIRMANTES)
+
+
+def revisadas_por_asistente(cn: sqlite3.Connection) -> list[str]:
+    """Las secciones revisadas por alguien que no firma (normalmente `asistente`), por orden."""
+    return sorted(r[0] for r in cn.execute(
+        "SELECT seccion, revisado_por FROM conocimiento_revision ORDER BY seccion")
+        if (r[1] or "").strip() and (r[1] or "").strip().lower() not in FIRMANTES)
 
 
 def cuadro_revision(cn: sqlite3.Connection, ruta: str | None = None) -> dict:
     """La firma del anexo T: que secciones hay, con que respaldo y quien las ha revisado (V1.3-01).
 
-    Es lo que enseña el portal. Sin firma no se pone "revisado": se pone sin revisar. Las secciones que van sin
-    fuente se cuentan aparte, porque son criterio del entrenador y asi hay que decirlo.
+    Es lo que ensena el portal. Solo entrenador/atleta firman; una revision del asistente se muestra
+    como tal y sigue pendiente de firma (R-03). Las secciones que van sin fuente se cuentan aparte,
+    porque son criterio del entrenador y asi hay que decirlo.
     """
-    try:
-        firmas = {r["seccion"]: dict(r) for r in
-                  cn.execute("SELECT seccion, revisado_por, revisado_en, notas FROM conocimiento_revision")}
-    except sqlite3.OperationalError:      # base sin migrar todavia: el anexo se lee igual, sin firmas
-        firmas = {}
+    firmas = _firmas(cn)
     lista = []
     for sid, s in secciones(ruta).items():
         f = firmas.get(sid) or {}
+        estado = estado_revision(f)
         lista.append({
             "seccion": sid, "titulo": s.get("titulo"),
             "fuentes": list(s.get("fuentes") or []), "con_fuente": len(s.get("fuentes") or []),
             "criterio": bool(s.get("criterio")), "criterios": len(s.get("criterios") or []),
             "revisado_por": f.get("revisado_por"), "revisado_en": f.get("revisado_en"), "notas": f.get("notas"),
+            "estado_revision": estado, "firmada": estado == "firmada",
         })
     crits = criterios(ruta)
     return {"anexo": RUTA_ANEXO, "total": len(lista),
-            "revisadas": sum(1 for x in lista if x["revisado_por"]),
+            # Solo cuentan como revisadas las firmadas por entrenador/atleta.
+            "revisadas": sum(1 for x in lista if x["firmada"]),
+            "revisadas_por_asistente": sum(1 for x in lista
+                                            if x["estado_revision"] == "revisada_por_asistente"),
             # Criterios sin firma, no secciones sin fuente: una seccion con fuentes puede tener dentro
             # frases `[criterio]`. Antes esto contaba secciones y el portal podia decir "todo con fuente".
             "sin_fuente": len(crits),

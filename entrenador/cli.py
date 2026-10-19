@@ -372,14 +372,16 @@ def _fuerza(cn, args) -> int:
 
 
 def _conocimiento(cn, args) -> int:
-    """La base de conocimiento: validacion, criterios pendientes y firma de secciones (F1)."""
+    """La base de conocimiento: validacion, criterios pendientes y firmas de secciones (F1)."""
     import json as _json
 
     from . import conocimiento
 
+    formato = getattr(args, "formato", None) or ("json" if getattr(args, "json", False) else "texto")
+
     if getattr(args, "validar", False):
         v = conocimiento.validar()
-        if getattr(args, "json", False):
+        if formato == "json":
             print(_json.dumps(v, ensure_ascii=False, indent=2))
         else:
             print(f"{v['anexo']}: {v['secciones']} secciones, {v['fuentes']} fuentes definidas, "
@@ -392,15 +394,16 @@ def _conocimiento(cn, args) -> int:
                   else f"FALLAN {len(v['errores'])} comprobacion(es).")
         return 0 if v["ok"] else 1
     if getattr(args, "criterios", False):
-        firmadas = set(conocimiento.revisadas(cn))
-        filas = [dict(x, estado=("firmada" if x["seccion"] in firmadas else "pendiente"))
-                 for x in conocimiento.criterios()]
-        if getattr(args, "json", False):
+        filas = conocimiento.criterios(cn=cn)
+        if formato == "json":
             print(_json.dumps(filas, ensure_ascii=False, indent=2))
+        elif formato == "md":
+            print(conocimiento.criterios_markdown(filas), end="")
         else:
-            print(f"{len(filas)} criterios sin fuente (estado = seccion firmada o pendiente de firma):")
+            print(f"{len(filas)} clausulas [criterio] (21 lineas marcadas; T.5 lleva dos marcas).")
+            print("Estado: firmada (entrenador/atleta), revisada_por_asistente (sigue pendiente) o pendiente.")
             for i, x in enumerate(filas, 1):
-                print(f"  {i:>2}. {x['seccion']:<5} [{x['estado']}] {x['afirmacion']}")
+                print(f"  {i:>2}. {x['seccion']:<5} [{x.get('estado', 'pendiente')}] {x['afirmacion']}")
         return 0
     if args.revisar:
         if not conocimiento.seccion(args.revisar):
@@ -408,16 +411,23 @@ def _conocimiento(cn, args) -> int:
             return 1
         quien = args.quien or "el atleta"
         conocimiento.marcar_revision(cn, args.revisar, quien, args.notas or "")
-        print(f"{args.revisar} firmada por {quien}.")
+        firma = quien.strip().lower() in conocimiento.FIRMANTES
+        print(f"{args.revisar} revisada por {quien}" +
+              ("" if firma else " (no cuenta como firma: solo entrenador/atleta)"))
     c = conocimiento.cuadro_revision(cn)
-    print(f"{c['anexo']}: {c['total']} secciones, {c['revisadas']} revisadas, "
-          f"{c['sin_fuente']} criterios sin firma.")
+    print(f"{c['anexo']}: {c['total']} secciones, {c['revisadas']} firmadas, "
+          f"{c['revisadas_por_asistente']} revisadas por asistente, {c['sin_fuente']} criterios sin firma.")
     for x in c["secciones"]:
-        firma = (f"revisada por {x['revisado_por']} el {str(x['revisado_en'])[:10]}" if x["revisado_por"]
-                 else "sin revisar")
+        estado = x.get("estado_revision") or "sin_revisar"
+        if estado == "firmada":
+            firma = f"firmada por {x['revisado_por']} el {str(x['revisado_en'])[:10]}"
+        elif estado == "revisada_por_asistente":
+            firma = f"revisada por {x['revisado_por']}, pendiente de firma"
+        else:
+            firma = "sin revisar"
         respaldo = (", ".join("[" + str(n) + "]" for n in x["fuentes"]) if x["con_fuente"]
                     else ("criterio (sin fuente)" if x["criterio"] else "sin fuente declarada"))
-        print(f"  {x['seccion']:<5} {respaldo:<26} {firma:<40} {str(x['titulo'])[:38]}")
+        print(f"  {x['seccion']:<5} {respaldo:<26} {firma:<44} {str(x['titulo'])[:38]}")
     return 0
 
 
@@ -562,6 +572,8 @@ def main(argv: list[str] | None = None) -> int:
     pco.add_argument("--criterios", action="store_true",
                      help="lista las afirmaciones [criterio] pendientes de firma, con su estado")
     pco.add_argument("--json", action="store_true", help="salida JSON para --validar o --criterios")
+    pco.add_argument("--formato", choices=("texto", "json", "md"), default=None,
+                     help="formato de salida: texto (por defecto), json o md (md solo para --criterios)")
     pco.add_argument("--quien", default=None, help="quien la firma (por defecto, el atleta)")
     pco.add_argument("--notas", default=None, help="con que notas queda firmada")
 
