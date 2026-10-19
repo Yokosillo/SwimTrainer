@@ -873,6 +873,14 @@ la auditoría F3-R-01…07 en `docs/evidencias/F3.md`.
 | F4-07 | `cli estado` y tarjeta de panel | F4-06 | Visible y legible | Manual + JS |
 | F4-08 | Tests con datos sintéticos y copia real | F4-02..06 | Escenarios de borde cubiertos | Suite |
 
+**Implementación (2026-10-20):** `entrenador/estado.py` construye el `EstadoAtleta` con siete secciones
+(rendimiento, carga, recuperación, fuerza, restricciones, adherencia y respuesta por estímulo). Cada
+métrica lleva `valor`, `unidad`, `n`, `dispersión`, `confianza`, `fuente` y `limitaciones`; si no hay
+datos queda en `sin_datos` con el motivo. El snapshot se guarda en `estado_atleta` y su `estado_id`
+(`EA-…`) es el hash canónico de fecha + versión + contenido. `cli estado [--json] [--guardar]` y la
+tarjeta del panel lo muestran. Golden nuevo `f4` (5/5); `f1` queda como referencia pre-F4. Evidencia en
+`docs/evidencias/F4.md`. No se conectan recomendaciones ni se toca el motor v1.
+
 **Criterio de salida:** cada recomendación puede citar un `estado_id` y explicar la confianza de sus datos.
 
 ---

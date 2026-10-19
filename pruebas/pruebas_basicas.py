@@ -3815,13 +3815,23 @@ def pruebas_motor_conocimiento_f3() -> None:
               == golden._normalizar_salida("Plan recalculado el 2026-10-20 (x)")
               and golden._normalizar_salida("Quedan 26 dias")
               == golden._normalizar_salida("Quedan 27 dias"))
-    if os.path.isdir("data/derived/golden/f1"):
-        import subprocess
-        proc = subprocess.run([sys.executable, "scripts/golden.py", "--comparar",
-                               "--dir", "data/derived/golden/f1"],
-                              cwd=os.getcwd(), capture_output=True, text=True)
-        comprobar("F3-R-06: golden f1 5/5 con la fecha de hoy",
-                  proc.returncode == 0, (proc.stdout or proc.stderr)[-300:])
+    carpeta_golden = "data/derived/golden/f4"
+    if os.path.isdir(carpeta_golden):
+        # El golden de F4 es una foto con fecha: solo se compara si es la de hoy. El de F1 es pre-F4 y
+        # su panel no lleva estado; se conserva como referencia historica, no como prueba diaria.
+        from datetime import date as _date
+        try:
+            with open(os.path.join(carpeta_golden, "panel.json"), encoding="utf-8") as fh:
+                fecha_golden = ((json.load(fh).get("estado") or {}).get("fecha"))
+        except (OSError, ValueError):
+            fecha_golden = None
+        if fecha_golden == _date.today().isoformat():
+            import subprocess
+            proc = subprocess.run([sys.executable, "scripts/golden.py", "--comparar",
+                                   "--dir", carpeta_golden],
+                                  cwd=os.getcwd(), capture_output=True, text=True)
+            comprobar("F4-07: golden f4 5/5 con la fecha de hoy",
+                      proc.returncode == 0, (proc.stdout or proc.stderr)[-300:])
 
     with tempfile.TemporaryDirectory() as d:
         dst = os.path.join(d, "conocimiento")
@@ -3858,6 +3868,155 @@ def pruebas_motor_conocimiento_f3() -> None:
               and len(c.materiales) == 3, str(ct._conteos(c)))
 
 
+def pruebas_estado_f4() -> None:
+    """F4: estado del atleta vacio, parcial, dolor, snapshot determinista y CLI/panel."""
+    print("\nF4. Estado del atleta: metricas, incertidumbre y snapshot")
+    import contextlib
+    import io
+    from entrenador import cli, db, estado, panel
+
+    def fila(cn, sql, params=()):
+        return cn.execute(sql, params).fetchone()
+
+    def preparar(d: str) -> tuple:
+        ruta = os.path.join(d, "estado.db")
+        cn = db.conectar(ruta)
+        # Dos bloques de natacion (400 y 1.000), una bici, una noche, una sesion de fuerza y un parte.
+        for i, (dist, secs, brazadas) in enumerate(((400.0, 300.0, 160), (1000.0, 800.0, 400)), 1):
+            cn.execute("""INSERT INTO actividad (id, fichero, hash, fuente, disciplina, nombre, inicio_local,
+                          duracion_s, distancia_m, importado_en)
+                          VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                       (i, f"t{i}.fit", f"h{i}", "test", "natacion", f"test {i}",
+                        f"2026-10-{17+i:02d} 10:00:00", secs, dist, "2026-10-20T00:00:00"))
+            cn.execute("""INSERT INTO natacion_sesion (actividad_id, largo_piscina_m, n_largos, n_largos_activos,
+                          n_laps, brazadas, fc_media, fc_max, sensacion, rpe)
+                          VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                       (i, 25.0, int(dist / 25), int(dist / 25), 1, brazadas, 140.0, 180.0, 75, 60))
+            cn.execute("""INSERT INTO natacion_lap (actividad_id, lap_idx, dist_m, timer_s, n_largos,
+                          n_largos_activos, estilo, fc_media, fc_max, brazadas, disparador, es_descanso, material)
+                          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                       (i, 0, dist, secs, int(dist / 25), int(dist / 25), "libre", 140.0, 180.0,
+                        brazadas, "distancia", 0, "sin_etiquetar"))
+        cn.execute("""INSERT INTO actividad (id, fichero, hash, fuente, disciplina, nombre, inicio_local,
+                      duracion_s, distancia_m, importado_en)
+                      VALUES (3,?,?,?,?,?,?,?,?,?)""",
+                   ("t3.fit", "h3", "test", "ciclismo", "bici", "2026-10-18 18:00:00", 3600.0, 25000.0,
+                    "2026-10-20T00:00:00"))
+        cn.execute("INSERT INTO sueno (fecha, horas, puntuacion, eficiencia, fuente) VALUES (?,?,?,?,?)",
+                   ("2026-10-19", 7.5, 80, 92.0, "test"))
+        cn.execute("""INSERT INTO gimnasio_sesion (clave, fecha, ejercicios, series, repeticiones, volumen_kg,
+                      notas, importado_en) VALUES (?,?,?,?,?,?,?,?)""",
+                   ("portal|2026-10-18", "2026-10-18",
+                    json.dumps([{"ejercicio": "press hombros (maquina)", "series": 3, "reps": 10,
+                                 "kg": 20, "rpe": 7}]), 3, 30, 600.0, "", "2026-10-20T00:00:00"))
+        cn.execute("""INSERT INTO parte (clave, fecha, actividad_id, piscina_m, metros, minutos, sensacion,
+                      notas, compania, fuente, importado_en) VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                   ("p1", "2026-10-18", 1, 25.0, 400.0, 5.0, 75, "", "entrenador", "test",
+                    "2026-10-20T00:00:00"))
+        cn.execute("""INSERT INTO parte_serie (parte_id, orden, tipo, rep_m, n_reps, metros, tiempo_s,
+                      ritmo_100, descanso_s, estilo, material, intensidad)
+                      VALUES (1,1,?,?,?,?,?,?,?,?,?,?)""",
+                   ("continuo", 400.0, 1, 400.0, 300.0, 75.0, 0.0, "libre", "", "ae2"))
+        cn.execute("""INSERT INTO apunte (clave, fecha, tipo, distancia_m, minutos, material, sensacion,
+                      fuente, importado_en, quien) VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                   ("a1", "2026-10-18", "natacion", 1000.0, 20.0, "ninguno", 7, "test",
+                    "2026-10-20T00:00:00", "entrenador"))
+        cn.execute("""INSERT INTO competicion (fuente, clave, fecha, lugar, club, estilo, distancia_m, piscina_m,
+                      marca, segundos, ritmo_100, valida, tipo, importado_en)
+                      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                   ("test", "c1", "2026-06-01", "test", "test", "libre", 400, 25, "5:00.00", 300.0, 75.0,
+                    1, "prueba", "2026-10-20T00:00:00"))
+        cn.execute("""INSERT INTO recomendacion (id, fecha, ambito, semana, titulo, cuerpo, origen, creada_en)
+                      VALUES (1, '2026-10-17', 'semana', 'S1', 'test', '', 'motor', '2026-10-17T00:00:00')""")
+        cn.execute("""INSERT INTO decision (recomendacion_id, fecha, tomada, motivo, decidida_en)
+                      VALUES (1, '2026-10-17', 'cambiada', 'trabajo', '2026-10-17T00:00:00')""")
+        cn.commit()
+        return ruta, cn
+
+    with tempfile.TemporaryDirectory() as d:
+        cn = db.conectar(os.path.join(d, "vacio.db"))
+        e0 = estado.calcular(cn, "2026-10-20")
+        comprobar("F4-08: estado vacio no inventa metricas", e0.a_dict()["sin_datos"] >= 30,
+                  f"sin_datos={e0.a_dict()['sin_datos']}/{e0.a_dict()['metricas']}")
+        comprobar("F4-06: estado vacio tiene id estable",
+                  e0.estado_id == estado.calcular(cn, "2026-10-20").estado_id)
+        comprobar("F4-06: guardar/cargar el estado vacio",
+                  estado.guardar(cn, e0) == e0.estado_id
+                  and (estado.cargar(cn, e0.estado_id) or {}).get("estado_id") == e0.estado_id)
+
+    with tempfile.TemporaryDirectory() as d:
+        ruta, cn = preparar(d)
+        e = estado.calcular(cn, "2026-10-20")
+        d_ = {m["clave"]: m for s in e.a_dict()["secciones"] for m in s["metricas"]}
+        comprobar("F4-02: rendimiento con bloques y marca oficial",
+                  d_["mejor_400"]["n"] >= 1 and d_["mejor_1000"]["n"] >= 1
+                  and d_["mejor_400_oficial"]["n"] >= 1, str(d_["mejor_400"]))
+        comprobar("F4-02: carga aguda/cronica y sesiones con datos",
+                  d_["carga_aguda_7d"]["n"] >= 1 and d_["carga_cronica_28d"]["n"] >= 1
+                  and d_["sesiones_28d"]["n"] >= 1, str(d_["carga_aguda_7d"]))
+        comprobar("F4-03: sueno, fuerza y restricciones con datos",
+                  d_["sueno_horas_7d"]["n"] == 1 and d_["fuerza_sesiones_28d"]["n"] == 1
+                  and d_["dias_entrenador_28d"]["n"] == 1 and d_["piscina_habitual"]["valor"] == 25.0,
+                  str({k: d_[k]["n"] for k in ("sueno_horas_7d", "fuerza_sesiones_28d",
+                                                "dias_entrenador_28d", "piscina_habitual")}))
+        comprobar("F4-04: respuesta por estimulo con n y sin causalidad",
+                  d_["respuesta_ae2"]["n"] >= 1
+                  and any("causal" in x.lower() for x in d_["respuesta_ae2"]["limitaciones"]),
+                  str(d_["respuesta_ae2"]))
+        comprobar("F4-03: adherencia y motivos de cambio con datos",
+                  d_["cambios_con_motivo"]["n"] == 1 and d_["adherencia_4s"]["n"] >= 1,
+                  str({k: d_[k] for k in ("adherencia_4s", "cambios_con_motivo")}))
+        comprobar("F4-05: cada metrica con n, confianza y limitaciones",
+                  all(("n" in m and "confianza" in m and "limitaciones" in m and "dispersion" in m)
+                      for m in d_.values()))
+        comprobar("F4-06: snapshot determinista con la misma fecha y datos",
+                  e.estado_id == estado.calcular(cn, "2026-10-20").estado_id
+                  and e.estado_id != estado.calcular(cn, "2026-10-19").estado_id)
+        comprobar("F4-06: guardar no cambia el id y se puede leer",
+                  estado.guardar(cn, e) == e.estado_id
+                  and fila(cn, "SELECT COUNT(*) FROM estado_atleta WHERE id = ?", (e.estado_id,))[0] == 1
+                  and (estado.cargar(cn, e.estado_id) or {}).get("fecha") == "2026-10-20")
+
+        # Dolor declarado: la restriccion se enciende y la seccion avisa.
+        cn.execute("UPDATE gimnasio_sesion SET notas = ? WHERE clave = ?",
+                   ("dolor de hombro al press", "portal|2026-10-18"))
+        cn.commit()
+        e_dolor = estado.calcular(cn, "2026-10-20")
+        d_dolor = {m["clave"]: m for s in e_dolor.a_dict()["secciones"] for m in s["metricas"]}
+        comprobar("F4-08: dolor declarado -> restriccion y aviso",
+                  d_dolor["dolor_lesion"]["valor"] == "si"
+                  and any("AVISO" in n for s in e_dolor.a_dict()["secciones"]
+                          for n in s["notas"]), str(d_dolor["dolor_lesion"]))
+
+        # CLI JSON y guardado sobre la base temporal (nunca la real).
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = cli.main(["--bd", ruta, "estado", "--fecha", "2026-10-20", "--json"])
+        try:
+            salida = json.loads(buf.getvalue())
+        except ValueError:
+            salida = {}
+        comprobar("F4-06/F4-07: cli estado --json es JSON valido",
+                  rc == 0 and salida.get("estado_id") == e_dolor.estado_id and salida.get("secciones"),
+                  buf.getvalue()[:120])
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = cli.main(["--bd", ruta, "estado", "--fecha", "2026-10-20", "--guardar", "--json"])
+        try:
+            salida_g = json.loads(buf.getvalue())
+        except ValueError:
+            salida_g = {}
+        comprobar("F4-06: cli estado --guardar guarda el snapshot",
+                  rc == 0 and salida_g.get("guardado") is True
+                  and fila(cn, "SELECT COUNT(*) FROM estado_atleta")[0] >= 1, buf.getvalue()[:120])
+
+        # El panel recibe el estado y no revienta si el calculo falla.
+        dp = panel.datos_panel(cn)
+        comprobar("F4-07: el panel recibe estado con metricas",
+                  bool(dp.get("estado") and dp["estado"].get("secciones")),
+                  str((dp.get("estado") or {}).get("estado_id")))
+
+
 if __name__ == "__main__":
     pruebas_unitarias()
     pruebas_base_de_datos()
@@ -3877,6 +4036,7 @@ if __name__ == "__main__":
     pruebas_plan_local_y_fallback()
     pruebas_conocimiento_toml()
     pruebas_motor_conocimiento_f3()
+    pruebas_estado_f4()
     pruebas_reparto_por_dia()
     pruebas_motor_en_el_discurso()
     pruebas_plan_vivo()

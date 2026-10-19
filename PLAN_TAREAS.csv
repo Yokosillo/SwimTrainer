@@ -30,14 +30,14 @@ F3-05,F3,Migración del conocimiento hardcodeado,Adaptador de compatibilidad,F3-
 F3-06,F3,Migración del conocimiento hardcodeado,Eliminar o marcar `DEPRECATED` las constantes viejas,F3-05,0 duplicados,Grep + test,hecha
 F3-07,F3,Migración del conocimiento hardcodeado,Firmar o marcar los criterios y los parámetros,F1-06,Cada `PA-*` tiene procedencia,Validación,hecha
 F3-08,F3,Migración del conocimiento hardcodeado,Golden diff v1 vs v2 con la base real,F3-05,Diferencias justificadas una a una,Informe,hecha
-F4-01,F4,Estado del atleta,Esquema `EstadoAtleta`,F3,Documentado,Revisión,pendiente
-F4-02,F4,Estado del atleta,Métricas de rendimiento y carga,F4-01,Cálculos reproducibles,Unit test,pendiente
-F4-03,F4,Estado del atleta,"Recuperación, fuerza, restricciones y adherencia",F4-01,Incluye fuentes y limitaciones,Unit test,pendiente
-F4-04,F4,Estado del atleta,Respuesta individual por estímulo,F4-02,No declara causalidad sin datos,Test,pendiente
-F4-05,F4,Estado del atleta,Incertidumbre y confianza,F4-02,Cada métrica lleva n/dispersión,Test,pendiente
-F4-06,F4,Estado del atleta,Snapshot y `estado_id`,F4-01,Hash estable,Test,pendiente
-F4-07,F4,Estado del atleta,`cli estado` y tarjeta de panel,F4-06,Visible y legible,Manual + JS,pendiente
-F4-08,F4,Estado del atleta,Tests con datos sintéticos y copia real,F4-02..06,Escenarios de borde cubiertos,Suite,pendiente
+F4-01,F4,Estado del atleta,Esquema `EstadoAtleta`,F3,Documentado,Revisión,hecha
+F4-02,F4,Estado del atleta,Métricas de rendimiento y carga,F4-01,Cálculos reproducibles,Unit test,hecha
+F4-03,F4,Estado del atleta,"Recuperación, fuerza, restricciones y adherencia",F4-01,Incluye fuentes y limitaciones,Unit test,hecha
+F4-04,F4,Estado del atleta,Respuesta individual por estímulo,F4-02,No declara causalidad sin datos,Test,hecha
+F4-05,F4,Estado del atleta,Incertidumbre y confianza,F4-02,Cada métrica lleva n/dispersión,Test,hecha
+F4-06,F4,Estado del atleta,Snapshot y `estado_id`,F4-01,Hash estable,Test,hecha
+F4-07,F4,Estado del atleta,`cli estado` y tarjeta de panel,F4-06,Visible y legible,Manual + JS,hecha
+F4-08,F4,Estado del atleta,Tests con datos sintéticos y copia real,F4-02..06,Escenarios de borde cubiertos,Suite,hecha
 F5-01,F5,Motor de decisión v2,Esquema JSON de recomendación y validación,F4,Rechaza recomendaciones incompletas,Test de esquema,pendiente
 F5-02,F5,Motor de decisión v2,Generación de candidatas,F5-01,2-4 opciones por prioridad,Test,pendiente
 F5-03,F5,Motor de decisión v2,Restricciones duras,F5-02,"Calendario, recuperación, dolor, material",Test,pendiente

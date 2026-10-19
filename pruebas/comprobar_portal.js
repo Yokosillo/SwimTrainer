@@ -27,7 +27,7 @@ if (fallos.length) { console.log(fallos.join("\n")); process.exit(1); }
 /* ---------- 2. los datos incrustados se tienen que poder leer ---------- */
 try {
   const d = JSON.parse(datos);
-  const falta = ["kpis", "plan", "competicion", "volumen", "calendario", "sesiones_recientes", "bici"].filter((k) => !(k in d));
+  const falta = ["kpis", "plan", "competicion", "volumen", "calendario", "sesiones_recientes", "bici", "estado"].filter((k) => !(k in d));
   if (falta.length) fallos.push("a los datos les falta: " + falta.join(", "));
   console.log("datos: " + Object.keys(d).join(", "));
   console.log("marcas: " + ((d.competicion && d.competicion.marcas) || []).length
@@ -179,7 +179,7 @@ if (menu_mal.length) fallos.push("el menu apunta a vistas que no existen: " + me
 if (secciones.length < 8) fallos.push("esperaba al menos 8 vistas y hay " + secciones.length);
 
 /* ---------- 7. que se haya pintado de verdad ---------- */
-const esperados = ["kpis", "preparacion", "volumenAnual", "volumenMensual", "calendario", "calMes", "calCabecera",
+const esperados = ["kpis", "estadoAtleta", "preparacion", "volumenAnual", "volumenMensual", "calendario", "calMes", "calCabecera",
   "calLeyenda", "calPista", "compKpis", "h400Tabla", "fueDosis", "fueCarga", "fueSeguro",
   "mejoresTabla", "cmpTabla", "fTabla", "objetivosPlan", "planSemanas", "entrenosTabla", "segmentosTabla",
   "gimKpis", "gsLista", "apImportados", "biciKpis", "biciSegmentos", "cuentaAtras", "selloDatos",
