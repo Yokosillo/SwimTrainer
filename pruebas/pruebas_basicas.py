@@ -3963,6 +3963,11 @@ def pruebas_estado_f4() -> None:
                   d_["respuesta_ae2"]["n"] >= 1
                   and any("causal" in x.lower() for x in d_["respuesta_ae2"]["limitaciones"]),
                   str(d_["respuesta_ae2"]))
+        comprobar("F4-08: la base con datos cubre al menos una metrica por seccion",
+                  all(any(m["estado"] != "sin_datos" for m in s["metricas"])
+                      for s in e.a_dict()["secciones"]),
+                  str({s["clave"]: [m["clave"] for m in s["metricas"] if m["estado"] != "sin_datos"]
+                       for s in e.a_dict()["secciones"]}))
         comprobar("F4-03: adherencia y motivos de cambio con datos",
                   d_["cambios_con_motivo"]["n"] == 1 and d_["adherencia_4s"]["n"] >= 1,
                   str({k: d_[k] for k in ("adherencia_4s", "cambios_con_motivo")}))
