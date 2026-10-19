@@ -1,6 +1,6 @@
 "use strict";
 /* ============================================================================
-   Panel de entrenamiento de Nombre Atleta Lacalle
+   Panel de entrenamiento: el comportamiento del portal
    Logica de la aplicacion local (cuadro/panel.html).
 
    Todo se calcula AQUI, en el navegador, con los datos que van incrustados en
@@ -412,7 +412,7 @@ function mostrarVista(nombre, silencioso) {
   pintar("migas", esc(v.migas));
   pintar("tituloVista", esc(v.titulo));
   pintar("subVista", esc(v.sub));
-  document.title = v.titulo + " · Entrenamiento · Nombre Atleta";
+  document.title = v.titulo + " · " + ((DATOS && DATOS.titulo_pagina) || "Entrenamiento");
   almacen.guardar(CLAVES.vista, nombre);
   if (!silencioso) { window.scrollTo({ top: 0, behavior: "smooth" }); }
 }

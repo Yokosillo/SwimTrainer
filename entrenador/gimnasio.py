@@ -1,4 +1,4 @@
-"""El gimnasio de Fran: su plantilla de ejercicios y lo que va levantando.
+"""El gimnasio: su plantilla de ejercicios y lo que va levantando.
 
 El reloj no sabe nada de esto (no ve series, ni kilos, ni maquinas): lo apunta el atleta. La plantilla es **suya**,
 con sus palabras para que reconozca la maquina alli mismo; de cada sesion se guarda lo que dicta la plantilla —

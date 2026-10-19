@@ -19,6 +19,10 @@ Aqui solo se montan los tres en un solo fichero, sin servidor, sin red y sin ped
 
 from __future__ import annotations
 
+import html
+
+from . import perfil
+
 import json
 import os
 from datetime import datetime
@@ -295,14 +299,22 @@ def _leer_app(nombre: str) -> str:
 
 def panel_html(d: dict) -> str:
     """Devuelve la pagina del cuadro de mando con los datos incrustados (no necesita red ni servidor)."""
-    for marca in ("__CSS__", "__DATOS__", "__JS__"):
+    for marca in ("__CSS__", "__DATOS__", "__JS__", "__TITULO__", "__DESCRIPCION__", "__INICIALES__",
+                  "__ATLETA__", "__CLUB__"):
         if marca not in _leer_app("plantilla.html"):
             raise ValueError(f"la plantilla de la aplicacion no tiene el hueco {marca}")
-    datos = json.dumps(d, ensure_ascii=False, separators=(",", ":"))
+    datos = json.dumps(dict(d, titulo_pagina=perfil.titulo()), ensure_ascii=False, separators=(",", ":"))
     plantilla = _leer_app("plantilla.html")
     plantilla = plantilla.replace("__CSS__", _leer_app("app.css"))
     plantilla = plantilla.replace("__DATOS__", datos)
     plantilla = plantilla.replace("__JS__", _leer_app("app.js"))
+    # Los datos del atleta van por hueco: el nombre no esta escrito en el codigo, y sin `perfil_local.py` el panel
+    # se pinta sin nombre (que es lo que se publica).
+    plantilla = plantilla.replace("__TITULO__", html.escape(perfil.titulo()))
+    plantilla = plantilla.replace("__DESCRIPCION__", html.escape(perfil.descripcion()))
+    plantilla = plantilla.replace("__INICIALES__", html.escape(perfil.INICIALES))
+    plantilla = plantilla.replace("__ATLETA__", html.escape(perfil.CORTO))
+    plantilla = plantilla.replace("__CLUB__", html.escape(perfil.CLUB))
     return plantilla
 
 

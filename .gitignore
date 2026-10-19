@@ -9,6 +9,9 @@ __pycache__/
 *.egg-info/
 
 # Datos personales del atleta: nunca al repositorio
+# Los anexos (informes/) llevan sus marcas, sus ritmos y lo del hombro: se quedan en el PC. El repositorio
+# publico lleva el codigo, no el historial medico-deportivo.
+informes/
 data/
 export_*.zip
 *.db
@@ -21,6 +24,9 @@ export_*.zip
 # Salidas generadas (se rehacen con `cli analizar`)
 cuadro/
 data/derived/
+
+# El nombre, el club y el sello del atleta: los lee entrenador/perfil.py desde aqui
+entrenador/perfil_local.py
 
 # Cosas sueltas de una sesion de trabajo
 *.log

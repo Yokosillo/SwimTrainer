@@ -240,7 +240,7 @@ def pruebas_analitica(ruta: str = "data/entrenador.db") -> None:
     semana_txt = " ".join(p["texto"] for p in v["parrafos"] if p["titulo"] == "Lo que queda de semana")
     comprobar("y cuando la semana esta en curso, se dice en que vaso se nadó (para comparar ritmos como toca)",
               (not semana_txt) or ("vaso de 25 m" in semana_txt) or ("vaso de 50 m" in semana_txt),
-              semana_txt[:140])
+              semana_txt[-140:])
     # V1.1-04: el motor (que falta y en que dia cae) entra en el discurso y viaja con sus numeros.
     comprobar("el discurso trae lo que falta y lo que toca esta semana",
               all(t in titulos for t in ("Que te falta", "Que toca esta semana")), str(titulos))
@@ -722,6 +722,21 @@ def pruebas_plan_y_portal(ruta: str = "data/entrenador.db") -> None:
         faltan = sorted(i for i in usados if f'id="{i}"' not in hecha)
         comprobar("todos los elementos que usa la aplicacion existen en la pagina hecha",
                   not faltan, f"faltan {faltan}" if faltan else f"{len(usados)} elementos")
+        # El nombre, el club y el sello del atleta entran por hueco desde `perfil.py`: la pagina hecha tiene que
+        # traerlos rellenos y no quedarse ninguno sin sustituir.
+        comprobar("la pagina hecha no deja ningun hueco sin rellenar",
+                  not any(m in hecha for m in ("__ATLETA__", "__TITULO__", "__CLUB__", "__INICIALES__",
+                                               "__DESCRIPCION__")))
+    # Y no estan escritos en el codigo: viven en `entrenador/perfil_local.py`, que no se publica.
+    sueltos = []
+    for _f in ("entrenador/app/plantilla.html", "entrenador/app/app.js", "entrenador/app/app.css",
+               "entrenador/perfil.py", "entrenador/panel.py"):
+        if os.path.isfile(_f):
+            _t = open(_f, encoding="utf-8").read()
+            if any(n in _t for n in ("Atleta", "Club", "Nombre")):
+                sueltos.append(_f)
+    comprobar("el nombre y el club del atleta no estan escritos en el codigo (solo en el fichero local)",
+              not sueltos, "con el nombre dentro: " + repr(sueltos))
 
     if not os.path.isfile(ruta):
         print("  (sin base de datos: la parte de apuntes se salta)")
@@ -782,11 +797,19 @@ def pruebas_plan_y_portal(ruta: str = "data/entrenador.db") -> None:
                   gim["peticiones"][0]["material"] == ["Mancuernas", "Gomas"], str(gim["peticiones"][0]["material"]))
         comprobar("la peticion guarda lo que hay que evitar",
                   "press militar" in gim["peticiones"][0]["molestias"])
-        comprobar("el resumen cuenta la sesion apuntada", gim["n_sesiones"] == 1)
+        # Ojo: la base es la de verdad y ya tiene sesiones suyas (la del 17/10, por ejemplo). Se busca **esta**
+        # sesion por su fecha en vez de suponer que es la unica y la primera.
+        mia = [s for s in gim["sesiones"] if s.get("fecha") == "2026-10-13"]
+        ej = (mia[0].get("ejercicios") or []) if mia else []
+        if isinstance(ej, str):
+            ej = json.loads(ej)
+        comprobar("el resumen cuenta la sesion apuntada",
+                  len(mia) == 1, str([s.get("fecha") for s in gim["sesiones"]]))
         comprobar("el volumen levantado sale de series x reps x kilos",
-                  gim["volumen_total_kg"] == 4 * 10 * 22 + 3 * 15 * 15, f"{gim['volumen_total_kg']} kg")
+                  bool(mia) and mia[0]["volumen_kg"] == 4 * 10 * 22 + 3 * 15 * 15,
+                  f"{mia[0]['volumen_kg'] if mia else None} kg")
         comprobar("el historial trae los ejercicios con sus kilos",
-                  gim["sesiones"][0]["ejercicios"][0]["kg"] == 22)
+                  bool(ej) and ej[0].get("kg") == 22, str(ej[:2]))
         comprobar("todavia no hay sesion escrita por el programa", not gim["prescritas"])
 
         manda = {"fecha": "2026-10-14", "titulo": "Traccion + hombro (suelto, despues de nadar)",

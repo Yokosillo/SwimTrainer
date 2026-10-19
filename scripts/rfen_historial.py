@@ -14,7 +14,7 @@ Camino (todo con peticiones GET normales, sin navegador):
 
 Uso:
     .venv/Scripts/python.exe scripts/rfen_historial.py
-    .venv/Scripts/python.exe scripts/rfen_historial.py --nombre NOMBRE --apellidos "ATLETA APELLIDO" --genero M
+    .venv/Scripts/python.exe scripts/rfen_historial.py --nombre NOMBRE --apellidos "APELLIDOS" --genero M
 
 Salida (dentro del proyecto):
     data/competicion/historial_rfen.csv     todas las marcas, una por linea
@@ -172,10 +172,25 @@ def mejores(filas: list[list[str]]) -> list[list[str]]:
     return orden
 
 
+def _persona_local() -> dict:
+    """Los datos del nadador, del fichero local que no se sube. Sin el, vacio: los pasa quien llame."""
+    import json as _json
+    import pathlib as _pathlib
+
+    f = _pathlib.Path(__file__).resolve().parent.parent / "data" / "rfen_persona.json"
+    try:
+        return _json.loads(f.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Baja el historial completo de la RFEN")
-    ap.add_argument("--nombre", default="NOMBRE")
-    ap.add_argument("--apellidos", default="ATLETA APELLIDO")
+    # Los datos del nadador no se escriben aqui: se leen de `data/rfen_persona.json` (que no se sube, porque
+    # `data/` se queda fuera) y, si no esta, hay que pasarlos a mano.
+    persona = _persona_local()
+    ap.add_argument("--nombre", default=persona.get("nombre", ""))
+    ap.add_argument("--apellidos", default=persona.get("apellidos", ""))
     ap.add_argument("--genero", default="M")
     ap.add_argument("--salida", default="data/competicion")
     a = ap.parse_args()

@@ -562,12 +562,13 @@ def discurso(cn: sqlite3.Connection, bloques: list[dict], datos: dict,
         # de 50 m, sus ritmos por 100 no son comparables y se dice, en vez de mezclarlos con los de vaso corto.
         delasemana = [b for b in bloques if en_curso["desde"] <= (b.get("fecha") or "") <= en_curso["hasta"]]
         vasos = sorted({float(b["piscina_m"]) for b in delasemana if b.get("piscina_m")})
-        if vasos == [25.0]:
-            restante += " Los bloques de la semana son de vaso de 25 m: los ritmos por 100 valen tal cual."
-        elif vasos:
-            otros = ", ".join(f"{int(v)} m" for v in vasos if float(v) != 25.0)
-            restante += (f" Ojo: en la semana hay bloques en vaso de {otros} y los ritmos por 100 de un vaso de "
-                          "50 m salen mas lentos: no se comparan con los de 25 m.")
+        otros = [v for v in vasos if float(v) != 25.0]
+        if otros:
+            restante += (f" Ojo: en la semana hay bloques en vaso de {', '.join(f'{int(v)} m' for v in otros)} y los "
+                          "ritmos por 100 de un vaso de 50 m salen mas lentos: no se comparan con los de 25 m.")
+        else:
+            restante += " Los dias propios son de vaso de 25 m: los ritmos por 100 valen tal cual."
+
         parrafos.append({"titulo": "Lo que queda de semana", "texto": restante})
     else:
         avisos.append("La semana del plan que toca no se puede leer: el portal no sabe que queda por hacer.")
