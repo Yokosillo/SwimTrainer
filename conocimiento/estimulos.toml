@@ -1,12 +1,199 @@
+# Clases de estimulo (conocimiento publico, generico).
+# La copia local (conocimiento/local/estimulos.toml, privada) sustituye estos textos por los del
+# atleta cuando existe. Sin local, el motor puede funcionar con estas descripciones genericas.
+
 [[estimulo]]
 id = "ES-001"
-nombre = "ritmo de prueba"
-entrena = "tolerancia al lactato, tecnica y ritmo especifico del 400"
-no_entrena = "base aerobica de volumen; fuerza maxima"
-recuperacion_h = 36
+clave = "continuo_aerobico"
+orden = 1
+nombre = "Fondo continuo suave"
+entrena = "capacidad aerobica, economia de brazada y la base que sostiene todo lo demas"
+no_entrena = "nada de ritmo alto: no mejora la punta ni el ritmo de prueba"
+recuperacion_h = 12.0
+coste = "bajo"
+papel_400 = "es lo que hace que el final del 400 no se caiga"
+papel_3000 = "es la base de la prueba: aguantar ritmo sin parar"
+senal = "sesiones largas y continuas en las ultimas semanas"
+seccion_T = ["T.2"]
+grado = "metodo"
+sin_fuente = ["recuperacion"]
+afirmaciones = []
+notas = "Version publica generica; la local tiene el texto exacto del atleta."
+
+[[estimulo]]
+id = "ES-002"
+clave = "continuo_sostenido"
+orden = 2
+nombre = "Fondo continuo sostenido"
+entrena = "durabilidad a ritmo medio-alto sin parar; paso intermedio entre el fondo facil y las series"
+no_entrena = "velocidad ni potencia"
+recuperacion_h = 24.0
+coste = "medio"
+papel_400 = "ensena a nadar el 400 sin cortarse, a ritmo constante"
+papel_3000 = "el motor de los primeros kilometros de la prueba"
+senal = "ningun bloque continuo largo en las ultimas dos semanas"
+seccion_T = ["T.2"]
+grado = "metodo"
+sin_fuente = ["recuperacion"]
+afirmaciones = []
+
+[[estimulo]]
+id = "ES-003"
+clave = "series_largas"
+orden = 3
+nombre = "Series largas (200-400 por repeticion)"
+entrena = "capacidad aerobica especifica: sostener ritmo de umbral con pausas cortas"
+no_entrena = "la punta de velocidad; no es una sesion para tocar techo de pulso"
+recuperacion_h = 36.0
 coste = "alto"
-papel_400 = "clave"
-papel_3000 = "apoyo"
-afirmaciones = ["AF-001", "AF-002"]
+papel_400 = "reps de 200-400 a ritmo de prueba con 30-45 s"
+papel_3000 = "3x1.000, 6x400, 2x1.500"
+senal = "pocos metros en repeticiones de 200 m o mas en la ultima semana"
+seccion_T = ["T.2", "T.3"]
+grado = "metodo"
+sin_fuente = ["recuperacion"]
+afirmaciones = []
+
+[[estimulo]]
+id = "ES-004"
+clave = "series_medias"
+orden = 4
+nombre = "Series medias (100-200 por repeticion)"
+entrena = "potencia aerobica y umbral: nadar a ritmo alto con pausas cortas"
+no_entrena = "el aguante largo ni la velocidad maxima"
+recuperacion_h = 30.0
+coste = "alto"
+papel_400 = "reps de 100-200 a ritmo alto con pausa corta"
+papel_3000 = "10x200 a ritmo objetivo menos 2-4 s/100"
+senal = "pocos metros en repeticiones de 100-200 m en la ultima semana"
+seccion_T = ["T.2"]
+grado = "metodo"
+sin_fuente = ["recuperacion"]
+afirmaciones = []
+
+[[estimulo]]
+id = "ES-005"
+clave = "ritmo_prueba"
+orden = 5
+nombre = "Ritmo de prueba con pausa corta"
+entrena = "tolerancia al lactato y confianza en el ritmo: nadar a ritmo de prueba con pausas de 20-30 s"
+no_entrena = "la base aerobica; sin fondo este trabajo se sostiene dos semanas y luego se estanca"
+recuperacion_h = 36.0
+coste = "alto"
+papel_400 = "el estimulo rey: 8x100 a ritmo de prueba con 25-30 s, o 3 bloques de 4x100"
+papel_3000 = "entra mas tarde, cuando el ritmo objetivo ya es comodo"
+senal = "nada a ritmo de prueba con descanso de 30 s o menos en los ultimos dias"
 seccion_T = ["T.1", "T.2", "T.3"]
-notas = "Piloto F2: la clase `ritmo_prueba` del motor v1."
+grado = "evidencia"
+sin_fuente = ["recuperacion"]
+afirmaciones = ["AF-002"]
+notas = "Piloto F2/F3: la clase ritmo_prueba."
+
+[[estimulo]]
+id = "ES-006"
+clave = "velocidad_resistencia"
+orden = 6
+nombre = "Velocidad con descanso largo"
+entrena = "mantener tecnica y potencia a velocidad alta con el cuerpo fresco"
+no_entrena = "el aguante; con descanso largo no se entrena el pulso alto sostenido"
+recuperacion_h = 24.0
+coste = "medio"
+papel_400 = "8x50 a tope con descanso largo para el cambio de ritmo del final"
+papel_3000 = "velocidad de reserva: hacer que el ritmo de prueba parezca lento"
+senal = "ningun bloque de 25-50 m rapido en las ultimas dos semanas"
+seccion_T = ["T.2", "T.3"]
+grado = "evidencia"
+sin_fuente = ["recuperacion"]
+afirmaciones = []
+
+[[estimulo]]
+id = "ES-007"
+clave = "pies"
+orden = 7
+nombre = "Pataleo (pies)"
+entrena = "fuerza y propulsion de piernas: el viraje y el ultimo tramo de cada largo"
+no_entrena = "el ritmo de brazo libre: un pataleo no se compara con una serie de nado completo"
+recuperacion_h = 12.0
+coste = "bajo"
+papel_400 = "piernas para no perder el viraje cuando llegas justo"
+papel_3000 = "ayuda a no arrastrar las piernas"
+senal = "no hacer pies en varias semanas"
+seccion_T = []
+grado = "criterio"
+sin_fuente = ["todo"]
+afirmaciones = []
+
+[[estimulo]]
+id = "ES-008"
+clave = "salida"
+orden = 8
+nombre = "Salida con crono"
+entrena = "reaccion y los primeros metros: la salida, la entrada al agua y el primer ciclo"
+no_entrena = "el fondo: la salida se decide en pocos segundos"
+recuperacion_h = 24.0
+coste = "medio"
+papel_400 = "una salida limpia y un primer tramo a tope son decimas que no cuestan entrenamiento"
+papel_3000 = "sirve para el primer largo y para no perder el ritmo despues de cada viraje"
+senal = "mucho tiempo sin salir con crono"
+seccion_T = []
+grado = "criterio"
+sin_fuente = ["todo"]
+afirmaciones = []
+
+[[estimulo]]
+id = "ES-009"
+clave = "tecnica"
+orden = 9
+nombre = "Tecnica"
+entrena = "economia: hacer lo mismo gastando menos; es lo que sostiene los ultimos tramos"
+no_entrena = "nada de carga"
+recuperacion_h = 0.0
+coste = "bajo"
+papel_400 = "cada brazada de mas en los ultimos 100 se paga en segundos"
+papel_3000 = "la economia es medio 3.000"
+senal = "siempre suma"
+seccion_T = []
+grado = "criterio"
+sin_fuente = ["todo"]
+afirmaciones = []
+
+[[estimulo]]
+id = "ES-010"
+clave = "calentamiento"
+orden = 10
+nombre = "Calentamiento y enfriamiento"
+entrena = "poner el cuerpo a punto; no cuenta como carga"
+no_entrena = "nada"
+recuperacion_h = 0.0
+coste = "bajo"
+papel_400 = "obligatorio antes de cualquier serie rapida"
+papel_3000 = "obligatorio"
+senal = ""
+seccion_T = []
+grado = "criterio"
+sin_fuente = ["todo"]
+afirmaciones = []
+
+[[material]]
+clave = "aletas"
+orden = 1
+nombre = "aletas"
+que_hace = "sube la velocidad y mejora la posicion; sirve para nadar rapido sin gastar"
+ayuda_s100 = 10.0
+ojo = "sus ritmos son los mas optimistas: no valen como referencia"
+
+[[material]]
+clave = "palas"
+orden = 2
+nombre = "palas"
+que_hace = "fuerza de traccion: mas agua por brazada"
+ayuda_s100 = 6.0
+ojo = "cargan el hombro; no abuses con el hombro tocado"
+
+[[material]]
+clave = "pull"
+orden = 3
+nombre = "pull"
+que_hace = "aisla la brazada y quita las piernas de la ecuacion"
+ayuda_s100 = 4.0
+ojo = "su ritmo no es el de nado completo"

@@ -1,4 +1,5 @@
 [calendario]
+dias = ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo"]
 dias_entrenador = ["lunes", "miercoles", "viernes"]
 dias_propios = ["martes", "jueves", "domingo"]
 dia_bici = "sabado"
