@@ -3019,6 +3019,51 @@ function pintarValoracion() {
     + "<p class='ent-titular'>" + esc(v.titular) + "</p>" + parrafos + dianas + avisos + "</div>");
 }
 
+/* La foto del estado del atleta (F4). La calcula Python (`entrenador/estado.py`) y llega en
+   DATOS.estado: cada metrica con n, dispersion, confianza, fuente y limitaciones. */
+function pintarEstado() {
+  const e = DATOS.estado || {};
+  const caja = q("estadoAtleta");
+  if (!caja) return;
+  if (!e.secciones || !e.secciones.length) {
+    caja.innerHTML = "<header><h3>Estado del atleta</h3><span class='pista'>sin foto</span></header>"
+      + "<div class='tarjeta-cuerpo'><div class='vacio'><strong>Sin estado calculado</strong>"
+      + esc(e.error || "No hay metricas disponibles para esta fecha.") + "</div></div>";
+    return;
+  }
+  const valorDe = (m) => {
+    if (m.estado === "sin_datos" || m.valor === null || m.valor === undefined) return "sin datos";
+    const v = String(m.valor) + (m.unidad ? " " + m.unidad : "");
+    return esc(v) + (m.dispersion !== null && m.dispersion !== undefined
+      ? " <span class='gris mini-txt'>± " + esc(String(m.dispersion)) + "</span>" : "");
+  };
+  let h = "<header><h3>Estado del atleta</h3><span class='pista'>" + esc(fechaCorta(e.fecha))
+    + " · " + esc(e.estado_id || "sin id") + " · " + esc(e.version_conocimiento || "sin version")
+    + "</span></header><div class='tarjeta-cuerpo'>"
+    + "<p class='ayuda'>Foto reproducible de lo que se sabe en esa fecha. Cada numero lleva sus observaciones "
+    + "(n), su dispersion, su confianza y lo que no se puede concluir. Si no hay datos, se dice: no se rellena.</p>";
+  (e.secciones || []).forEach((s) => {
+    h += "<div class='etiqueta-mini'>" + esc(s.titulo) + "</div>";
+    h += tablaHTML([{ n: "Metrica" }, { n: "Valor" }, { n: "n", num: true },
+                    { n: "Confianza" }, { n: "Fuente y limite" }],
+      (s.metricas || []).map((m) => [
+        esc(m.etiqueta),
+        valorDe(m),
+        esc(String(m.n === undefined ? 0 : m.n)),
+        chip(m.confianza || "baja", m.confianza === "alta" ? "ok" : (m.confianza === "media" ? "a" : "")),
+        "<span class='gris mini-txt'>" + esc((m.fuente || []).join(", "))
+          + ((m.limitaciones || []).length ? " · " + esc((m.limitaciones || []).join(" · ")) : "") + "</span>",
+      ]), { compacta: true });
+    (s.notas || []).forEach((n) => { h += "<p class='mini-txt'>" + esc(n) + "</p>"; });
+  });
+  if ((e.avisos || []).length) {
+    h += "<div class='aviso mt'><strong>Avisos</strong><ul>"
+      + e.avisos.map((a) => "<li>" + esc(a) + "</li>").join("") + "</ul></div>";
+  }
+  h += "</div>";
+  caja.innerHTML = h;
+}
+
 /* El boton del Garmin: el portal le pide al servidor local que baje de Garmin Connect lo que falte. El servidor
    usa el mismo codigo que `python scripts/garmin_conectar.py traer`. Por aqui no pasa ninguna credencial: la
    sesion (token OAuth) ya esta en el disco del PC, la dejo el atleta con conectar-garmin.bat. */
@@ -3340,6 +3385,7 @@ function arrancar() {
   pintarCabeceraDatos();
   pintarKpis();
   pintarValoracion();
+  pintarEstado();
   pintarPreparacion();
   pintarVolumen();
   pintarResumenPruebas();

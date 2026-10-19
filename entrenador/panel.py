@@ -53,7 +53,14 @@ def datos_panel(cn) -> dict:
     # El plan va con su version recalculada: la escrita es la referencia, y `vivo` es la que se rehace con cada
     # entrenamiento que entra (con lo que ha pasado de verdad en la semana anterior).
     salida = {"plan": dict(plan.datos(), vivo=plan_vivo.datos(cn)), "competicion": None,
-              "apuntes": apuntes.resumen(cn)}
+              "apuntes": apuntes.resumen(cn), "estado": None}
+    try:
+        from . import estado as _estado
+        salida["estado"] = _estado.calcular(cn).a_dict()
+    except Exception as exc:
+        # El panel no puede quedarse en blanco porque el estado falle: se dice y se sigue.
+        salida["estado"] = {"estado_id": "", "fecha": "", "secciones": [],
+                            "error": f"no se pudo calcular el estado: {exc}"}
     r = competicion.resumen(cn)
     if not r.get("total"):
         return salida

@@ -578,6 +578,37 @@ def _decision(cn, args) -> int:
         print(f"{r['id']:<5} {r['fecha']:<11} {r['semana'] or '-':<7} {r.get('tomada') or 'sin decidir':<13} {r['titulo']}")
     return 0
 
+def _estado(cn, args) -> int:
+    """Imprime o guarda la foto del estado del atleta (F4). No toca el motor ni las recomendaciones."""
+    import json
+    from . import estado
+    if getattr(args, "id", None):
+        d = estado.cargar(cn, args.id)
+        if not d:
+            print(f"No hay ningun estado guardado con id {args.id}.")
+            return 1
+        if args.json:
+            print(json.dumps(d, ensure_ascii=False, indent=2, sort_keys=True))
+        else:
+            print(f"{d.get('estado_id')}  {d.get('fecha')}  {d.get('version_conocimiento') or 'sin version'}")
+        return 0
+    e = estado.calcular(cn, getattr(args, "fecha", None))
+    guardado = False
+    if getattr(args, "guardar", False):
+        estado.guardar(cn, e)
+        guardado = True
+    if args.json:
+        d = e.a_dict()
+        if guardado:
+            d["guardado"] = True
+        print(json.dumps(d, ensure_ascii=False, indent=2, sort_keys=True))
+        return 0
+    print(e.texto())
+    if guardado:
+        print(f"\nGuardado: {e.estado_id}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="entrenador", description="Gestor de entrenamientos (uso personal).")
     p.add_argument("--bd", default=db.RUTA_POR_DEFECTO, help="ruta de la base de datos SQLite")
@@ -639,6 +670,12 @@ def main(argv: list[str] | None = None) -> int:
 
     pfu = sub.add_parser("fuerza", help="la dosis preventiva del hombro (T.7), el aviso de abandono y su carga")
     pfu.add_argument("--fecha", default=None, help="la fecha del dia (por defecto, hoy)")
+
+    pest = sub.add_parser("estado", help="la foto del atleta en una fecha: metricas, n, dispersion y confianza")
+    pest.add_argument("--fecha", default=None, help="fecha de la foto (YYYY-MM-DD; por defecto, hoy)")
+    pest.add_argument("--guardar", action="store_true", help="guarda el snapshot en la base (id determinista)")
+    pest.add_argument("--json", action="store_true", help="salida JSON valida")
+    pest.add_argument("--id", default=None, metavar="EA-...", help="lee un snapshot guardado por su id")
 
     pco = sub.add_parser("conocimiento", help="la base de conocimiento: validacion, criterios y firmas")
     pco.add_argument("--revisar", default=None, metavar="SECCION",
@@ -927,6 +964,8 @@ def main(argv: list[str] | None = None) -> int:
         return _apunte(cn, args)
     elif args.orden == "fuerza":
         return _fuerza(cn, args)
+    elif args.orden == "estado":
+        return _estado(cn, args)
     elif args.orden == "conocimiento":
         return _conocimiento(cn, args)
     elif args.orden == "reglas":

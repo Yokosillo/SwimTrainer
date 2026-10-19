@@ -60,7 +60,7 @@ COMANDOS = (
 )
 
 # Claves que cambian en cada ejecucion y no dicen nada del conocimiento: se excluyen del hash.
-VOLATILES = ("generado",)
+VOLATILES = ("generado", "generado_en", "creado_en")
 
 
 def _normalizar_salida(texto: str) -> str:
@@ -124,6 +124,7 @@ def resumen_panel(ruta: str) -> dict:
     entrenador = datos.get("entrenador") or {}
     valoracion = datos.get("valoracion") or {}
     plan = datos.get("plan") or {}
+    estado = datos.get("estado") or {}
     return {
         "hash_datos": _sha256(_json_canonico(limpio)),
         "kpis": datos.get("kpis"),
@@ -140,6 +141,9 @@ def resumen_panel(ruta: str) -> dict:
                        "n_parrafos": len(valoracion.get("parrafos") or []),
                        "n_dianas": len(valoracion.get("dianas") or [])},
         "competicion": ((datos.get("competicion") or {}).get("resumen")),
+        "estado": {"id": estado.get("estado_id"), "fecha": estado.get("fecha"),
+                   "version": estado.get("version_conocimiento"),
+                   "metricas": estado.get("metricas"), "sin_datos": estado.get("sin_datos")},
     }
 
 
