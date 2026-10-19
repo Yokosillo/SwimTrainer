@@ -911,6 +911,42 @@ console.log("gimnasio: plantilla en la vista " + (documento.getElementById("gimP
   }
 }
 
+/* ---------- 13. la forma de un bloque y lo que el sistema aprende (V1.5-01) -------- */
+
+/* La forma de un bloque (regular, progresiva, aflojando...) no la marca nadie: sale de los tiempos, con el
+   margen que el sistema ha aprendido de sus propios partes. Aqui se comprueba que el portal la pinta en la
+   cabecera del bloque y que enseña lo aprendido (el margen y el descanso que agrupa las series). */
+try {
+  if (typeof sandbox.formaNota !== "function") {
+    fallos.push("falta formaNota en app.js (la forma del bloque no se enseña)");
+  } else {
+    const ev = { ganancia_s_100: 6.8, margen_s_100: 1.0, reps_fuera_de_la_tendencia: [] };
+    const pintado = String(sandbox.formaNota({ concepto: "progresivo", concepto_evidencia: ev }));
+    if (pintado.indexOf("chip") < 0 || pintado.indexOf("rogresiv") < 0 || pintado.indexOf("6,8") < 0) {
+      fallos.push("la forma de un bloque no sale con su nombre y lo que gana: " + pintado.slice(0, 120));
+    } else {
+      console.log("forma del bloque: se pinta como " + pintado.replace(/<[^>]+>/g, "").trim());
+    }
+    if (String(sandbox.formaNota({})).trim() !== "") {
+      fallos.push("un bloque sin forma medida no puede llevar pastilla de forma");
+    }
+  }
+  if (typeof sandbox.pintarAprendizaje !== "function") {
+    fallos.push("falta pintarAprendizaje en app.js (no se enseña lo que ha aprendido)");
+  } else {
+    sandbox.pintarAprendizaje();
+    const visto = textoDe(cajones.parteAprendizaje) + " " + String(pintados.parteAprendizaje || "");
+    if (visto.indexOf("bailan los tiempos") < 0 || visto.indexOf("misma serie") < 0) {
+      fallos.push("la tarjeta de lo aprendido no enseña el margen y el descanso: " + visto.slice(0, 140));
+    } else {
+      console.log("lo aprendido: " + visto.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 150));
+    }
+  }
+  if (!documento.getElementById("parteAprendizaje")) fallos.push("falta #parteAprendizaje en la plantilla");
+} catch (e) {
+  fallos.push("no se pudo probar la forma del bloque ni lo aprendido: " + e.message);
+}
+
 if (fallos.length) {
   console.log("\nFALLA:\n- " + fallos.join("\n- "));
   process.exit(1);

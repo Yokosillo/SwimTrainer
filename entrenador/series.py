@@ -21,6 +21,8 @@ from __future__ import annotations
 import re
 import statistics as st
 
+from . import concepto
+
 PALABRAS_MATERIAL = {
     "palas": "palas",
     "aletas": "aletas",
@@ -34,7 +36,7 @@ PALABRAS_MATERIAL = {
 }
 
 DIST_MAX_SERIE_M = 3000.0
-DESCANSO_MAX_S = 180.0
+DESCANSO_MAX_S = 180.0     # tope de partida; manda el que ha aprendido de sus partes
 RITMO_MIN, RITMO_MAX = 45.0, 400.0
 MIN_REPS_SERIE = 2      # una repeticion suelta no es una serie: es un bloque continuo
 MIN_REPS_COMPARABLE = 3
@@ -61,12 +63,27 @@ def ritmo_100(dist_m: float, timer_s: float) -> float | None:
     return 100.0 * timer_s / dist_m
 
 
-def reconstruir_series(laps: list[dict]) -> list[dict]:
+def descanso_max_serie() -> float:
+    """Cuanto descanso cabe todavia dentro de una serie: lo aprendido de sus partes, o el tope de siempre.
+
+    Su forma de agrupar sale de sus propios partes (`aprendizaje.agrupacion`): si nunca ha descansado mas de
+    40 s dentro de una serie, una pausa de 90 s ya es otra cosa. El importe se lee aqui en vez de pasarlo
+    desde fuera para que no haya forma de importar un entrenamiento agrupandolo con el criterio viejo.
+    """
+    try:
+        from . import aprendizaje
+        return float(aprendizaje.descanso_mismo_bloque())
+    except Exception:      # sin partes de los que aprender, o sin fichero: el criterio de siempre
+        return DESCANSO_MAX_S
+
+
+def reconstruir_series(laps: list[dict], descanso_max_s: float | None = None) -> list[dict]:
     """Agrupa los laps en series segun el criterio documentado arriba.
 
     Solo se devuelven los grupos con `MIN_REPS_SERIE` repeticiones o mas: una repeticion suelta
     es un bloque continuo (se guarda como lap, no como serie) y mezclarlas inflaria el catalogo.
     """
+    tope_descanso = float(descanso_max_s) if descanso_max_s else descanso_max_serie()
     series: list[dict] = []
     actual: list[dict] = []          # repeticiones de la serie en curso
     descansos: list[float] = []      # descansos dentro de la serie en curso
@@ -82,7 +99,7 @@ def reconstruir_series(laps: list[dict]) -> list[dict]:
                 series.append(_cerrar(actual, descansos))
                 actual, descansos = [], []
             continue
-        if actual and (abs(dist - actual[0]["dist_m"]) > 0.5 or (descansos and descansos[-1] > DESCANSO_MAX_S)):
+        if actual and (abs(dist - actual[0]["dist_m"]) > 0.5 or (descansos and descansos[-1] > tope_descanso)):
             series.append(_cerrar(actual, descansos))
             actual, descansos = [], []
         actual.append({"dist_m": dist, "timer_s": lap.get("timer_s") or 0.0,
@@ -118,6 +135,11 @@ def _cerrar(reps: list[dict], descansos: list[float]) -> dict:
         "descanso_medio_s": st.mean(descansos) if descansos else None,
         "deriva_s": (ritmos[-1] - ritmos[0]) if len(ritmos) >= 2 else None,
     }
+    # La forma de la serie (regular, progresiva, aflojando...) sale de sus propios tiempos, con el margen que
+    # ha aprendido el sistema: no hay que declararla.
+    evidencia = concepto.medir(ritmos) if len(ritmos) >= concepto.MIN_REPS else None
+    s["concepto"] = (evidencia or {}).get("concepto")
+    s["concepto_evidencia"] = evidencia
     s["comparable"] = int(
         s["n_reps_validas"] >= MIN_REPS_COMPARABLE
         and (s["estilo"] or "") != "drill"

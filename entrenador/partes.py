@@ -33,7 +33,7 @@ import os
 import sqlite3
 import statistics as st
 
-from . import correcciones, db, parciales, pruebas
+from . import aprendizaje, concepto, correcciones, db, parciales, pruebas
 
 # Lo que se puede marcar como material. No hay "brazo libre" que marcar: no marcar nada ES nadar a brazo libre
 # (esos laps se quedan en `sin_etiquetar`, que es justo lo que la analitica compara como marca suya).
@@ -197,6 +197,13 @@ def _cerrar(grupo: dict, cortes: list[dict] | None = None) -> dict:
         "laps": [r["lap_idx"] for r in reps],
         "avisos": avisos,
     }
+    # La forma del bloque (regular, progresiva, aflojando...) se mide de los tiempos de sus repeticiones, con
+    # el margen que el sistema ha aprendido de sus propios partes. Los intervalos con el cronometro mal
+    # disparado se apartan: no cuentan para la forma, igual que no cuentan para el ritmo.
+    evidencia = forma_del_grupo(reps)
+    salida["concepto"] = evidencia.get("concepto")
+    salida["concepto_evidencia"] = evidencia
+
     if cortes:
         sugerida, motivo = sugerir_intensidad(salida, cortes)
         salida["intensidad_sugerida"] = sugerida
@@ -204,13 +211,68 @@ def _cerrar(grupo: dict, cortes: list[dict] | None = None) -> dict:
     return salida
 
 
+def ritmos_de_reps(cn: sqlite3.Connection | None, actividad_id, reps: list[dict]) -> list:
+    """El ritmo de cada repeticion de un bloque: el que trae la repeticion o el del intervalo del reloj.
+
+    Las repeticiones guardadas en el parte solo apuntan a su intervalo del reloj (`lap`): el tiempo se lee de
+    `natacion_lap`. Las de una propuesta recien hecha ya traen su ritmo calculado, y por eso `cn` es opcional.
+    """
+    idxs = [r.get("lap") for r in (reps or []) if r.get("lap") is not None]
+    filas = {}
+    if cn is not None and actividad_id is not None and idxs:
+        marcas = ",".join("?" * len(idxs))
+        filas = {f["lap_idx"]: f for f in cn.execute(
+            f"SELECT lap_idx, dist_m, timer_s FROM natacion_lap "
+            f"WHERE actividad_id = ? AND lap_idx IN ({marcas})", (actividad_id, *idxs))}
+    salida = []
+    for r in (reps or []):
+        ritmo = r.get("ritmo_100")
+        if not ritmo:
+            dist = float(r.get("dist_m") or 0)
+            tiempo = r.get("timer_s") or r.get("tiempo_s")
+            lap = r.get("lap")
+            if not tiempo and lap is not None and lap in filas:
+                dist, tiempo = float(filas[lap]["dist_m"] or 0), filas[lap]["timer_s"]
+            ritmo = _ritmo(dist, float(tiempo or 0))
+        salida.append(ritmo)
+    return salida
+
+
+def forma_del_grupo(reps: list[dict], cn: sqlite3.Connection | None = None, actividad_id=None) -> dict:
+    """La forma de un bloque a partir de sus repeticiones (las propuestas o las que ya estan guardadas).
+
+    Los intervalos con el cronometro mal disparado se apartan: no cuentan para la forma, igual que no cuentan
+    para el ritmo.
+    """
+    ritmos = ritmos_de_reps(cn, actividad_id, reps)
+    malos = [i for i, r in enumerate(ritmos)
+             if not (r and RITMO_MIN <= r <= RITMO_MAX)]
+    return concepto.medir(ritmos, malos=malos)
+
+
+def descanso_max_grupo() -> float:
+    """Cuanto descanso todavia es "la misma serie": lo que ha aprendido de sus partes, o el tope de siempre.
+
+    Es la regla que agrupa de verdad: cuando sube un entrenamiento, los intervalos se juntan en un bloque
+    mientras el descanso entre ellos no pase de aqui. El tope se aprende de sus propios partes
+    (`aprendizaje.agrupacion`): si nunca ha descansado mas de un minuto dentro de una serie, una pausa de
+    minuto y medio ya es otro bloque.
+    """
+    try:
+        return float(aprendizaje.descanso_mismo_bloque())
+    except Exception:
+        return DESCANSO_MAX_S
+
+
 def proponer_grupos(laps: list[dict], cortes: list[dict] | None = None) -> list[dict]:
     """Agrupa los intervalos de una sesion en grupos revisables.
 
     Se corta el grupo cuando cambia la distancia de la repeticion (mas de `PASO_M`), cuando cambia el estilo
-    (libre <-> tecnica) o cuando el descanso entre dos intervalos pasa de `DESCANSO_MAX_S`. Nada se descarta:
-    un intervalo suelto es un grupo de tipo `continuo`.
+    (libre <-> tecnica) o cuando el descanso entre dos intervalos pasa del tope que ha aprendido de sus partes
+    (`aprendizaje.descanso_mismo_bloque`, que arranca en `DESCANSO_MAX_S` y se ajusta con lo que hace de
+    verdad). Nada se descarta: un intervalo suelto es un grupo de tipo `continuo`.
     """
+    tope_descanso = descanso_max_grupo()
     grupos: list[dict] = []
     actual: dict | None = None
     pendiente = 0.0            # descanso acumulado desde el ultimo intervalo
@@ -222,7 +284,7 @@ def proponer_grupos(laps: list[dict], cortes: list[dict] | None = None) -> list[
         estilo = lap.get("estilo")
         corte = False
         if actual is not None:
-            corte = (abs(dist - actual["reps"][0]["dist_m"]) > PASO_M or pendiente > DESCANSO_MAX_S
+            corte = (abs(dist - actual["reps"][0]["dist_m"]) > PASO_M or pendiente > tope_descanso
                      or (_clase_estilo(estilo) is not None and _clase_estilo(actual["estilo"]) is not None
                          and _clase_estilo(estilo) != _clase_estilo(actual["estilo"])))
         if corte:
@@ -438,6 +500,11 @@ def partes_de(cn: sqlite3.Connection, limite: int = 12) -> list[dict]:
             # `laps` y `reps` se guardan como JSON de texto: el portal trabaja con listas.
             s["laps"] = json.loads(s.get("laps") or "[]")
             s["reps"] = json.loads(s.get("reps") or "[]")
+            # La forma del bloque se mide de sus repeticiones al leerlo: no se guarda (sale de los tiempos y
+            # cambiaria con el margen aprendido), asi que un parte viejo tambien la ensena.
+            evidencia = forma_del_grupo(s["reps"], cn, p["actividad_id"])
+            s["concepto"] = evidencia.get("concepto")
+            s["concepto_evidencia"] = evidencia
         salida.append(p)
     return salida
 
@@ -683,6 +750,12 @@ def datos_panel(cn: sqlite3.Connection, limite: int = 3) -> dict:
         "nombre_material": dict(NOMBRE_MATERIAL),
         "intensidades": [{"valor": k, "nombre": v} for k, v in ETIQUETA_INTENSIDAD.items()],
         "estilos": [{"valor": k, "nombre": v} for k, v in ETIQUETA_ESTILO.items()],
+        # Las formas que puede tener un bloque (regular, progresiva, aflojando...). No se eligen: se miden de
+        # los tiempos de sus repeticiones. Se mandan al portal para poder nombrarlas.
+        "conceptos": [{"valor": k, "nombre": v} for k, v in concepto.NOMBRE.items()],
+        # Lo que el sistema ha aprendido de sus partes (el margen de los tiempos y el descanso que todavia es
+        # "la misma serie"), para poder enseñarlo.
+        "aprendizaje": aprendizaje.resumen(),
         "companias": [{"valor": k, "nombre": v} for k, v in ETIQUETA_COMPANIA.items()],
         "swolf": {"min": SWOLF_MIN, "max": SWOLF_MAX},
         # La valoracion del sistema de cada entrenamiento, para enseñarla al abrir su parte.

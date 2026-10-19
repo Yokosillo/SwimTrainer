@@ -133,6 +133,17 @@ def bloques(cn: sqlite3.Connection, min_bloque_m: float = MIN_BLOQUE_M) -> list[
             fiable = False
         if brazadas_m is None and ritmo is not None and ritmo < 90:
             fiable = False
+        # La forma del bloque (regular, progresiva, aflojando...), medida de los ritmos de sus largos: un 400
+        # nadado "cada 100 mas rapido" se ve aqui sin que nadie lo declare, y con el margen que el sistema ha
+        # aprendido de sus partes (los tiempos bailan uno o dos segundos, el reloj se equivoca con algun largo).
+        # Solo se mide donde significa algo: un bloque de pocos largos iguales. Un entrenamiento entero (2 o 4
+        # km seguidos) no tiene "forma de serie": sus largos son la sesion, no repeticiones.
+        desde = [r for r in (_ritmo_100(float(g["dist_m"] or 0), float(g["timer_s"] or 0)) for g in grupo) if r]
+        distancias_bloque = [float(g["dist_m"] or 0) for g in grupo]
+        uniforme_bloque = bool(distancias_bloque) and (max(distancias_bloque) - min(distancias_bloque)) <= 25.0
+        from . import concepto as _concepto
+        medible = (3 <= len(grupo) <= 12 and uniforme_bloque and (cobertura or 0) <= 0.9)
+        evidencia = _concepto.medir(desde) if medible else None
         bloques.append({
             "fecha": (grupo[0]["inicio_local"] or "")[:10],
             "inicio_local": grupo[0]["inicio_local"],
@@ -161,6 +172,8 @@ def bloques(cn: sqlite3.Connection, min_bloque_m: float = MIN_BLOQUE_M) -> list[
             # parte se rellena entero). Si no hay parte, el material es desconocido: el bloque no vale como
             # marca de brazo libre, por rapido que sea.
             "material_conocido": grupo[0]["actividad_id"] in con_parte,
+            "concepto": (evidencia or {}).get("concepto"),
+            "concepto_evidencia": evidencia,
         })
 
     actividad_actual = None
@@ -611,6 +624,12 @@ def analizar(cn: sqlite3.Connection) -> dict:
     # hable con los numeros de verdad y se recalcule sola en cada pasada.
     from . import valoracion as _valoracion
     datos["valoracion"] = _valoracion.discurso(cn, bl, datos)
+    # Lo que el sistema ha aprendido de sus propios partes: cuanto bailan los tiempos (margen) y cual es el
+    # descanso que todavia es "la misma serie". Es lo que usa al importar un entrenamiento nuevo para agrupar
+    # las repeticiones y para medir la forma de cada bloque, y se recalcula en cada pasada para que no se quede
+    # viejo: cuanto mas sube, mejor agrupa.
+    from . import aprendizaje as _aprendizaje
+    datos["aprendizaje"] = _aprendizaje.aprender(cn)
     return datos
 
 

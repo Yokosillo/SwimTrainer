@@ -2581,7 +2581,13 @@ def pruebas_de_medicion(ruta: str = "data/entrenador.db") -> None:
             "compania": "solo", "series": [grupo]}]}, origen="test")
         comprobar("el parte con la prueba entra sin incidencias", not entrada.get("incidencias"),
                   str(entrada.get("incidencias")))
-        fila = cc.execute("SELECT prueba FROM parte_serie WHERE metros = ?", (metros,)).fetchone()
+        # Se busca el bloque en el parte que se acaba de subir (el mas nuevo de esa sesion), no "el primero con
+        # esos metros": en la base puede haber varios bloques de los mismos metros (un 425 m se repite) y el
+        # primero no es el que se acaba de guardar.
+        fila = cc.execute(
+            "SELECT s.prueba FROM parte_serie s JOIN parte p ON p.id = s.parte_id "
+            "WHERE p.actividad_id = ? AND s.metros = ? ORDER BY p.id DESC LIMIT 1",
+            (sesion["actividad_id"], metros)).fetchone()
         comprobar("la marca de prueba queda guardada en el bloque",
                   bool(fila) and fila[0] == "1500", str(fila))
         historial = mod_pruebas.historico(cc)

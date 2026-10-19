@@ -1759,6 +1759,34 @@ function estiloNota(g) {
   return (g.estilo && g.intensidad !== "pies") ? ' <span class="gris">\u00b7 ' + esc(g.estilo) + "</span>" : "";
 }
 
+/* La forma del bloque (regular, progresiva, aflojando, cambiando...): **no la marca nadie**, sale de los tiempos
+   que ya trae el reloj, con el margen que el sistema ha aprendido de sus propios partes (los tiempos bailan uno
+   o dos segundos y el reloj se equivoca con algun largo). Se enseña en la cabecera, al lado del estilo, con lo
+   que gano de la primera repeticion a la ultima. */
+const NOMBRE_CONCEPTO = {};
+function nombreConcepto(v) {
+  if (!Object.keys(NOMBRE_CONCEPTO).length) {
+    (PPA().conceptos || []).forEach((i) => { NOMBRE_CONCEPTO[i.valor] = i.nombre; });
+  }
+  return NOMBRE_CONCEPTO[v] || v;
+}
+function formaNota(g) {
+  if (!g.concepto) return "";
+  const ev = g.concepto_evidencia || {};
+  const nombre = String(nombreConcepto(g.concepto)).split(" (")[0];
+  const gana = ev.ganancia_s_100;
+  const salto = (typeof gana === "number" && Math.abs(gana) > (ev.margen_s_100 || 0))
+    ? ": " + dec(Math.abs(gana), 1) + " s/100 " + (gana > 0 ? "mas rapida" : "mas lenta")
+      + " de la primera a la ultima"
+    : "";
+  const fuera = (ev.reps_fuera_de_la_tendencia || []).length;
+  const aviso = fuera ? " " + (fuera === 1 ? "Una repeticion se sale" : fuera + " repeticiones se salen")
+      + " de la linea (puede ser el reloj)." : "";
+  return ' <span class="chip" title="' + esc("Se mide de los tiempos de sus repeticiones, no lo marca nadie."
+    + " El sistema ya ha aprendido de tus partes cuanto bailan los tiempos." + aviso)
+    + '">' + esc(nombre + salto) + "</span>";
+}
+
 /* El tiempo del bloque: el que marca el reloj, o el que escribe el atleta si no es el suyo. Manda el suyo, y con
    el se va el del lap cuando el bloque es de una sola repeticion (si no, el lap no lo cogeria). */
 function ponerTiempoGrupo(g, valor) {
@@ -2240,7 +2268,7 @@ function pintarGrupo(s, i) {
     /* Bloque de una sola serie: la cabecera se corrige entera aqui, en la misma linea y en el lado izquierdo —
        la distancia (en metros), el tiempo, y el ritmo de cada cien, que sale solo de los dos y no se toca. Con
        esto sobran la casilla de la derecha ("100 m x 2") y la fila del tiempo del grupo de mas abajo. */
-    cabecera.appendChild(cabeceraDeUnaSerie(g, estiloNota(g)));
+    cabecera.appendChild(cabeceraDeUnaSerie(g, estiloNota(g) + formaNota(g)));
   } else {
     cabecera.appendChild(el("span", { html:
       "<b>" + etiquetaGrupo(g) + "</b> " + (g.ritmo_100 ? '<span class="gris">' + ritmo100(g.ritmo_100) + "</span>" : "")
@@ -2248,7 +2276,7 @@ function pintarGrupo(s, i) {
       // descanso suelto, que cambia de una repeticion a otra.
       + (cadaDeducido(g) ? ' <span class="gris">\u00b7 cada ' + cronoVerbal(cadaDeducido(g)) + "</span>"
                  : (g.descanso_s ? ' <span class="gris">\u00b7 descanso ' + dec(g.descanso_s, 0) + " s</span>" : ""))
-      + estiloNota(g) + "</span>" }));
+      + estiloNota(g) + formaNota(g) + "</span>" }));
     if (quitar) {
       cabecera.appendChild(el("span", { clase: "gris mini-txt",
                                        texto: entero(g.metros) + " m · " + cronoVerbal(g.tiempo_s) }));
@@ -2863,10 +2891,45 @@ function repintarDetalle() {
   }
 }
 
+/* Lo que el sistema ha aprendido de sus propios partes: cuanto bailan los tiempos y hasta cuanto descanso
+   sigue siendo la misma serie. Con eso agrupa las repeticiones y mide la forma de cada bloque, asi que cuanto
+   mas sube, mejor agrupa. Se enseña aqui para que se vea de donde salen los numeros. */
+function pintarAprendizaje() {
+  const a = PPA().aprendizaje || {};
+  if (!a.generado) {
+    pintar("parteAprendizaje", '<div class="vacio"><strong>Todavia no ha medido nada</strong>Sube algun '
+      + 'entrenamiento con su parte y el sistema empezara a aprender de tus tiempos.</div>');
+    return;
+  }
+  pintar("aprendizajePista", "medido el " + esc(fechaCorta(String(a.generado).slice(0, 10)))
+    + " con " + entero(a.bloques) + " bloques de " + entero(a.partes) + " partes");
+  const filas = [
+    ["Cuanto bailan los tiempos", dec(a.margen_s_100, 1) + " s/100",
+      "Una repeticion cuenta como mas rapida o mas lenta que la anterior solo si se aparta mas de esto. "
+      + "Sale de la mediana de lo que se apartan sus repeticiones de la linea del bloque"
+      + (a.basado_en_bloques ? " (" + a.basado_en_bloques + " bloques medidos)" : "") + "."],
+    ["Descanso de la misma serie", cronoVerbal(a.descanso_mismo_bloque_s),
+      "Mientras el descanso entre dos intervalos no pase de aqui, van al mismo bloque. Es el descanso mas "
+      + "largo que has usado dentro de una serie, mas un margen; nunca por encima de 3:00."],
+    ["Repeticiones por serie", a.reps_por_serie ? dec(a.reps_por_serie, 0) : "sin datos",
+      "Tu mediana: lo que suele durar una serie tuya."],
+    ["Formas que ya ha visto", Object.keys(a.conceptos || {}).length
+      ? Object.keys(a.conceptos).map((k) => esc(nombreConcepto(k).split(" (")[0]) + " (" + a.conceptos[k] + ")").join(", ")
+      : "ninguna todavia",
+      "La forma de cada bloque (regular, progresiva, aflojando...) se mide de los tiempos, no se marca."],
+  ];
+  pintar("parteAprendizaje", tablaHTML([{ n: "Lo que mide" }, { n: "Cuanto" }, { n: "De donde sale" }],
+    filas.map(([a1, b1, c1]) => [esc(a1), "<span class='ahora'>" + esc(b1) + "</span>", "<span class='ayuda'>" + c1 + "</span>"]),
+    { compacta: true })
+    + '<p class="ayuda mt">Se vuelve a medir en cada pasada (importar un entrenamiento o subir un parte), '
+    + 'asi que el margen y el descanso se ajustan solos segun lo que hagas.</p>');
+}
+
 /* Lo que no vive dentro de una sesion: la bandeja de partes sin subir, los cortes y como va el plan. */
 function pintarParteYPlan() {
   pintarPartesLista();
   pintarCortes((PPA().cortes) || []);
+  pintarAprendizaje();
   pintarPartesImportados(PPA().partes || []);
   pintarEvaluacion();
 }
