@@ -15,7 +15,7 @@ Que hace y por que asi:
   gruesa (250 m) descarta las parejas que no comparten ni un kilometro.
 - Un tramo es candidato si mide **300 m o mas** y sale en **3 salidas o mas**.
 - Los candidatos que son el mismo recorrido se funden (Jaccard de celdas >= 0,7 y en el mismo sentido). Los
-  que son **uno dentro de otro se dejan**: en Strava conviven "lardero-navarrete" y "lardero-navarrete primer
+  que son **uno dentro de otro se dejan**: en Strava conviven "ruta-ejemplo" y "ruta-ejemplo primer
   tramo", y esa distincion es util.
 - El segmento se guarda con la **polilinea real** de la salida que mejor lo cubre, y se mide el intento de
   cada salida: hay que pisar el 80 % de las celdas, en orden y en el mismo sentido. Se guarda el mejor intento

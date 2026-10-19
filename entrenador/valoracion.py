@@ -250,7 +250,7 @@ def _dianas(ritmo_objetivo: float, rango: str, que: str) -> list[dict]:
         {"serie": "400 seguido (control)",
          "diana": f"{_mmss(4 * r)} - {_mmss(4 * (r + 1))}",
          "porque": "el control mas honesto que hay: a 0-1 s/100 del objetivo, unas semanas antes de la prueba"},
-        {"serie": "El dia de la prueba (14/11)",
+        {"serie": "El dia de la prueba",
          "diana": f"{rango.replace(' - ', ' a ')}",
          "porque": f"el plan busca {que}: el crono sale solo con la salida y la serie, si el ritmo esta metido"},
         {"serie": "La piscina de estos tiempos",
@@ -281,7 +281,7 @@ def _falta_y_toca(cn: sqlite3.Connection, hoy: date, ritmo_objetivo: float, dias
 
     La fase no se escribe a mano: sale del calendario del plan (`plan.fase_de`), asi que cuando cambie el bloque
     cambia lo que se le exige (V1.2-01: `especifico_400` hasta el 400, `base` en el bloque de base, `umbral_3000`
-    camino del 3.000 del 18/03/2027).
+    camino del 3.000 objetivo).
 
     Es la tarea V1.1-04: hasta ahora `estimulos` (que falta) y `planificador` (en que dia cae) existian y estaban
     probados, pero no los llamaba nadie fuera de las pruebas: el portal decia como estaba el atleta y no decia
@@ -466,7 +466,7 @@ def discurso(cn: sqlite3.Connection, bloques: list[dict], datos: dict,
     refs = "; ".join(f"{x['que']} ({x['fecha']})" for x in obj.get("referencias") or [])
     parrafos.append({
         "titulo": "Donde estamos",
-        "texto": (f"Quedan {dias_b} dias para el 400 libre del 14/11 (y {dias_a} para los 3.000 del 18/03). "
+        "texto": (f"Quedan {dias_b} dias para el 400 libre (y {dias_a} para los 3.000). "
                   f"El 400 se gana a {_ritmo(r)} por 100, o sea {_mmss(obj['marca_objetivo_s'])} en el crono. "
                   f"Tus referencias: {refs}. No es un objetivo nuevo: es volver a tu nivel."),
     })
@@ -477,7 +477,7 @@ def discurso(cn: sqlite3.Connection, bloques: list[dict], datos: dict,
                 f"en los {DIAS_SEMANA} de antes, {semana_previa['dias']} y {_km(semana_previa['metros'])}.")
     if b1000:
         # El 1.000 mas rapido con reloj de estos meses no tiene por que ser su nivel: si esta por detras de sus
-        # tres mejores de siempre, ese dia salio flojo y no se puede vender como un logro.
+        # tres mejores de siempre, ese dia salio flojo y no se puede vender como un exito.
         arranque += (f" El 1.000 con reloj mas rapido de estos meses: el del {_fecha_corta(b1000['fecha'])} en "
                      f"{_mmss(b1000['tiempo_s'])} ({_ritmo(b1000['ritmo_100'])} por 100). ")
         if ref1000 and b1000["ritmo_100"] <= float(ref1000) + 0.5:
@@ -677,7 +677,7 @@ def discurso(cn: sqlite3.Connection, bloques: list[dict], datos: dict,
         # con la hora del PC, para que el que lo lea sepa si esta mirando el informe de esta tarde o el de la semana
         # pasada: el resto del texto no cambia y pareceria de hoy.
         "generado": datetime.now().astimezone().replace(microsecond=0).isoformat(),
-        "titular": (f"Quedan {dias_b} dias para el 400 del 14/11. El objetivo es {_mmss(300)} "
+        "titular": (f"Quedan {dias_b} dias para el 400. El objetivo es {_mmss(300)} "
                     f"({_ritmo(r)} por 100) y tu mejor 400 de los ultimos 90 dias esta en "
                     f"{_ritmo(b400_90['ritmo_100']) if b400_90 else 'sin medir'}"
                     f"{'' if (b400_90 or {}).get('material_conocido') else ' (sin parte: el material de ese dia no consta)'}."),

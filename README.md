@@ -42,7 +42,7 @@ El cuadro de mando (`cuadro/panel.html`) ya no repite la parte de bici: enlaza c
 - [x] Portal 1: bloque de gimnasio (lo que hay: duracion; lo que falta: ejercicios, series, pesos) - `analitica.gimnasio()`
 - [x] Portal 2: segmentos de bici del export, trazas GPS y comparacion de resultados - `entrenador/bici.py`
 - [x] Portal 2: **mineria de segmentos propios desde los GPX** (los que no trae el export) - `entrenador/segmentos_gpx.py`
-- [x] Marcas oficiales de competicion de la RFEN (579 filas, 2017-2026) en la base - `entrenador/competicion.py`
+- [x] Marcas oficiales de competicion de la RFEN (historico completo) en la base - `entrenador/competicion.py`
       De ellas, **211 son marcas suyas**, **355 pases** (tramos dentro de otra prueba de la misma jornada) y
       **13 datos raros** (8 corruptas en la federacion + 5 con el tiempo mal puesto). El icono de parcial de la
       federacion no decide solo: el criterio mira la jornada entera (fecha + hora + sede), el ritmo y el estilo
@@ -114,14 +114,14 @@ docker compose up -d --build
 
 # 10. Ver tus segmentos de bici (los que repites, tus tiempos) y el historial de uno concreto
 .venv/Scripts/python.exe -m entrenador.cli bici --top 15
-.venv/Scripts/python.exe -m entrenador.cli bici --segmento navarrete
+.venv/Scripts/python.exe -m entrenador.cli bici --segmento segmento-ejemplo
 
-# 11. Montar TODOS los segmentos que hay en los GPX (descubrir, nombrar y medir). Tarda ~9 min con 529 salidas
+# 11. Montar TODOS los segmentos que hay en los GPX (descubrir, nombrar y medir). Tarda varios minutos con un historico largo
 .venv/Scripts/python.exe -m entrenador.cli minar
 
 # 12. Ver el catalogo de segmentos descubiertos, o todos los tiempos de uno
 .venv/Scripts/python.exe -m entrenador.cli minados --top 20
-.venv/Scripts/python.exe -m entrenador.cli minados --segmento Alberite
+.venv/Scripts/python.exe -m entrenador.cli minados --segmento segmento-ejemplo
 
 # 13. Escribir el portal de bici (se abre con doble clic: cuadro/strava/index.html)
 .venv/Scripts/python.exe -m entrenador.cli portal
@@ -138,7 +138,7 @@ docker compose up -d --build
                                                                   # temporada a temporada + tendencia
 .venv/Scripts/python.exe -m entrenador.cli competicion --estilo libre --distancia 400 \n    --piscina 25 --temporada 2025/26 --orden marca                # filtros combinables
 
-# 15. El plan de las proximas semanas (400 del 14/11 y 3.000 del 18/03), en la consola
+# 15. El plan de las proximas semanas (objetivos 400 y 3.000), en la consola
 .venv/Scripts/python.exe -m entrenador.cli plan                  # la semana en curso, los objetivos y los bloques
 .venv/Scripts/python.exe -m entrenador.cli plan --semana S3      # una semana concreta
 
@@ -218,10 +218,10 @@ Lleva, ademas de la analitica de entrenamiento:
   *como voy*: los dos objetivos con los dias que quedan y la proyeccion de cada prueba con las marcas
   oficiales que hay (con el aviso de que es una referencia, no un pronostico).
 - **Competicion**, en cuatro pestanas: *mejores marcas* (cada prueba y piscina, los 400 libres uno a uno
-  frente al objetivo de 1:15,0 por 100 y los 3.000), *comparador por temporadas* (mejor marca de cada
+  frente al objetivo configurado y los 3.000), *comparador por temporadas* (mejor marca de cada
   temporada de septiembre a agosto, diferencia en segundos y en porcentaje con la anterior y con la mejor
   de siempre, tendencia en segundos por 100 al ano y un grafico de evolucion con la linea del objetivo), *todas las
-  marcas* (las 571 validas con filtros de prueba, piscina, temporada y sede, hechos en el navegador, y donde
+  marcas* (las marcas validas con filtros de prueba, piscina, temporada y sede, hechos en el navegador, y donde
   esa prueba tuvo tramos sale un boton para desplegarlos pegados bajo su marca) y *mis pases* (la misma prueba
   competicion a competicion: cada tramo -el primer 100 de cada 400, el 200 de cada 3.000- con su tiempo, su
   ritmo y lo que se aparta del ritmo de la prueba, un grafico del tramo elegido y el desglose de su mejor dia).
@@ -235,7 +235,7 @@ Lleva, ademas de la analitica de entrenamiento:
 - **Los ritmos van en minutos y segundos** (`1:14,1` por 100 m), no en segundos por 100: se leen de un vistazo y
   se comparan mejor con un tiempo de competicion. En los informes (`informes/*.md`) sigue usandose `s/100` como
   unidad de ritmo.
-- **Plan**: los dos objetivos (400 del 14/11/2026 y 3.000 del 18/03/2027), las cinco semanas hasta la prueba con
+- **Plan**: los dos objetivos configurados (400 y 3.000), las cinco semanas hasta la prueba con
   sus sesiones, los bloques hasta marzo y las reglas. La semana en curso se marca sola segun la fecha del PC.
   El plan es dato del proyecto (`entrenador/plan.py`): la consola lo imprime con `plan`.
 - **Un entrenamiento hecho sin reloj tambien cuenta**: se apunta a mano (pestana *Apuntar*) con sus metros y sus
@@ -337,7 +337,7 @@ mano. Lo compone `entrenador/valoracion.py` en cada pasada de `analizar` (o sea,
 igual en el portal (pestana Resumen), en el anexo escrito (`informes/H_analitica_segmentos.md`) y por consola
 (`cli valoracion`).
 
-El guion, tal como se pidio: **donde estamos** (dias que quedan al 400 del 14/11 y al 3.000 del 18/03, con las
+El guion, tal como se pidio: **donde estamos** (dias que quedan a los objetivos configurados, con las
 referencias), **como va la progresion** (los ultimos 7 dias contra los 7 anteriores, y la mejor serie medida),
 **contra hace un mes** (los ultimos 30 dias contra los 30 de antes, con el mejor 400 seguido de cada tramo),
 **lo que queda de semana** (las sesiones del plan que siguen pendientes, con su detalle), **como va el ciclo**
@@ -357,15 +357,15 @@ Reglas que sigue el discurso:
   como hecha si el volumen llega: **manda la decision del atleta**.
 
 Los **tiempos de entrenamiento para el reto** (la tabla de dianas del Resumen) se derivan del objetivo del plan
-(400 libre el 14/11, bajar de 5:00 = **1:15,0 por 100**) con un criterio explicito:
+(400 libre; la marca y el ritmo objetivo viven en la configuracion privada del atleta) con un criterio explicito:
 
 | Serie | Diana | Por que |
 |---|---|---|
-| 50 m a tope (velocidad) | 0:37,2 - 0:37,5 | La salida del 400 se defiende con la velocidad del 50: hay que hacerlo a ritmo de prueba y con margen. |
-| 8x100 con salida cada 2:00 | 1:16,0 - 1:17,0 por 100 | Es el bloque que mas se parece al 400: si la ultima no se cae de la primera, el ritmo esta puesto. |
-| 4x400 con 45 s | 5:04 - 5:08 cada 400 | A 1-2 s/100 del objetivo: la diana realista de entrenamiento. |
-| 400 seguido (control) | 5:00 - 5:04 | El control mas honesto: a 0-1 s/100 del objetivo, unas semanas antes. |
-| El dia de la prueba (14/11) | 4:58 a 5:06 | El plan busca bajar de 5:00; el crono sale solo con la salida y la serie. |
+| 50 m a tope (velocidad) | ritmo de prueba menos un margen | La salida del 400 se defiende con la velocidad del 50: hay que hacerlo a ritmo de prueba y con margen. |
+| 8x100 con salida cada 2:00 | ritmo objetivo +/- 1-2 s/100 | Es el bloque que mas se parece al 400: si la ultima no se cae de la primera, el ritmo esta puesto. |
+| 4x400 con 45 s | ritmo objetivo + 1-2 s/100 cada 400 | A 1-2 s/100 del objetivo: la diana realista de entrenamiento. |
+| 400 seguido (control) | ritmo objetivo +/- 1 s/100 | El control mas honesto: a 0-1 s/100 del objetivo, unas semanas antes. |
+| El dia de la prueba | la marca objetivo de la configuracion privada | El plan busca el objetivo pactado; el crono sale solo con la salida y la serie. |
 
 Son **dianas de entrenamiento, no promesas**: el discurso las cambia si los datos cambian (el plan sube o baja
 los kilometros, la evaluacion propone bajar tras una deriva, aparece un test que mide de verdad).
@@ -386,11 +386,11 @@ los kilometros, la evaluacion propone bajar tras una deriva, aparece un test que
     **sea el mismo recorrido**: no se puede apartar mas de un **6 % de esa distancia**, o de **60 m** en los
     tramos cortos (por debajo de un kilometro manda el suelo, porque la distancia de un tramo corto se mide entre
     los centros de las celdas del minero, de 30 m). Antes el
-    margen era del 30 % y por ahi se colaban los de otro camino: en **Piscina-C-Islallana** (18,1 km) entraban 13
-    intentos de 20,4 km que suben por la otra carretera, y con ellos el "mejor tiempo" y la mediana eran de otro
-    recorrido. Con el 6 % se quedan los 50 del recorrido de 18 km y los de 20,4 km dejan de contar. Sin ningun
-    margen, una vuelta larga que pasa cerca del principio y del final por **otro camino** contaba como intento
-    (salieron "records" de 20 km en 25 minutos) — con el 30 % tampoco se libraba, que era el problema.
+    margen era del 30 % y por ahi se colaban los de otro camino: en una ruta larga (18 km) entraban intentos
+    de 20 km que suben por la otra carretera, y con ellos el "mejor tiempo" y la mediana eran de otro
+    recorrido. Con el 6 % se quedan los del recorrido largo y los de la otra carretera dejan de contar. Sin
+    ningun margen, una vuelta larga que pasa cerca del principio y del final por **otro camino** contaba como
+    intento (salieron "records" de 20 km en 25 minutos) — con el 30 % tampoco se libraba, que era el problema.
 18c. **Distancia tipica por grupos, no por mediana**: una misma pareja de puntos (inicio y fin del segmento) se
     puede cruzar por caminos distintos: un dia 13,1 km y otro 25,4 km, porque las trazas pasan cerca de los dos
     puntos pero por otro sitio. Con la mediana simple, el numero cae en medio de los dos caminos y no vale para
@@ -409,7 +409,7 @@ los kilometros, la evaluacion propone bajar tras una deriva, aparece un test que
 
 22. **Por que hay que sacarlos**: el export solo trae los segmentos que el atleta ya habia hecho, y solo con
     el punto de inicio y el de fin. El catalogo completo (los tramos que repite sin saberlo) se descubre de sus
-    529 trazas: lo que se repite en 3 salidas o mas es un segmento.
+    trazas: lo que se repite en 3 salidas o mas es un segmento.
 23. **Rejilla de celdas** de 30 m y **ancla de 3 celdas seguidas** (90 m). El GPS tiembla entre salidas: con
     celdas mas finas o ventanas mas largas, la misma carretera no ancla.
 24. **Un tramo vale si alguna de sus propias salidas lo recorre entero** (`_verificar`). Al pegar trozos
@@ -456,7 +456,7 @@ entrenador/          codigo de la aplicacion
   bici.py            segmentos de bici: medir los intentos y comparar resultados
   panel.py           monta el cuadro de mando (app/ + datos) + informe en texto
   apuntes.py         apuntes, peticiones y sesiones de gimnasio desde el cuadro de mando
-  plan.py            plan de natacion hacia el 400 (14/11/2026) y el 3.000 (18/03/2027)
+  plan.py            plan de natacion hacia los objetivos configurados (400 y 3.000)
   app/               la aplicacion local: app.css (estilo), plantilla.html (esqueleto) y app.js (logica)
   cli.py             linea de ordenes
 pruebas/             pruebas ejecutables (pruebas_basicas.py y comprobar_portal.js, que ejecuta el JS con Node)

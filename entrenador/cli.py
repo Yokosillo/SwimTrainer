@@ -13,7 +13,7 @@ Ejemplos:
     python -m entrenador.cli analizar
     python -m entrenador.cli segmentos
     python -m entrenador.cli bici
-    python -m entrenador.cli bici --segmento navarrete
+    python -m entrenador.cli bici --segmento segmento-ejemplo
     python -m entrenador.cli minar
     python -m entrenador.cli minados --top 20
     python -m entrenador.cli minados --segmento 12
@@ -549,7 +549,7 @@ def main(argv: list[str] | None = None) -> int:
                        help="rehace que filas son prueba suya y que filas son tramos de otra (mirando el dia)")
     pcomp.add_argument("--sin-importar", action="store_true", help="solo consultar lo que ya hay")
 
-    pplan = sub.add_parser("plan", help="el plan de las proximas semanas (400 del 14/11 y 3.000 del 18/03)")
+    pplan = sub.add_parser("plan", help="el plan de las proximas semanas (objetivos 400 y 3.000)")
     pplan.add_argument("--semana", help="S1, S2, S3, S4 o S5")
     pplan.add_argument("--fecha", help="la semana que contiene esa fecha (YYYY-MM-DD)")
     pplan.add_argument("--recalculado", action="store_true",

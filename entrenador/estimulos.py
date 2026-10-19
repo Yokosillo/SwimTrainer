@@ -7,7 +7,7 @@ que el programa puede **calcular**. Tres piezas:
 
   1. `CLASES` - la tabla de estimulos. Cada clase dice que sistema entrena, que NO entrena, cuanto cuesta
      recuperarla, su papel en el 400 y en el 3.000, y como se reconoce en un parte. Sale de los anexos F
-     (planificacion) y L (el 400 del 14/11 y el 3.000 del 18/03): no se inventa nada nuevo.
+     (planificacion) y L (los objetivos 400 y 3.000): no se inventa nada nuevo.
   2. `clasificar` / `perfil` - mirar lo que el atleta ha hecho y decir **de que** esta hecho (metros por clase,
      bloque continuo mas largo). Sin esto no se puede juzgar una sesion ni ver que falta.
   3. `deficits` / `recetas` - comparar lo hecho con lo que pide la fase del plan y sacar **que toca ahora**, con

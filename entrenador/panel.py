@@ -44,7 +44,7 @@ def datos_panel(cn) -> dict:
     """Lo que el cuadro de mando necesita y no sale de la analitica de entrenamiento:
 
     - `competicion`: las marcas oficiales de la RFEN que ya estan en la base (tabla `competicion`).
-    - `plan`: las semanas hasta el 400 del 14/11 y los bloques hasta el 3.000 del 18/03/2027.
+    - `plan`: las semanas hasta el 400 objetivo y los bloques hasta el 3.000 objetivo.
 
     Se importa dentro de la funcion para no obligar a tener marcas cargadas cuando solo se mira el entrenamiento.
     """

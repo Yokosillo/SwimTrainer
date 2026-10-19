@@ -42,7 +42,7 @@ UMBRAL_DESNIVEL_M = 3.0
 # Margen que se le permite a un intento respecto a la distancia tipica del segmento: lo que se aparte mas no es
 # el mismo recorrido (es la misma pareja de puntos por otro camino) y su tiempo no se puede comparar con los
 # demas.
-#   - 6 % relativo: en Piscina-C-Islallana (18,1 km) deja fuera los 12 intentos de 20,4 km que suben por la otra
+#   - 6 % relativo: en una ruta larga (18 km) deja fuera los intentos de 20 km que suben por la otra
 #     carretera (11,8 % mas largos), que ensuciaban el mejor tiempo y la mediana con tiempos de otro recorrido.
 #   - 60 m de suelo: por debajo de un kilometro manda el suelo, porque la distancia de un tramo corto se mide
 #     entre los centros de las celdas del minero (30 m) y su propio temblor pesa mas que el 6 %. Un intento de

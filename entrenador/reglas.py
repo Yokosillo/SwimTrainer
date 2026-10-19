@@ -9,7 +9,7 @@ con prosa.
 
 Fuentes que existen hoy:
   * `anexo_F`  - la planificacion pactada (80/20, 70/30, 65/25/10, regla del 10 %, descarga cada 4.ª semana).
-  * `anexo_L`  - el plan del 400 del 14/11 y del 3.000 del 18/03.
+  * `anexo_L`  - el plan de los objetivos (400 y 3.000).
   * `historial` - ingenieria inversa de sus 186 semanas con datos (`scripts/ingenieria_inversa.py`,
                  informe `informes/M_ingenieria_inversa.md`, 15/10/2026).
   * `entrenador_personal` - lo que manda los lunes, miercoles y viernes. **Pendiente de registrar**: hoy no
@@ -73,7 +73,7 @@ REGLAS: list[dict] = [
                       "velocidad con descanso largo es el 0,0 %. Es el hueco estructural de toda su carrera "
                       "registrada y el principal sospechoso de que su 400 se quede en 5:00-5:11."),
         "fuente": "historial",
-        "se_comprueba": ("introducir 8x100 a ritmo de prueba con 25-30 s y 8x50 a tope; el 400 del 14/11 y el "
+        "se_comprueba": ("introducir 8x100 a ritmo de prueba con 25-30 s y 8x50 a tope; el 400 objetivo y el "
                          "ritmo de sus series de 100 deben acusarlo"),
     },
     {
@@ -113,7 +113,7 @@ REGLAS: list[dict] = [
         "enunciado": ("Una prueba de 400 m no pide taper largo: ultimo dia duro 4-5 dias antes, y el jueves de la "
                       "semana de la prueba solo sensaciones (1.200-1.500 m con 4x50 a ritmo de prueba)."),
         "fuente": "anexo_L",
-        "se_comprueba": "como sale el 400 del 14/11 y como se siente en el ultimo dia duro",
+        "se_comprueba": "como sale el 400 objetivo y como se siente en el ultimo dia duro",
     },
     {
         "id": "R8",
