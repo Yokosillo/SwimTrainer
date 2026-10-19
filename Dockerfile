@@ -31,6 +31,7 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY entrenador ./entrenador
+COPY conocimiento ./conocimiento
 COPY scripts ./scripts
 COPY pruebas ./pruebas
 COPY README.md DESPLIEGUE.md ./

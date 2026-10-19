@@ -159,14 +159,20 @@ node pruebas/comprobar_portal.js cuadro/panel.html    # a mano: comprueba ids, v
 .venv/Scripts/python.exe -m entrenador.cli conocimiento --criterios --formato md   # tabla Markdown reproducible
 .venv/Scripts/python.exe -m entrenador.cli conocimiento --criterios --formato json
 .venv/Scripts/python.exe -m entrenador.cli conocimiento --revisar T.8 --quien entrenador
+
+# 19. Base TOML (F2): estructura, version, sincronizacion y exportacion a Markdown
+.venv/Scripts/python.exe -m entrenador.cli conocimiento --estructura
+.venv/Scripts/python.exe -m entrenador.cli conocimiento --version
+.venv/Scripts/python.exe -m entrenador.cli conocimiento --sincronizar
+.venv/Scripts/python.exe -m entrenador.cli conocimiento --exportar-md
 ```
 
-La orden `conocimiento --validar` comprueba tres cosas sobre `informes/T_base_de_conocimiento.md`: que no
-haya **IDs de sección duplicados** (por ejemplo dos `T.9`), que toda cita `[n]` usada exista en el bloque
-`## Sources` y que no haya fuentes definidas y no citadas. Una cita rota, un ID duplicado o una
-**fuente duplicada** es un error (código de salida distinto de 0). Si el anexo no existe, está vacío o
-no tiene secciones `T.#`, la validación **falla cerrado** (`anexo_ausente` / `anexo_vacio`), también con
-`--json`. Una fuente huérfana (como `[24]`) o sin cita literal es un aviso y no invalida el documento.
+La orden `conocimiento --validar` comprueba el **TOML nuevo** (`conocimiento/*.toml`) y el anexo
+Markdown: IDs duplicados o mal formados, afirmaciones sin fuente, reglas con referencias rotas o sin
+métrica de éxito, parámetros sin procedencia, recetas incompletas, citas y fuentes. Si el TOML no
+existe o está vacío, **falla cerrado** (`sin_conocimiento`). En el anexo Markdown, una cita rota, un ID
+duplicado o una fuente duplicada es error; una fuente huérfana o sin cita literal es aviso. El código
+de salida es 0 solo si ambos validan.
 
 `--criterios` lista las cláusulas marcadas `[criterio]`, con su estado: `firmada` (solo si firma
 `entrenador` o `atleta`), `revisada_por_asistente` (sigue pendiente) o `pendiente`. El anexo tiene 21
