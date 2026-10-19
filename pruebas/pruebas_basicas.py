@@ -3378,6 +3378,199 @@ def pruebas_plan_local_y_fallback() -> None:
                     del sys.modules[k]
 
 
+def pruebas_conocimiento_toml() -> None:
+    """F2: base TOML, loader, validador, hash, SQLite, Markdown y migracion en seco."""
+    print("\nF2. Conocimiento TOML: cargar, validar, versionar y sincronizar")
+    import contextlib
+    import importlib.util
+    import io
+    import shutil
+
+    from entrenador import cli, conocimiento_toml as ct, db
+
+    c = ct.cargar()
+    comprobar("F2-02: el TOML carga las 22 fuentes y el piloto R2",
+              len(c.fuentes) == 22 and len(c.afirmaciones) == 2 and len(c.parametros) == 2
+              and len(c.reglas) == 1 and len(c.estimulos) == 1 and len(c.recetas) == 1,
+              str(ct.estructura(c)["conteos"]))
+    comprobar("F2-05: la version es KV-* y el hash es sha256",
+              c.version.startswith("KV-") and len(c.hash) == 64)
+    comprobar("F2-05: misma entrada, mismo hash", ct.cargar().version == c.version)
+
+    v = ct.validar(c)
+    comprobar("F2-03: el piloto valida sin errores", v["ok"] and not v["errores"], str(v["errores"]))
+    comprobar("F2-03: los avisos incluyen firma pendiente y fuente huerfana",
+              any(a["tipo"] == "firma_pendiente" for a in v["avisos"])
+              and any(a["tipo"] == "fuente_huerfana" for a in v["avisos"]),
+              str([a["tipo"] for a in v["avisos"]][:5]))
+
+    with tempfile.TemporaryDirectory() as d:
+        vacio = os.path.join(d, "conocimiento")
+        os.makedirs(vacio)
+        vac = ct.validar(ruta=vacio)
+        comprobar("F2-03: sin conocimiento, ok=False", not vac["ok"]
+                  and any(e["tipo"] == "sin_conocimiento" for e in vac["errores"]), str(vac))
+
+    def copia(base: str) -> str:
+        dst = os.path.join(base, "conocimiento")
+        shutil.copytree("conocimiento", dst)
+        return dst
+
+    def append(ruta: str, texto: str) -> None:
+        with open(ruta, "a", encoding="utf-8") as f:
+            f.write("\n" + texto + "\n")
+
+    def error_de(dst: str, tipo: str) -> bool:
+        return any(e["tipo"] == tipo for e in ct.validar(ruta=dst)["errores"])
+
+    with tempfile.TemporaryDirectory() as d:
+        dst = copia(d)
+        append(os.path.join(dst, "fuentes.toml"),
+               '[[fuente]]\nid = "FU-001"\ntipo = "articulo"\ntitulo = "dup"\nurl = "https://x"\n'
+               'cita = "x"\ncitas = ["x"]\nlegacy_id = "99"\n')
+        comprobar("F2-03: ID de fuente duplicado es error", error_de(dst, "fuente_duplicado"))
+    with tempfile.TemporaryDirectory() as d:
+        dst = copia(d)
+        append(os.path.join(dst, "fuentes.toml"),
+               '[[fuente]]\nid = "FU-1"\ntipo = "articulo"\ntitulo = "mal"\nurl = "https://x"\n'
+               'cita = "x"\ncitas = ["x"]\n')
+        comprobar("F2-03: ID mal formado es error", error_de(dst, "id_mal_formado"))
+    with tempfile.TemporaryDirectory() as d:
+        dst = copia(d)
+        append(os.path.join(dst, "afirmaciones.toml"),
+               '[[afirmacion]]\nid = "AF-099"\ntexto = "sin fuente"\nfuentes = []\n')
+        comprobar("F2-03: afirmacion sin fuente ni firma es error", error_de(dst, "afirmacion_sin_fuente"))
+    with tempfile.TemporaryDirectory() as d:
+        dst = copia(d)
+        p = os.path.join(dst, "reglas.toml")
+        with open(p, encoding="utf-8") as f:
+            texto = f.read().replace('evidencia = ["AF-002"]', 'evidencia = ["AF-999"]')
+        open(p, "w", encoding="utf-8").write(texto)
+        comprobar("F2-03: regla con afirmacion inexistente es error",
+                  error_de(dst, "regla_afirmacion_inexistente"))
+    with tempfile.TemporaryDirectory() as d:
+        dst = copia(d)
+        p = os.path.join(dst, "parametros.toml")
+        with open(p, encoding="utf-8") as f:
+            texto = f.read().replace('procedencia = "criterio_firmado"', 'procedencia = ""', 1)
+        open(p, "w", encoding="utf-8").write(texto)
+        comprobar("F2-03: parametro sin procedencia es error", error_de(dst, "parametro_sin_procedencia"))
+    with tempfile.TemporaryDirectory() as d:
+        dst = copia(d)
+        p = os.path.join(dst, "reglas.toml")
+        with open(p, encoding="utf-8") as f:
+            texto = f.read()
+        texto = texto.split("metrica_exito =")[0] + "metrica_exito = {}\n"
+        open(p, "w", encoding="utf-8").write(texto)
+        comprobar("F2-03: regla sin metrica de exito es error", error_de(dst, "regla_sin_metrica"))
+    with tempfile.TemporaryDirectory() as d:
+        dst = copia(d)
+        append(os.path.join(dst, "recetas.toml"),
+               '[[receta]]\nid = "RE-099"\nnombre = "incompleta"\nsesion = "x"\npasos = []\n')
+        comprobar("F2-03: receta sin pasos es error", error_de(dst, "receta_incompleta"))
+    with tempfile.TemporaryDirectory() as d:
+        dst = copia(d)
+        append(os.path.join(dst, "recetas.toml"),
+               '[[receta]]\nid = "RE-098"\nnombre = "ref"\nsesion = "x"\nestimulo = "ES-999"\n'
+               'pasos = [{ orden = 1, texto = "x" }]\n')
+        comprobar("F2-03: receta con estimulo inexistente es error", error_de(dst, "estimulo_inexistente"))
+    with tempfile.TemporaryDirectory() as d:
+        dst = copia(d)
+        append(os.path.join(dst, "fuentes.toml"),
+               '[[fuente]]\nid = "FU-030"\ntipo = "articulo"\ntitulo = "legacy dup"\nurl = "https://x"\n'
+               'cita = "x"\ncitas = ["x"]\nlegacy_id = "1"\n')
+        comprobar("F2-03: numero antiguo de fuente duplicado es error",
+                  error_de(dst, "fuente_duplicada"))
+
+    with tempfile.TemporaryDirectory() as d:
+        dst = copia(d)
+        p = os.path.join(dst, "calendario.toml")
+        with open(p, encoding="utf-8") as f:
+            texto = f.read().replace("duro_h = 24.0", "duro_h = 25.0")
+        open(p, "w", encoding="utf-8").write(texto)
+        comprobar("F2-05: cambiar el contenido cambia la version", ct.cargar(dst).version != c.version)
+
+    # F2-04: sincronizacion SQLite e idempotencia.
+    cn = db.conectar(":memory:")
+    r = ct.sincronizar(cn, c)
+    cuenta = lambda t: cn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+    comprobar("F2-04: la sincronizacion crea las tablas y las filas",
+              r["ok"] and cuenta("fuente") == 22 and cuenta("afirmacion") == 2
+              and cuenta("parametro") == 2 and cuenta("regla") == 1 and cuenta("receta") == 1
+              and cuenta("receta_paso") == 3 and cuenta("conocimiento_version") == 1,
+              str({t: cuenta(t) for t in ("fuente", "afirmacion", "parametro", "regla", "receta", "receta_paso")}))
+    ct.sincronizar(cn, c)
+    comprobar("F2-04: sincronizar dos veces no duplica", cuenta("fuente") == 22 and cuenta("receta_paso") == 3)
+    fila = cn.execute("SELECT cuando_json, metrica_exito_json FROM regla WHERE id='RG-002'").fetchone()
+    comprobar("F2-08: RG-002 conserva condicion y metrica", "especifico_400" in fila[0]
+              and "ritmo_serie" in fila[1], str(tuple(fila)))
+    try:
+        ct.sincronizar(cn, ct.Conocimiento())
+        comprobar("F2-04: no sincroniza conocimiento vacio", False)
+    except ValueError:
+        comprobar("F2-04: no sincroniza conocimiento vacio", True)
+    cn.close()
+
+    # F2-06: exportador Markdown y diferencias.
+    with tempfile.TemporaryDirectory() as d:
+        destino = os.path.join(d, "generado.md")
+        rr = ct.exportar_markdown(c, destino=destino)
+        texto = open(destino, encoding="utf-8").read()
+        comprobar("F2-06: el Markdown generado lleva version y entidades",
+                  rr["ok"] and c.version in texto and "FU-001" in texto and "RG-002" in texto,
+                  str(rr))
+        if os.path.isfile("informes/T_base_de_conocimiento.md"):
+            dd = ct.comparar_markdown(c, destino=os.path.join(d, "diferencias.md"))
+            comprobar("F2-06: el informe de diferencias compara las 22 fuentes",
+                      dd["ok"] and dd["faltan_en_toml"] == [] and dd["conteos"]["anexo_fuentes"] == 22
+                      and dd["conteos"]["toml_reglas"] == 1, str(dd.get("conteos")))
+        else:
+            print("  [omitido] no hay anexo Markdown para comparar")
+
+    # F2-07: migracion en seco y con confirmacion, en un destino temporal.
+    ruta_script = os.path.join("scripts", "migrar_conocimiento.py")
+    spec = importlib.util.spec_from_file_location("migrar_conocimiento", ruta_script)
+    mig = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mig)
+    prop = mig.proponer()
+    comprobar("F2-07: la propuesta trae los 7 ficheros y las 22 fuentes",
+              len(prop) == 7 and (prop["fuentes.toml"][1] == 22
+                                  or not os.path.isfile("informes/T_base_de_conocimiento.md")),
+              str({k: v[1] for k, v in prop.items()}))
+    with tempfile.TemporaryDirectory() as d:
+        destino = os.path.join(d, "propuesta")
+        with contextlib.redirect_stdout(io.StringIO()):
+            mig.main(["--dry-run", "--destino", destino])
+        comprobar("F2-07: el dry-run no escribe", not os.path.exists(destino))
+        with contextlib.redirect_stdout(io.StringIO()):
+            rc = mig.main(["--apply", "--destino", destino])
+        comprobar("F2-07: --apply sin --si no escribe", rc == 2 and not os.path.exists(destino))
+        with contextlib.redirect_stdout(io.StringIO()):
+            rc = mig.main(["--apply", "--si", "--destino", destino])
+        comprobar("F2-07: --apply --si escribe los 7 ficheros",
+                  rc == 0 and len(os.listdir(destino)) == 7, str(os.listdir(destino) if os.path.isdir(destino) else []))
+
+    # CLI: version, estructura y validacion JSON.
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = cli.main(["conocimiento", "--version"])
+    comprobar("F2-08: cli conocimiento --version", rc == 0 and "KV-" in buf.getvalue(), buf.getvalue().strip())
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = cli.main(["conocimiento", "--estructura", "--json"])
+    import json as _json
+    estructura = _json.loads(buf.getvalue())
+    comprobar("F2-08: cli conocimiento --estructura --json",
+              rc == 0 and estructura["conteos"]["fuentes"] == 22, str(estructura.get("conteos")))
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = cli.main(["conocimiento", "--validar", "--json"])
+    val = _json.loads(buf.getvalue())
+    comprobar("F2-08: cli conocimiento --validar --json es valido y ok",
+              rc == 0 and val["ok"] and val["toml"]["ok"] and val["version"] == c.version,
+              f"rc={rc}")
+
+
 if __name__ == "__main__":
     pruebas_unitarias()
     pruebas_base_de_datos()
@@ -3395,6 +3588,7 @@ if __name__ == "__main__":
     pruebas_conocimiento_y_series_dia()
     pruebas_conocimiento_fuentes()
     pruebas_plan_local_y_fallback()
+    pruebas_conocimiento_toml()
     pruebas_reparto_por_dia()
     pruebas_motor_en_el_discurso()
     pruebas_plan_vivo()

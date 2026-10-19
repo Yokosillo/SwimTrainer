@@ -372,27 +372,83 @@ def _fuerza(cn, args) -> int:
 
 
 def _conocimiento(cn, args) -> int:
-    """La base de conocimiento: validacion, criterios pendientes y firmas de secciones (F1)."""
+    """La base de conocimiento: TOML (F2) y anexo Markdown (F1): carga, valida, versiona y firma."""
     import json as _json
 
-    from . import conocimiento
+    from . import conocimiento, conocimiento_toml
 
     formato = getattr(args, "formato", None) or ("json" if getattr(args, "json", False) else "texto")
+    ruta_toml = getattr(args, "ruta_toml", conocimiento_toml.RUTA_CONOCIMIENTO)
 
-    if getattr(args, "validar", False):
-        v = conocimiento.validar()
+    if getattr(args, "version", False):
+        e = conocimiento_toml.estructura(ruta=ruta_toml)
         if formato == "json":
-            print(_json.dumps(v, ensure_ascii=False, indent=2))
+            print(_json.dumps({"version": e["version"], "hash": e["hash"]}, ensure_ascii=False, indent=2))
         else:
-            print(f"{v['anexo']}: {v['secciones']} secciones, {v['fuentes']} fuentes definidas, "
-                  f"{v['citas_usadas']} citas distintas.")
-            for e in v["errores"]:
-                print(f"  [ERROR] {e['tipo']}: {e['detalle']}")
-            for a in v["avisos"]:
-                print(f"  [AVISO] {a['tipo']}: {a['detalle']}")
-            print("OK: el anexo es coherente." if v["ok"]
-                  else f"FALLAN {len(v['errores'])} comprobacion(es).")
-        return 0 if v["ok"] else 1
+            print(e["version"] or "sin conocimiento TOML")
+            if e["hash"]:
+                print(f"hash: {e['hash']}")
+        return 0 if e["version"] else 1
+    if getattr(args, "estructura", False):
+        e = conocimiento_toml.estructura(ruta=ruta_toml)
+        if formato == "json":
+            print(_json.dumps(e, ensure_ascii=False, indent=2))
+        else:
+            print(f"Conocimiento TOML: {e['version'] or '(sin conocimiento)'}")
+            for f in e["ficheros"]:
+                print(f"  {f['nombre']:<22} sha256={f['sha256'][:12]}")
+            print("  " + " | ".join(f"{k}={v}" for k, v in e["conteos"].items()))
+        return 0 if e["version"] else 1
+    if getattr(args, "exportar_md", False):
+        try:
+            r = conocimiento_toml.exportar_markdown(ruta=ruta_toml)
+            d = conocimiento_toml.comparar_markdown(ruta=ruta_toml)
+        except ValueError as exc:
+            print(f"No se puede exportar: {exc}")
+            return 1
+        if formato == "json":
+            print(_json.dumps({"exportado": r, "diferencias": d}, ensure_ascii=False, indent=2))
+        else:
+            print(f"Markdown generado: {r['destino']} ({r['bytes']} bytes, {r['version']})")
+            print(f"Informe de diferencias: {d['informe']}")
+            print("  " + " | ".join(f"{k}={v}" for k, v in d["conteos"].items()))
+        return 0
+    if getattr(args, "sincronizar", False):
+        try:
+            r = conocimiento_toml.sincronizar(cn, ruta=ruta_toml)
+        except ValueError as exc:
+            print(f"No se sincroniza: {exc}")
+            return 1
+        if formato == "json":
+            print(_json.dumps(r, ensure_ascii=False, indent=2))
+        else:
+            print(f"Sincronizado {r['version']} en las tablas de conocimiento.")
+            print("  " + " | ".join(f"{k}={v}" for k, v in r["conteos"].items()))
+        return 0
+    if getattr(args, "validar", False):
+        md = conocimiento.validar()
+        toml = conocimiento_toml.validar(ruta=ruta_toml)
+        ok = bool(md["ok"] and toml["ok"])
+        errores = [dict(e, origen="markdown") for e in md["errores"]] + \
+                  [dict(e, origen="toml") for e in toml["errores"]]
+        avisos = [dict(a, origen="markdown") for a in md["avisos"]] + \
+                 [dict(a, origen="toml") for a in toml["avisos"]]
+        if formato == "json":
+            print(_json.dumps({"ok": ok, "errores": errores, "avisos": avisos,
+                               "version": toml.get("version"), "conteos": toml.get("conteos"),
+                               "markdown": md, "toml": toml}, ensure_ascii=False, indent=2))
+        else:
+            print(f"Markdown: {md['anexo']}: {md['secciones']} secciones, {md['fuentes']} fuentes, "
+                  f"{md['citas_usadas']} citas distintas.")
+            print(f"TOML: {toml.get('version') or '(sin conocimiento)'}: "
+                  f"{toml.get('conteos') or {}}.")
+            for e in errores:
+                print(f"  [ERROR] {e['origen']}/{e['tipo']}: {e['detalle']}")
+            for a in avisos:
+                print(f"  [AVISO] {a['origen']}/{a['tipo']}: {a['detalle']}")
+            print("OK: el conocimiento es coherente." if ok
+                  else f"FALLAN {len(errores)} comprobacion(es).")
+        return 0 if ok else 1
     if getattr(args, "criterios", False):
         filas = conocimiento.criterios(cn=cn)
         if formato == "json":
@@ -569,10 +625,18 @@ def main(argv: list[str] | None = None) -> int:
     pco.add_argument("--revisar", default=None, metavar="SECCION",
                      help="firma una seccion como revisada (T.4, T.8...): quien la ha mirado y cuando")
     pco.add_argument("--validar", action="store_true",
-                     help="valida IDs de seccion, citas [n] y el bloque Sources (0 = sin errores)")
+                     help="valida el TOML y el anexo Markdown (0 = sin errores)")
+    pco.add_argument("--estructura", action="store_true",
+                     help="resumen del conocimiento TOML: version, ficheros y conteos")
+    pco.add_argument("--version", action="store_true", help="version KV-* y hash canonico del TOML")
+    pco.add_argument("--exportar-md", action="store_true",
+                     help="exporta el TOML a data/derived/conocimiento/ y deja el informe de diferencias")
+    pco.add_argument("--sincronizar", action="store_true",
+                     help="copia el TOML a las tablas SQLite de conocimiento (idempotente)")
+    pco.add_argument("--ruta-toml", default="conocimiento", help="carpeta del conocimiento TOML")
     pco.add_argument("--criterios", action="store_true",
                      help="lista las afirmaciones [criterio] pendientes de firma, con su estado")
-    pco.add_argument("--json", action="store_true", help="salida JSON para --validar o --criterios")
+    pco.add_argument("--json", action="store_true", help="salida JSON")
     pco.add_argument("--formato", choices=("texto", "json", "md"), default=None,
                      help="formato de salida: texto (por defecto), json o md (md solo para --criterios)")
     pco.add_argument("--quien", default=None, help="quien la firma (por defecto, el atleta)")

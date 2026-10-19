@@ -13,14 +13,14 @@ F1-05,F1,Integridad del conocimiento actual,"Tests de duplicados, citas rotas, f
 F1-06,F1,Integridad del conocimiento actual,Lista de criterios (22 cláusulas; 21 líneas marcadas) para firmar,F1-03,Lista exportable y con estado,`cli conocimiento --criterios`,hecha
 F1-07,F1,Integridad del conocimiento actual,Saneado de identificadores personales directos del árbol público,F1-06,"`git grep` no encuentra nombres, club ni marcas reales en ficheros versionados; tests verdes",Búsqueda + suite,hecha
 F1-08,F1,Integridad del conocimiento actual,Mover el plan personal de `entrenador/plan.py` a `entrenador/plan_local.py` (privado) con fallback genérico,F1-07,`plan.py` no lleva marcas/fechas del atleta; el panel funciona sin `plan_local.py`,Suite + grep,hecha
-F2-01,F2,Base estructurada y compilador,"Esquemas TOML de fuente, afirmación, regla, parámetro, estímulo, receta",F1,Documentados y con ejemplo,Revisión,pendiente
-F2-02,F2,Base estructurada y compilador,Loader `conocimiento.cargar()` con dataclasses,F2-01,Carga sin efectos secundarios,Unit test,pendiente
-F2-03,F2,Base estructurada y compilador,Validador con lista completa de errores,F2-02,"Falla con IDs duplicados, citas rotas, parámetros sin firma",Tests de error,pendiente
-F2-04,F2,Base estructurada y compilador,Tablas SQLite y sincronización,F2-02,`conocimiento_version` estable,Test de sync,pendiente
-F2-05,F2,Base estructurada y compilador,Hash canónico y `KV-*`,F2-04,Mismo contenido ⇒ mismo hash,Test determinista,pendiente
-F2-06,F2,Base estructurada y compilador,Exportador a Markdown,F2-02,"Markdown generado ≈ actual, diff revisado",Diff,pendiente
-F2-07,F2,Base estructurada y compilador,Script de migración con `--dry-run` y diff,F2-02,No escribe sin `--apply`,Ejecución en copia,pendiente
-F2-08,F2,Base estructurada y compilador,Tests de esquema y validación,F2-03,Cobertura de todos los errores,Suite,pendiente
+F2-01,F2,Base estructurada y compilador,"Esquemas TOML de fuente, afirmación, regla, parámetro, estímulo, receta",F1,Documentados y con ejemplo,Revisión,hecha
+F2-02,F2,Base estructurada y compilador,Loader `conocimiento.cargar()` con dataclasses,F2-01,Carga sin efectos secundarios,Unit test,hecha
+F2-03,F2,Base estructurada y compilador,Validador con lista completa de errores,F2-02,"Falla con IDs duplicados, citas rotas, parámetros sin firma",Tests de error,hecha
+F2-04,F2,Base estructurada y compilador,Tablas SQLite y sincronización,F2-02,`conocimiento_version` estable,Test de sync,hecha
+F2-05,F2,Base estructurada y compilador,Hash canónico y `KV-*`,F2-04,Mismo contenido ⇒ mismo hash,Test determinista,hecha
+F2-06,F2,Base estructurada y compilador,Exportador a Markdown,F2-02,"Markdown generado ≈ actual, diff revisado",Diff,hecha
+F2-07,F2,Base estructurada y compilador,Script de migración con `--dry-run` y diff,F2-02,No escribe sin `--apply`,Ejecución en copia,hecha
+F2-08,F2,Base estructurada y compilador,Tests de esquema y validación,F2-03,Cobertura de todos los errores,Suite,hecha
 F3-01,F3,Migración del conocimiento hardcodeado,"Migrar `estimulos.CLASES`, `CONOCIMIENTO`, `MATERIAL`",F2,Cada clase tiene `ES-*` y afirmaciones,Golden,pendiente
 F3-02,F3,Migración del conocimiento hardcodeado,"Migrar `reglas.REGLAS`, `REPARTO_OBJETIVO`, `MINIMOS_OBLIGATORIOS`",F2,"Cada regla tiene `RG-*`, parámetros y métrica",Golden,pendiente
 F3-03,F3,Migración del conocimiento hardcodeado,"Migrar `RECETAS`, `RECETA_DE_CLASE`, calendario y recuperación",F2,"Cada receta tiene `RE-*`, progresión y regresión",Golden,pendiente

@@ -817,6 +817,10 @@ segunda fuente de verdad.
 | F2-07 | Script de migración con `--dry-run` y diff | F2-02 | No escribe sin `--apply` | Ejecución en copia |
 | F2-08 | Tests de esquema y validación | F2-03 | Cobertura de todos los errores | Suite |
 
+**Implementación (2026-10-19):** `conocimiento/` (TOML) + `entrenador/conocimiento_toml.py`. CLI:
+`conocimiento --estructura`, `--version`, `--sincronizar`, `--exportar-md`; `--validar` valida TOML y
+Markdown. El motor sigue en `v1`; `RG-002` no se usa todavía. Evidencia en `docs/evidencias/F2.md`.
+
 **Criterio de salida:** el conocimiento se puede cargar, validar y versionar; el Markdown se genera desde TOML.
 
 ---
