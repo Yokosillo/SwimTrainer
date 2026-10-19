@@ -711,11 +711,14 @@ def pruebas_plan_y_portal(ruta: str = "data/entrenador.db") -> None:
     comprobar("los apuntes se guardan en el navegador, no en un servidor",
               "localStorage" in pagina and "iregua.apuntes" in pagina
               and "iregua.gimnasio.peticiones" in pagina)
-    # Lo unico que llama la pagina es al servidor local del propio PC (el boton "Subir"): no sale a internet.
+    # Lo unico que llama la pagina es al servidor del propio PC (el boton "Subir"): no sale a internet.
+    # La direccion se arma al vuelo (`urlApi`): el mismo sitio de la pagina si se sirve por HTTP y
+    # 127.0.0.1:8181 si se abre como fichero. Nunca un destino externo.
     _destinos = re.findall(r'(?:fetch|open)\(\s*"([^"]+)"', pagina)
-    comprobar("la pagina no sale a la red: lo unico que llama es al servidor local del PC",
+    comprobar("la pagina no sale a la red: lo unico que llama es al servidor del PC",
               "XMLHttpRequest" not in pagina and all(d.startswith("http://127.0.0.1:") for d in _destinos)
-              and "http://127.0.0.1:" in pagina, "destinos: " + repr(_destinos))
+              and "http://127.0.0.1:" in pagina and "const urlApi" in pagina
+              and 'urlApi("partes")' in pagina, "destinos: " + repr(_destinos))
     if os.path.isfile("cuadro/panel.html"):
         hecha = open("cuadro/panel.html", encoding="utf-8").read()
         usados = set(re.findall(r'(?:q|pintar)\(\s*"([A-Za-z0-9_]+)"', panel._leer_app("app.js")))
@@ -1067,7 +1070,7 @@ def pruebas_comparador_y_portal(ruta: str = "data/entrenador.db") -> None:
                   'id="garmTraer"' in html and 'id="garmAviso"' in html and
                   "function traerDelGarmin" in html and "function montarGarmin" in html and "montarGarmin()" in html)
         comprobar("el boton del Garmin habla con el servidor del propio PC, no con internet",
-                  'GARMIN = "http://127.0.0.1:' in html and "/garmin/traer" in html)
+                  'GARMIN = urlApi("garmin/traer")' in html and "const urlApi" in html)
         _mod = _srv._cargar_garmin(".")
         comprobar("el portal usa el mismo codigo de Garmin que la consola",
                   callable(getattr(_mod, "traer", None)) and callable(getattr(_mod, "bajar_actividades", None)) and
@@ -1080,6 +1083,11 @@ def pruebas_comparador_y_portal(ruta: str = "data/entrenador.db") -> None:
             _pedido.append(opciones)
             return {"traidos": 2, "nuevos": 1, "importacion": {"leidos": 2, "nuevos": 1, "omitidos": 1},
                     "desde": "2026-09-23", "hasta": "2026-10-14", "recargar": False, "consola": ""}
+        # Estas pruebas hablan con el servidor como en el PC de casa: sin contrasenia. El despliegue
+        # (Docker) si la lleva, y se comprueba aparte mas abajo.
+        _env_antes = {k: os.environ.get(k) for k in ("ENTRENADOR_USUARIO", "ENTRENADOR_CLAVE")}
+        os.environ["ENTRENADOR_CLAVE"] = ""
+        os.environ.pop("ENTRENADOR_USUARIO", None)
         _base_srv = _srv._Base(ruta, ".", regenerar=False, traer=_traer_de_mentira)
         _httpd = _srv.ThreadingHTTPServer(("127.0.0.1", 0), _srv._handler(_base_srv))
         _th.Thread(target=_httpd.serve_forever, daemon=True).start()
@@ -1112,6 +1120,39 @@ def pruebas_comparador_y_portal(ruta: str = "data/entrenador.db") -> None:
         finally:
             _httpd.shutdown()
             _httpd.server_close()
+            for _k, _v in _env_antes.items():
+                if _v is None:
+                    os.environ.pop(_k, None)
+                else:
+                    os.environ[_k] = _v
+        # La contrasenia del despliegue: el panel no se sirve sin ella y /salud queda libre para Docker.
+        import base64 as _b64
+        os.environ["ENTRENADOR_USUARIO"] = "atleta"
+        os.environ["ENTRENADOR_CLAVE"] = "secreto-de-prueba"
+        _httpd_auth = _srv.ThreadingHTTPServer(("127.0.0.1", 0), _srv._handler(_base_srv))
+        _th.Thread(target=_httpd_auth.serve_forever, daemon=True).start()
+        try:
+            _pa = _httpd_auth.server_address[1]
+            try:
+                _ur.urlopen(f"http://127.0.0.1:{_pa}/", timeout=20)
+                _sin = 200
+            except _ur.HTTPError as _err:
+                _sin = _err.code
+            _salud = _ur.urlopen(f"http://127.0.0.1:{_pa}/salud", timeout=20)
+            _cred = _b64.b64encode(b"atleta:secreto-de-prueba").decode("ascii")
+            _con = _ur.urlopen(_ur.Request(f"http://127.0.0.1:{_pa}/",
+                                           headers={"Authorization": "Basic " + _cred}), timeout=20)
+            comprobar("con contrasenia el panel pide credenciales y /salud queda libre para Docker",
+                      _sin == 401 and _salud.status == 200 and _con.status == 200,
+                      f"sin={_sin} salud={_salud.status} con={_con.status}")
+        finally:
+            _httpd_auth.shutdown()
+            _httpd_auth.server_close()
+            for _k, _v in _env_antes.items():
+                if _v is None:
+                    os.environ.pop(_k, None)
+                else:
+                    os.environ[_k] = _v
         pps = datos["partes"]
         if not pps["pendientes"]:
             # Puede no haber ninguna sesion sin parte (si el parte mas reciente ya esta subido). Para poder
@@ -1126,8 +1167,16 @@ def pruebas_comparador_y_portal(ruta: str = "data/entrenador.db") -> None:
             _cn2 = _db.conectar(_copia)
             _origen.backup(_cn2)
             _origen.close()
-            _cn2.execute("DELETE FROM parte_serie WHERE parte_id = (SELECT MAX(id) FROM parte)")
-            _cn2.execute("DELETE FROM parte WHERE id = (SELECT MAX(id) FROM parte)")
+            # La misma sesion puede tener mas de un parte (dos versiones subidas). Se le quitan TODOS los de
+            # la sesion mas reciente: si solo se borra el ultimo, la sesion sigue teniendo parte y no hay
+            # ninguna pendiente con la que probar.
+            _ultima = _cn2.execute(
+                "SELECT p.actividad_id FROM parte p JOIN actividad a ON a.id = p.actividad_id "
+                "ORDER BY a.inicio_local DESC LIMIT 1").fetchone()
+            if _ultima:
+                _cn2.execute("DELETE FROM parte_serie WHERE parte_id IN "
+                             "(SELECT id FROM parte WHERE actividad_id = ?)", (_ultima["actividad_id"],))
+                _cn2.execute("DELETE FROM parte WHERE actividad_id = ?", (_ultima["actividad_id"],))
             _cn2.commit()
             pps = _pr.datos_panel(_cn2)
             comprobar("sin sesiones pendientes, la prueba se hace sobre una copia sin el ultimo parte",
@@ -1170,7 +1219,12 @@ def pruebas_comparador_y_portal(ruta: str = "data/entrenador.db") -> None:
         comprobar("las sesiones que ya tienen parte vienen con su desglose para el portal",
                   bool(con) and all(s.get("grupos") for s in con) and all(s.get("n_intervalos") for s in con),
                   "sesiones con parte: " + str(len(con)))
-        dentro = [p for p in reales["partes"] if str(p["actividad_id"]) in por_id]
+        # Una sesion puede tener mas de un parte subido (dos versiones). El portal abre el ultimo, asi que
+        # se compara ese y no se mezclan los dos contra el mismo desglose.
+        _por_actividad = {}
+        for _p in reales["partes"]:
+            _por_actividad[str(_p["actividad_id"])] = _p
+        dentro = [p for p in _por_actividad.values() if str(p["actividad_id"]) in por_id]
         comprobar("el desglose de cada parte guardado trae sus mismos grupos y sus mismos metros",
                   bool(dentro) and all(
                       len(por_id[str(p["actividad_id"])]["grupos"]) == len(p["series"])
@@ -1179,7 +1233,7 @@ def pruebas_comparador_y_portal(ruta: str = "data/entrenador.db") -> None:
                       for p in dentro))
         comprobar("y las mismas repeticiones que se apuntaron en cada grupo",
                   all(sum(len(g["reps"]) for g in por_id[str(p["actividad_id"])]["grupos"])
-                      == sum(len(g.get("reps") or []) for g in p["series"]) for p in dentro))
+                      == sum(len(g.get("reps_reloj") or []) for g in p["series"]) for p in dentro))
         todas = [g for s in con for g in s["grupos"]]
         a_mano = [r for g in todas for r in g["reps"] if r.get("lap_idx") is None]
         del_reloj = [r for g in todas for r in g["reps"] if r.get("lap_idx") is not None]
@@ -2560,12 +2614,14 @@ def pruebas_de_medicion(ruta: str = "data/entrenador.db") -> None:
         # ejemplos y la prueba se caeria sola (no por un fallo del motor). Se le quita el parte a la sesion
         # mas reciente de la copia: es exactamente la situacion de un dia recien importado.
         fila = cc.execute(
-            "SELECT p.id FROM parte p JOIN actividad a ON a.id = p.actividad_id "
+            "SELECT p.actividad_id FROM parte p JOIN actividad a ON a.id = p.actividad_id "
             "WHERE substr(a.inicio_local, 1, 10) >= ? ORDER BY a.inicio_local DESC LIMIT 1",
             (mod_partes.PRIMER_DIA_CON_PARTE,)).fetchone()
         if fila:
-            cc.execute("DELETE FROM parte_serie WHERE parte_id = ?", (fila["id"],))
-            cc.execute("DELETE FROM parte WHERE id = ?", (fila["id"],))
+            # Todos los partes de esa sesion (puede haber varias versiones), no solo el ultimo.
+            cc.execute("DELETE FROM parte_serie WHERE parte_id IN "
+                       "(SELECT id FROM parte WHERE actividad_id = ?)", (fila["actividad_id"],))
+            cc.execute("DELETE FROM parte WHERE actividad_id = ?", (fila["actividad_id"],))
             cc.commit()
         pendientes = [s for s in mod_partes.sesiones_sin_parte(cc, 25) if s.get("grupos")]
     comprobar("hay sesiones sin parte con desglose para probar la marca", bool(pendientes))

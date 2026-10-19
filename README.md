@@ -62,6 +62,18 @@ uv venv .venv --python 3.12
 uv pip install --python .venv/Scripts/python.exe fitdecode gpxpy
 ```
 
+## Despliegue con Docker
+
+El proyecto se puede servir en red con Docker, sin instalar Python en la maquina: la imagen lleva el
+codigo y las dependencias, y `data/`, `informes/` y `cuadro/` se montan desde el disco. El puerto se
+publica solo en `127.0.0.1`; delante va Caddy (u otro proxy) con contrasenia. Los pasos completos,
+la integracion con Caddy en `/entrenador/` y las copias de seguridad estan en **`DESPLIEGUE.md`**.
+
+```bash
+cp .env.example .env          # poner ENTRENADOR_CLAVE
+docker compose up -d --build
+```
+
 ## Uso
 
 ```bash

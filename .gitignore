@@ -31,6 +31,11 @@ data/derived/
 # El nombre, el club y el sello del atleta: los lee entrenador/perfil.py desde aqui
 entrenador/perfil_local.py
 
+# Despliegue en Docker: la contrasenia del panel y el token de Garmin no se suben
+.env
+.garminconnect/
+docker-compose.override.yml
+
 # Cosas sueltas de una sesion de trabajo
 *.log
 tmp-*

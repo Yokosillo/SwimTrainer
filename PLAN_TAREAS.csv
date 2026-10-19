@@ -1,0 +1,71 @@
+id,fase,fase_nombre,tarea,depende_de,aceptacion,prueba,estado
+F0-01,F0,Línea base y red de seguridad,"Backup de DB, tag de git, digest de imagen, inventario de counts",—,Backup restaurable; `integrity_check=ok`,Restaurar en copia y consultar,pendiente
+F0-02,F0,Línea base y red de seguridad,Inventario de todo el conocimiento hardcodeado y su mapa a IDs,—,Tabla completa en este plan (anexo A),Revisión manual,pendiente
+F0-03,F0,Línea base y red de seguridad,"Golden snapshots de `valoracion`, `plan`, `reglas`, `decision`",F0-01,Salidas guardadas y comparables,Script `scripts/golden.py`,pendiente
+F0-04,F0,Línea base y red de seguridad,Feature flag `MOTOR_CONOCIMIENTO=v1`,F0-01,v1 sigue funcionando igual,Tests + arranque,pendiente
+F0-05,F0,Línea base y red de seguridad,ADR-001 (formato TOML) y ADR-002 (LLM no núcleo),—,ADRs firmados,Revisión,pendiente
+F0-06,F0,Línea base y red de seguridad,Protocolo de evidencia: cada tarea adjunta comando + salida,—,Plantilla en `informes/` o `docs/`,Revisión,pendiente
+F1-01,F1,Integridad del conocimiento actual,Separar `T.9` en `T.9` (mantenimiento) y `T.10` (cierre) o eliminar el cierre,F0,"No hay IDs duplicados; `fuente_de(""como_se_mantiene"")` correcto",Test de secciones,pendiente
+F1-02,F1,Integridad del conocimiento actual,"Parser del bloque `## Sources` con `FU-*`, URL, cita",F1-01,Toda cita `[n]` resuelve; `[24]` detectada como huérfana,Test de fuentes,pendiente
+F1-03,F1,Integridad del conocimiento actual,Corregir `sin_fuente()` y contar 21 criterios,F1-01,El portal no dice “todo con fuente” si hay criterios,Test de criterios,pendiente
+F1-04,F1,Integridad del conocimiento actual,`cli conocimiento --validar` con salida JSON y código de error,F1-02,0 errores en el documento actual,Ejecución,pendiente
+F1-05,F1,Integridad del conocimiento actual,"Tests de duplicados, citas rotas, fuentes huérfanas, criterios",F1-02,Tests verdes,Suite,pendiente
+F1-06,F1,Integridad del conocimiento actual,Lista de 21 criterios para firmar,F1-03,Lista exportable y con estado,`cli conocimiento --criterios`,pendiente
+F2-01,F2,Base estructurada y compilador,"Esquemas TOML de fuente, afirmación, regla, parámetro, estímulo, receta",F1,Documentados y con ejemplo,Revisión,pendiente
+F2-02,F2,Base estructurada y compilador,Loader `conocimiento.cargar()` con dataclasses,F2-01,Carga sin efectos secundarios,Unit test,pendiente
+F2-03,F2,Base estructurada y compilador,Validador con lista completa de errores,F2-02,"Falla con IDs duplicados, citas rotas, parámetros sin firma",Tests de error,pendiente
+F2-04,F2,Base estructurada y compilador,Tablas SQLite y sincronización,F2-02,`conocimiento_version` estable,Test de sync,pendiente
+F2-05,F2,Base estructurada y compilador,Hash canónico y `KV-*`,F2-04,Mismo contenido ⇒ mismo hash,Test determinista,pendiente
+F2-06,F2,Base estructurada y compilador,Exportador a Markdown,F2-02,"Markdown generado ≈ actual, diff revisado",Diff,pendiente
+F2-07,F2,Base estructurada y compilador,Script de migración con `--dry-run` y diff,F2-02,No escribe sin `--apply`,Ejecución en copia,pendiente
+F2-08,F2,Base estructurada y compilador,Tests de esquema y validación,F2-03,Cobertura de todos los errores,Suite,pendiente
+F3-01,F3,Migración del conocimiento hardcodeado,"Migrar `estimulos.CLASES`, `CONOCIMIENTO`, `MATERIAL`",F2,Cada clase tiene `ES-*` y afirmaciones,Golden,pendiente
+F3-02,F3,Migración del conocimiento hardcodeado,"Migrar `reglas.REGLAS`, `REPARTO_OBJETIVO`, `MINIMOS_OBLIGATORIOS`",F2,"Cada regla tiene `RG-*`, parámetros y métrica",Golden,pendiente
+F3-03,F3,Migración del conocimiento hardcodeado,"Migrar `RECETAS`, `RECETA_DE_CLASE`, calendario y recuperación",F2,"Cada receta tiene `RE-*`, progresión y regresión",Golden,pendiente
+F3-04,F3,Migración del conocimiento hardcodeado,Separar plan escrito (dato del atleta) de conocimiento (reglas),F3-03,`plan.py` conserva su API; parámetros fuera,Golden,pendiente
+F3-05,F3,Migración del conocimiento hardcodeado,Adaptador de compatibilidad,F3-01..04,Las funciones actuales siguen funcionando,Suite,pendiente
+F3-06,F3,Migración del conocimiento hardcodeado,Eliminar o marcar `DEPRECATED` las constantes viejas,F3-05,0 duplicados,Grep + test,pendiente
+F3-07,F3,Migración del conocimiento hardcodeado,Firmar o marcar los 21 criterios y los parámetros,F1-06,Cada `PA-*` tiene procedencia,Validación,pendiente
+F3-08,F3,Migración del conocimiento hardcodeado,Golden diff v1 vs v2 con la base real,F3-05,Diferencias justificadas una a una,Informe,pendiente
+F4-01,F4,Estado del atleta,Esquema `EstadoAtleta`,F3,Documentado,Revisión,pendiente
+F4-02,F4,Estado del atleta,Métricas de rendimiento y carga,F4-01,Cálculos reproducibles,Unit test,pendiente
+F4-03,F4,Estado del atleta,"Recuperación, fuerza, restricciones y adherencia",F4-01,Incluye fuentes y limitaciones,Unit test,pendiente
+F4-04,F4,Estado del atleta,Respuesta individual por estímulo,F4-02,No declara causalidad sin datos,Test,pendiente
+F4-05,F4,Estado del atleta,Incertidumbre y confianza,F4-02,Cada métrica lleva n/dispersión,Test,pendiente
+F4-06,F4,Estado del atleta,Snapshot y `estado_id`,F4-01,Hash estable,Test,pendiente
+F4-07,F4,Estado del atleta,`cli estado` y tarjeta de panel,F4-06,Visible y legible,Manual + JS,pendiente
+F4-08,F4,Estado del atleta,Tests con datos sintéticos y copia real,F4-02..06,Escenarios de borde cubiertos,Suite,pendiente
+F5-01,F5,Motor de decisión v2,Esquema JSON de recomendación y validación,F4,Rechaza recomendaciones incompletas,Test de esquema,pendiente
+F5-02,F5,Motor de decisión v2,Generación de candidatas,F5-01,2-4 opciones por prioridad,Test,pendiente
+F5-03,F5,Motor de decisión v2,Restricciones duras,F5-02,"Calendario, recuperación, dolor, material",Test,pendiente
+F5-04,F5,Motor de decisión v2,Puntuación y desempate,F5-03,Score auditable; pesos configurables,Test,pendiente
+F5-05,F5,Motor de decisión v2,Explicación determinista,F5-04,Sin cifras nuevas,Test,pendiente
+F5-06,F5,Motor de decisión v2,Tablas y guardado de opciones/versiones,F5-01,Todo queda registrado,Test DB,pendiente
+F5-07,F5,Motor de decisión v2,`dual-run` v1/v2,F5-06,Se pueden comparar sin mostrar v2,Script,pendiente
+F5-08,F5,Motor de decisión v2,Seguridad y derivación,F5-03,Dolor/lesión ⇒ parar,Test,pendiente
+F5-09,F5,Motor de decisión v2,"Tests de prioridad, mínimo eficaz y alternativas",F5-02..05,Cobertura de casos,Suite,pendiente
+F6-01,F6,Bucle de resultados,Enlace recomendación → sesión/parte/apunte,F5,Integridad referencial,Test,pendiente
+F6-02,F6,Bucle de resultados,Catálogo de métricas por regla,F5,Cada regla tiene métrica o `sin_datos`,Validación,pendiente
+F6-03,F6,Bucle de resultados,Evaluación antes/después con confounders,F6-01,Informa de limitaciones,Test,pendiente
+F6-04,F6,Bucle de resultados,Ampliar `verificacion`,F6-03,"Guarda resultado, delta, confianza",Test,pendiente
+F6-05,F6,Bucle de resultados,Informe de aprendizaje,F6-04,Aciertos/fallos por regla,CLI,pendiente
+F6-06,F6,Bucle de resultados,`cli resultados` y tarjeta de panel,F6-05,Visible,Manual,pendiente
+F6-07,F6,Bucle de resultados,Tests de aceptada/cambiada/ignorada y resultado,F6-04,Sin causalidad falsa,Suite,pendiente
+F7-01,F7,Interfaz,Tarjeta de prioridad/acción,F5,Una prioridad visible,JS,pendiente
+F7-02,F7,Interfaz,"Desplegables de por qué, medición, riesgo, alternativa",F7-01,No satura,JS,pendiente
+F7-03,F7,Interfaz,Explorador de conocimiento (AF/FU/revisión),F2,Se puede auditar,JS,pendiente
+F7-04,F7,Interfaz,“Qué ha cambiado desde la última vez”,F5,Explica diferencias,JS,pendiente
+F7-05,F7,Interfaz,Historial de recomendaciones y resultados,F6,Visible,JS,pendiente
+F7-06,F7,Interfaz,Tests Node y accesibilidad básica,F7-01..05,Sin errores,`comprobar_portal.js`,pendiente
+F8-01,F8,LLM opcional,"ADR de proveedor, privacidad y coste",F7,Firmado,Revisión,pendiente
+F8-02,F8,LLM opcional,`coach_llm.py` con proveedor abstracto,F8-01,Sin clave en navegador,Test,pendiente
+F8-03,F8,LLM opcional,RAG sobre `AF`/`FU`,F2,Recupera citas correctas,Test,pendiente
+F8-04,F8,LLM opcional,Contrato JSON y validadores,F8-03,Rechaza cifras/citas inválidas,Test,pendiente
+F8-05,F8,LLM opcional,UI “explicar”/“preguntar”,F8-04,Fallback determinista,JS,pendiente
+F8-06,F8,LLM opcional,Evaluación baseline vs LLM,F8-05,Métricas y coste,Informe,pendiente
+F8-07,F8,LLM opcional,Tests de privacidad y alucinación,F8-04,0 datos crudos; 0 cifras inventadas,Suite,pendiente
+F9-01,F9,Despliegue y cierre,Dual-run 2 semanas,F5/F6,v1 y v2 comparables,Informe,pendiente
+F9-02,F9,Despliegue y cierre,Métricas de éxito,F9-01,Umbrales cumplidos,Panel,pendiente
+F9-03,F9,Despliegue y cierre,Activar v2 por defecto,F9-02,Rollback probado,Ensayo,pendiente
+F9-04,F9,Despliegue y cierre,Documentación,Todas,"README, DESPLIEGUE, conocimiento",Revisión,pendiente
+F9-05,F9,Despliegue y cierre,Postmortem y backlog,F9-03,Riesgos residuales,Documento,pendiente

@@ -1,0 +1,48 @@
+# Entrenador en Docker.
+#
+#   cp .env.example .env      # y poner una contrasenia de verdad
+#   docker compose up -d --build
+#
+# El puerto se publica SOLO en 127.0.0.1: Caddy (o el proxy de delante) es quien lo abre a la red.
+# Los datos viven en `data/`, los informes en `informes/` y el HTML generado en `cuadro/`: los tres
+# se montan desde el host y no se meten en la imagen.
+
+services:
+  entrenador:
+    build:
+      context: .
+      args:
+        UID: ${ENTRENADOR_UID:-1001}
+        GID: ${ENTRENADOR_GID:-1001}
+    image: entrenador:local
+    container_name: entrenador
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      TZ: Europe/Madrid
+      ENTRENADOR_HOST: 0.0.0.0
+      ENTRENADOR_PUERTO: "8181"
+    ports:
+      - "127.0.0.1:8181:8181"
+    volumes:
+      - ./data:/app/data
+      - ./informes:/app/informes
+      - ./cuadro:/app/cuadro
+      # Token OAuth de Garmin Connect (se crea con `docker compose run --rm entrenador ... login`).
+      - ./.garminconnect:/home/entrenador/.garminconnect
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8181/salud', timeout=3)"
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 3m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

@@ -637,6 +637,8 @@ def main(argv: list[str] | None = None) -> int:
 
     pserv = sub.add_parser("servir", help="sirve el cuadro de mando y recibe los partes que se suben del portal")
     pserv.add_argument("--puerto", type=int, default=servidor.PUERTO_POR_DEFECTO, help="puerto (por defecto 8181)")
+    pserv.add_argument("--host", default=servidor.HOST_POR_DEFECTO,
+                       help="direccion donde escuchar (127.0.0.1 en el PC; 0.0.0.0 en Docker)")
     pserv.add_argument("--carpeta", default=".", help="carpeta del proyecto (por defecto la actual)")
     pserv.add_argument("--rapido", action="store_true", help="no rehacer el cuadro de mando en cada parte")
     pserv.add_argument("--abrir", action="store_true", help="abrir el cuadro de mando en el navegador al arrancar")
@@ -728,7 +730,8 @@ def main(argv: list[str] | None = None) -> int:
                   f"{bk['desnivel']} m de desnivel | {bk['segmentos']} segmentos "
                   f"({bk['repetidos']} repetidos) con {bk['intentos']} intentos medidos")
     elif args.orden == "servir":
-        return servidor.servir(args.bd, args.carpeta, args.puerto, regenerar=not args.rapido, abrir=args.abrir)
+        return servidor.servir(args.bd, args.carpeta, args.puerto, regenerar=not args.rapido,
+                               abrir=args.abrir, host=args.host)
     elif args.orden == "plan":
         from . import plan, plan_vivo
         if getattr(args, "generar", False):

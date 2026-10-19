@@ -10,7 +10,9 @@ recarga el cuadro con los datos ya actualizados.
 """
 from __future__ import annotations
 
+import base64
 import contextlib
+import hmac
 import importlib.util
 import io
 import json
@@ -24,6 +26,11 @@ from pathlib import Path
 from . import analitica, db, panel, partes
 
 PUERTO_POR_DEFECTO = 8181
+HOST_POR_DEFECTO = os.environ.get("ENTRENADOR_HOST", "127.0.0.1")
+# Para servirlo fuera del propio PC (Docker detras de Caddy, por ejemplo) se pone una contrasenia.
+# Sin `ENTRENADOR_CLAVE` el servidor se queda como siempre: abierto solo para 127.0.0.1.
+USUARIO_POR_DEFECTO = os.environ.get("ENTRENADOR_USUARIO", "atleta")
+CLAVE_POR_DEFECTO = os.environ.get("ENTRENADOR_CLAVE", "")
 MAX_CUERPO = 4 * 1024 * 1024  # un parte con muchas series cabe de sobra; mas que esto es un error
 DIAS_GARMIN_POR_DEFECTO = 21  # lo que mira el boton del portal hacia atras si no se le dice otra cosa
 
@@ -173,6 +180,11 @@ class _Base:
 
 
 def _handler(base: _Base):
+    # Se leen al montar el servidor (y no al importar el modulo) para que las pruebas puedan
+    # encender y apagar la contrasenia sin recargar nada.
+    usuario = os.environ.get("ENTRENADOR_USUARIO", USUARIO_POR_DEFECTO)
+    clave = os.environ.get("ENTRENADOR_CLAVE", CLAVE_POR_DEFECTO)
+
     class Handler(BaseHTTPRequestHandler):
         server_version = "Entrenador"
 
@@ -184,8 +196,41 @@ def _handler(base: _Base):
         def _cors(self):
             # El portal puede estar abierto como fichero (file://): hay que dejarle hablar con 127.0.0.1.
             self.send_header("Access-Control-Allow-Origin", "*")
-            self.send_header("Access-Control-Allow-Headers", "Content-Type")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
             self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+
+        def _autorizado(self) -> bool:
+            """HTTP Basic, solo si hay contrasenia configurada.
+
+            En el PC de casa no hay ninguna y todo sigue abierto en 127.0.0.1. Cuando se sirve en red
+            (Docker detras de Caddy) la contrasenia va en `ENTRENADOR_CLAVE`: los datos de entrenamiento
+            son personales y no pueden quedar a la vista de cualquiera que llegue a la maquina.
+            """
+            if not clave:
+                return True
+            cabecera = self.headers.get("Authorization", "")
+            if not cabecera.startswith("Basic "):
+                return False
+            try:
+                descifrado = base64.b64decode(cabecera[6:]).decode("utf-8")
+            except (ValueError, UnicodeDecodeError):
+                return False
+            quien, separador, lo_que_pasa = descifrado.partition(":")
+            return (bool(separador)
+                    and hmac.compare_digest(quien, usuario)
+                    and hmac.compare_digest(lo_que_pasa, clave))
+
+        def _pedir_credenciales(self):
+            cuerpo = "Entrenador: hace falta usuario y contrasenia.\n".encode("utf-8")
+            self.send_response(401)
+            self.send_header("WWW-Authenticate", 'Basic realm="Entrenador", charset="UTF-8"')
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(len(cuerpo)))
+            self.send_header("Cache-Control", "no-store")
+            self._cors()
+            self.end_headers()
+            if self.command != "HEAD":
+                self.wfile.write(cuerpo)
 
         def _responder(self, codigo: int, cuerpo: bytes, tipo: str):
             self.send_response(codigo)
@@ -211,10 +256,23 @@ def _handler(base: _Base):
 
         def do_GET(self):
             ruta = self.path.split("?")[0]
+            # `/salud` queda fuera de la contrasenia: es lo que consultan Docker y el portal de estado.
+            if ruta != "/salud" and not self._autorizado():
+                self._pedir_credenciales()
+                return
             if ruta in ("/", "/panel.html", "/index.html"):
                 ficha = os.path.join(base.carpeta, "cuadro", "panel.html")
                 if not os.path.isfile(ficha):
                     self._json(404, {"ok": False, "error": "todavia no hay cuadro/panel.html: lanza `analizar`"})
+                    return
+                with open(ficha, "rb") as f:
+                    self._responder(200, f.read(), "text/html; charset=utf-8")
+                return
+            if ruta in ("/strava", "/strava/", "/strava/index.html"):
+                # El boton "Portal de bici" del panel enlaza con `strava/index.html`, al lado de la pagina.
+                ficha = os.path.join(base.carpeta, "cuadro", "strava", "index.html")
+                if not os.path.isfile(ficha):
+                    self._json(404, {"ok": False, "error": "todavia no hay portal de bici: lanza `portal`"})
                     return
                 with open(ficha, "rb") as f:
                     self._responder(200, f.read(), "text/html; charset=utf-8")
@@ -244,6 +302,9 @@ def _handler(base: _Base):
             self._json(404, {"ok": False, "error": "no hay nada en " + ruta})
 
         def do_POST(self):
+            if not self._autorizado():
+                self._pedir_credenciales()
+                return
             ruta = self.path.split("?")[0]
             if ruta == "/gimnasio":
                 self._apuntar_gimnasio()
@@ -431,19 +492,26 @@ def _handler(base: _Base):
 
 
 def servir(ruta_bd: str = db.RUTA_POR_DEFECTO, carpeta: str = ".", puerto: int = PUERTO_POR_DEFECTO,
-           regenerar: bool = True, abrir: bool = False) -> int:
-    """Levanta el servidor hasta Ctrl+C. `regenerar` rehace el cuadro de mando en cada parte que entra."""
+           regenerar: bool = True, abrir: bool = False, host: str = HOST_POR_DEFECTO) -> int:
+    """Levanta el servidor hasta Ctrl+C. `regenerar` rehace el cuadro de mando en cada parte que entra.
+
+    `host` es `127.0.0.1` por defecto (el PC de casa). En Docker se pasa `0.0.0.0` y el puerto se publica
+    solo en la loopback de la maquina, delante de Caddy y de su contrasenia.
+    """
     base = _Base(ruta_bd, carpeta, regenerar)
     try:
-        servidor = ThreadingHTTPServer(("127.0.0.1", puerto), _handler(base))
+        servidor = ThreadingHTTPServer((host, puerto), _handler(base))
     except OSError as exc:
-        print(f"No he podido abrir el puerto {puerto}: {exc}")
+        print(f"No he podido abrir {host}:{puerto}: {exc}")
         print("Puede que ya tengas otro servidor del entrenador abierto. Cierra esa ventana o usa --puerto 8182.")
         return 1
     servidor.daemon_threads = True
-    direccion = f"http://127.0.0.1:{puerto}/"
+    direccion = f"http://{host}:{puerto}/"
     print("Cuadro de mando servido en " + direccion)
     print(f"  base: {ruta_bd}")
+    if os.environ.get("ENTRENADOR_CLAVE", CLAVE_POR_DEFECTO):
+        print(f"  pide usuario y contrasenia (usuario: "
+              f"{os.environ.get('ENTRENADOR_USUARIO', USUARIO_POR_DEFECTO)})")
     print("  el boton \"Subir\" del portal mete el parte en la base mientras esta ventana siga abierta"
           + ("" if regenerar else " (sin rehacer el cuadro)"))
     print("  deja esta ventana abierta; Ctrl+C para parar.")

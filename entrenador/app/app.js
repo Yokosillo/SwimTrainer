@@ -23,6 +23,16 @@ const APU = DATOS.apuntes || {};
 const q = (id) => document.getElementById(id);
 const $$ = (sel, raiz) => Array.prototype.slice.call((raiz || document).querySelectorAll(sel));
 
+/* Donde vive la pequena API del servidor (subir el parte, gimnasio, evaluar...).
+   - Si la pagina se sirve por HTTP, manda el mismo sitio que la pagina: asi funciona igual en
+     `http://127.0.0.1:8181/` que detras de Caddy en `https://dalmacia/entrenador/`.
+   - Si se abre como fichero (file://), el servidor del PC sigue estando en 127.0.0.1:8181. */
+const API_BASE = (typeof location === "undefined" || !location.pathname
+                  || location.protocol === "file:")
+  ? "http://127.0.0.1:8181/"
+  : location.pathname.replace(/[^/]*$/, "");
+const urlApi = (ruta) => API_BASE + ruta;
+
 function el(tag, attrs, hijos) {
   const n = document.createElement(tag);
   if (attrs) Object.keys(attrs).forEach((k) => {
@@ -1270,7 +1280,7 @@ function pintarEntrenos() {
 /* La plantilla de series y kilos: los ejercicios que hace siempre, con lo ultimo de cada uno. Los numeros se
    guardan en la base (la vista de Gimnasio los manda al servidor), no en el navegador: asi no hay que exportar
    nada y el historial queda junto al resto de su entrenamiento. */
-const GIMNASIO = "http://127.0.0.1:8181/gimnasio";
+const GIMNASIO = urlApi("gimnasio");
 let GIM = null;
 
 function numerosDe(d) {
@@ -2712,7 +2722,7 @@ function guardarParte(s, sin_aviso, sin_repintar) {
 
 /* El portal es un fichero suelto y no puede escribir en la base por su cuenta: se lo manda al servidor local
    (orden `servir`, que se levanta con servir-entrenador.bat). Si no esta, se dice en una linea y ya esta. */
-const SUBIDA = "http://127.0.0.1:8181/partes";
+const SUBIDA = urlApi("partes");
 
 function subirParte(s) {
   guardarParte(s, true);
@@ -2988,7 +2998,7 @@ function pintarValoracion() {
 /* El boton del Garmin: el portal le pide al servidor local que baje de Garmin Connect lo que falte. El servidor
    usa el mismo codigo que `python scripts/garmin_conectar.py traer`. Por aqui no pasa ninguna credencial: la
    sesion (token OAuth) ya esta en el disco del PC, la dejo el atleta con conectar-garmin.bat. */
-const GARMIN = "http://127.0.0.1:8181/garmin/traer";
+const GARMIN = urlApi("garmin/traer");
 
 function avisoGarmin(texto) {
   const caja = document.getElementById("garmAviso");
@@ -3054,7 +3064,7 @@ function traerDelGarmin() {
    Manda la sesion al servidor local (127.0.0.1), que compone el discurso con lo que ya hay en la base: los
    tiempos bloque a bloque (con el material descontado), la distancia, el esfuerzo que traia encima y los
    descansos; y dice como va el plan. Nada sale del PC y no toca Garmin. */
-const EVALUAR = "http://127.0.0.1:8181/evaluar";
+const EVALUAR = urlApi("evaluar");
 
 function cajaEntrenador(actividad_id) {
   const caja = el("div", { clase: "valoracion entrenador", hidden: true });
@@ -3118,8 +3128,8 @@ function evaluarSesion(actividad_id, caja, boton) {
 
 /* ---------- 12. Reglas: el bucle cerrado (V1.3) ------------------------- */
 
-const RUTA_DECISION = "http://127.0.0.1:8181/decision";
-const RUTA_PROPONER = "http://127.0.0.1:8181/plan/generar";
+const RUTA_DECISION = urlApi("decision");
+const RUTA_PROPONER = urlApi("plan/generar");
 
 function avisoReglas(texto) {
   pintar("reglasAviso", texto);

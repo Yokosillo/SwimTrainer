@@ -1,0 +1,27 @@
+.git
+.github
+.venv
+node_modules
+__pycache__
+*.py[cod]
+.pytest_cache
+
+# Datos personales: no entran en la imagen, se montan en el contenedor.
+data
+informes
+cuadro
+.garminconnect
+*.db
+*.db-wal
+*.db-shm
+*.fit
+*.gpx
+*.tcx
+export_*.zip
+
+# Secretos y configuracion local
+.env
+docker-compose.override.yml
+*.log
+tmp-*
+*.tmp
