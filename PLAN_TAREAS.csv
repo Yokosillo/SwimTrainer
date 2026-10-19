@@ -1,16 +1,16 @@
 id,fase,fase_nombre,tarea,depende_de,aceptacion,prueba,estado
-F0-01,F0,Línea base y red de seguridad,"Backup de DB, tag de git, digest de imagen, inventario de counts",—,Backup restaurable; `integrity_check=ok`,Restaurar en copia y consultar,pendiente
-F0-02,F0,Línea base y red de seguridad,Inventario de todo el conocimiento hardcodeado y su mapa a IDs,—,Tabla completa en este plan (anexo A),Revisión manual,pendiente
-F0-03,F0,Línea base y red de seguridad,"Golden snapshots de `valoracion`, `plan`, `reglas`, `decision`",F0-01,Salidas guardadas y comparables,Script `scripts/golden.py`,pendiente
-F0-04,F0,Línea base y red de seguridad,Feature flag `MOTOR_CONOCIMIENTO=v1`,F0-01,v1 sigue funcionando igual,Tests + arranque,pendiente
-F0-05,F0,Línea base y red de seguridad,ADR-001 (formato TOML) y ADR-002 (LLM no núcleo),—,ADRs firmados,Revisión,pendiente
-F0-06,F0,Línea base y red de seguridad,Protocolo de evidencia: cada tarea adjunta comando + salida,—,Plantilla en `informes/` o `docs/`,Revisión,pendiente
-F1-01,F1,Integridad del conocimiento actual,Separar `T.9` en `T.9` (mantenimiento) y `T.10` (cierre) o eliminar el cierre,F0,"No hay IDs duplicados; `fuente_de(""como_se_mantiene"")` correcto",Test de secciones,pendiente
-F1-02,F1,Integridad del conocimiento actual,"Parser del bloque `## Sources` con `FU-*`, URL, cita",F1-01,Toda cita `[n]` resuelve; `[24]` detectada como huérfana,Test de fuentes,pendiente
-F1-03,F1,Integridad del conocimiento actual,Corregir `sin_fuente()` y contar 21 criterios,F1-01,El portal no dice “todo con fuente” si hay criterios,Test de criterios,pendiente
-F1-04,F1,Integridad del conocimiento actual,`cli conocimiento --validar` con salida JSON y código de error,F1-02,0 errores en el documento actual,Ejecución,pendiente
-F1-05,F1,Integridad del conocimiento actual,"Tests de duplicados, citas rotas, fuentes huérfanas, criterios",F1-02,Tests verdes,Suite,pendiente
-F1-06,F1,Integridad del conocimiento actual,Lista de 21 criterios para firmar,F1-03,Lista exportable y con estado,`cli conocimiento --criterios`,pendiente
+F0-01,F0,Línea base y red de seguridad,"Backup de DB, tag de git, digest de imagen, inventario de counts",—,Backup restaurable; `integrity_check=ok`,Restaurar en copia y consultar,hecha
+F0-02,F0,Línea base y red de seguridad,Inventario de todo el conocimiento hardcodeado y su mapa a IDs,—,Tabla completa en este plan (anexo A),Revisión manual,hecha
+F0-03,F0,Línea base y red de seguridad,"Golden snapshots de `valoracion`, `plan`, `reglas`, `decision`",F0-01,Salidas guardadas y comparables,Script `scripts/golden.py`,hecha
+F0-04,F0,Línea base y red de seguridad,Feature flag `MOTOR_CONOCIMIENTO=v1`,F0-01,v1 sigue funcionando igual,Tests + arranque,hecha
+F0-05,F0,Línea base y red de seguridad,ADR-001 (formato TOML) y ADR-002 (LLM no núcleo),—,ADRs firmados,Revisión,hecha
+F0-06,F0,Línea base y red de seguridad,Protocolo de evidencia: cada tarea adjunta comando + salida,—,Plantilla en `informes/` o `docs/`,Revisión,hecha
+F1-01,F1,Integridad del conocimiento actual,Separar `T.9` en `T.9` (mantenimiento) y `T.10` (cierre) o eliminar el cierre,F0,"No hay IDs duplicados; `fuente_de(""como_se_mantiene"")` correcto",Test de secciones,hecha
+F1-02,F1,Integridad del conocimiento actual,"Parser del bloque `## Sources` con `FU-*`, URL, cita",F1-01,Toda cita `[n]` resuelve; `[24]` detectada como huérfana,Test de fuentes,hecha
+F1-03,F1,Integridad del conocimiento actual,Corregir `sin_fuente()` y contar 21 criterios,F1-01,El portal no dice “todo con fuente” si hay criterios,Test de criterios,hecha
+F1-04,F1,Integridad del conocimiento actual,`cli conocimiento --validar` con salida JSON y código de error,F1-02,0 errores en el documento actual,Ejecución,hecha
+F1-05,F1,Integridad del conocimiento actual,"Tests de duplicados, citas rotas, fuentes huérfanas, criterios",F1-02,Tests verdes,Suite,hecha
+F1-06,F1,Integridad del conocimiento actual,Lista de 21 criterios para firmar,F1-03,Lista exportable y con estado,`cli conocimiento --criterios`,hecha
 F2-01,F2,Base estructurada y compilador,"Esquemas TOML de fuente, afirmación, regla, parámetro, estímulo, receta",F1,Documentados y con ejemplo,Revisión,pendiente
 F2-02,F2,Base estructurada y compilador,Loader `conocimiento.cargar()` con dataclasses,F2-01,Carga sin efectos secundarios,Unit test,pendiente
 F2-03,F2,Base estructurada y compilador,Validador con lista completa de errores,F2-02,"Falla con IDs duplicados, citas rotas, parámetros sin firma",Tests de error,pendiente
