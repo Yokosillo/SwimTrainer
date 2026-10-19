@@ -3384,6 +3384,7 @@ def pruebas_conocimiento_toml() -> None:
     import contextlib
     import importlib.util
     import io
+    import json as _json
     import shutil
 
     from entrenador import cli, conocimiento_toml as ct, db
@@ -3482,6 +3483,91 @@ def pruebas_conocimiento_toml() -> None:
         comprobar("F2-03: numero antiguo de fuente duplicado es error",
                   error_de(dst, "fuente_duplicada"))
 
+    # F2-R-01: campos obligatorios vacios y cita_local que no esta en la fuente.
+    with tempfile.TemporaryDirectory() as d:
+        dst = copia(d)
+        append(os.path.join(dst, "fuentes.toml"),
+               '[[fuente]]\nid = "FU-099"\ntipo = ""\ntitulo = ""\nurl = ""\ncita = ""\ncitas = []\nlegacy_id = "99"\n')
+        v = ct.validar(ruta=dst)
+        faltan = {e.get("campo") for e in v["errores"]
+                  if e.get("id") == "FU-099" and e["tipo"] == "campo_obligatorio"}
+        comprobar("F2-R-01: fuente con campos obligatorios vacios es error",
+                  not v["ok"] and {"tipo", "titulo", "url", "cita"} <= faltan, str(faltan))
+    with tempfile.TemporaryDirectory() as d:
+        dst = copia(d)
+        append(os.path.join(dst, "parametros.toml"),
+               '[[parametro]]\nid = "PA-099"\nnombre = "x"\nvalor = ""\nprocedencia = "criterio_firmado"\n')
+        v = ct.validar(ruta=dst)
+        comprobar("F2-R-01: parametro sin valor es error",
+                  any(e["tipo"] == "campo_obligatorio" and e.get("campo") == "valor" for e in v["errores"]),
+                  str(v["errores"]))
+    with tempfile.TemporaryDirectory() as d:
+        dst = copia(d)
+        append(os.path.join(dst, "estimulos.toml"),
+               '[[estimulo]]\nid = "ES-099"\nnombre = "x"\nentrena = ""\n')
+        v = ct.validar(ruta=dst)
+        comprobar("F2-R-01: estimulo sin entrena es error",
+                  any(e["tipo"] == "campo_obligatorio" and e.get("campo") == "entrena" for e in v["errores"]),
+                  str(v["errores"]))
+    with tempfile.TemporaryDirectory() as d:
+        dst = copia(d)
+        p = os.path.join(dst, "afirmaciones.toml")
+        with open(p, encoding="utf-8") as f:
+            texto = f.read().replace(
+                '"Los resultados mostraron que ambos protocolos mejoraron el rendimiento en 100 y 400 m"',
+                '"una cita que no esta en la fuente"')
+        open(p, "w", encoding="utf-8").write(texto)
+        v = ct.validar(ruta=dst)
+        comprobar("F2-R-01: cita_local inventada es error",
+                  not v["ok"] and any(e["tipo"] == "cita_local_inexistente" for e in v["errores"]),
+                  str([e["tipo"] for e in v["errores"]]))
+    with tempfile.TemporaryDirectory() as d:
+        dst = copia(d)
+        p = os.path.join(dst, "afirmaciones.toml")
+        with open(p, encoding="utf-8") as f:
+            texto = f.read().replace(
+                '"Los resultados mostraron que ambos protocolos mejoraron el rendimiento en 100 y 400 m"', '""')
+        open(p, "w", encoding="utf-8").write(texto)
+        v = ct.validar(ruta=dst)
+        comprobar("F2-R-01: cita_local vacia es error",
+                  not v["ok"] and any(e["tipo"] == "cita_local_vacia" for e in v["errores"]),
+                  str([e["tipo"] for e in v["errores"]]))
+
+    # F2-R-02: TOML roto: no revienta, da toml_invalido y el CLI devuelve JSON con RC=1.
+    with tempfile.TemporaryDirectory() as d:
+        dst = copia(d)
+        with open(os.path.join(dst, "fuentes.toml"), "w", encoding="utf-8") as f:
+            f.write('[[fuente]\nid = "FU-001"\n')
+        c_roto = ct.cargar(dst)
+        v_roto = ct.validar(ruta=dst)
+        comprobar("F2-R-02: el TOML roto no revienta y da toml_invalido",
+                  bool(c_roto.errores_carga) and not v_roto["ok"]
+                  and any(e["tipo"] == "toml_invalido" for e in v_roto["errores"]),
+                  str(c_roto.errores_carga))
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = cli.main(["conocimiento", "--ruta-toml", dst, "--validar", "--json"])
+        try:
+            salida = _json.loads(buf.getvalue())
+            json_ok = True
+        except ValueError:
+            salida = {}
+            json_ok = False
+        comprobar("F2-R-02: --validar --json con TOML roto devuelve JSON y RC=1",
+                  rc == 1 and json_ok and salida.get("ok") is False
+                  and any(e["tipo"] == "toml_invalido" for e in salida.get("errores", [])),
+                  f"rc={rc} json={json_ok}")
+
+    # F2-R-03: los mapas de la regla son inmutables.
+    mutados = []
+    for attr in ("cuando", "entonces", "metrica_exito"):
+        try:
+            getattr(c.reglas[0], attr)["x"] = 1
+            mutados.append(attr)
+        except TypeError:
+            pass
+    comprobar("F2-R-03: cuando/entonces/metrica_exito no se pueden mutar", not mutados, str(mutados))
+
     with tempfile.TemporaryDirectory() as d:
         dst = copia(d)
         p = os.path.join(dst, "calendario.toml")
@@ -3500,7 +3586,8 @@ def pruebas_conocimiento_toml() -> None:
               and cuenta("receta_paso") == 3 and cuenta("conocimiento_version") == 1,
               str({t: cuenta(t) for t in ("fuente", "afirmacion", "parametro", "regla", "receta", "receta_paso")}))
     ct.sincronizar(cn, c)
-    comprobar("F2-04: sincronizar dos veces no duplica", cuenta("fuente") == 22 and cuenta("receta_paso") == 3)
+    comprobar("F2-04: sincronizar dos veces no duplica",
+              cuenta("fuente") == 22 and cuenta("receta_paso") == 3 and cuenta("conocimiento_version") == 1)
     fila = cn.execute("SELECT cuando_json, metrica_exito_json FROM regla WHERE id='RG-002'").fetchone()
     comprobar("F2-08: RG-002 conserva condicion y metrica", "especifico_400" in fila[0]
               and "ritmo_serie" in fila[1], str(tuple(fila)))
@@ -3558,7 +3645,6 @@ def pruebas_conocimiento_toml() -> None:
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
         rc = cli.main(["conocimiento", "--estructura", "--json"])
-    import json as _json
     estructura = _json.loads(buf.getvalue())
     comprobar("F2-08: cli conocimiento --estructura --json",
               rc == 0 and estructura["conteos"]["fuentes"] == 22, str(estructura.get("conteos")))

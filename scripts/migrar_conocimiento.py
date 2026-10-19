@@ -4,7 +4,8 @@
 
 F2 no cambia el conocimiento canonico: este script solo **propone** ficheros TOML en
 `data/derived/conocimiento/propuesta/` para que F3 los revise. Por defecto hace `--dry-run`;
-para escribir hace falta `--apply --si` y se guarda una copia de la propuesta anterior.
+para escribir hace falta `--apply --si` y se guarda una copia de la propuesta anterior en
+`propuesta.bak-AAAAMMDD-HHMMSS` (junto al destino).
 
 No toca `informes/` ni `conocimiento/`. El motor sigue en v1.
 

@@ -406,6 +406,13 @@ def _conocimiento(cn, args) -> int:
         except ValueError as exc:
             print(f"No se puede exportar: {exc}")
             return 1
+        if not d.get("ok"):
+            if formato == "json":
+                print(_json.dumps({"exportado": r, "diferencias": d}, ensure_ascii=False, indent=2))
+            else:
+                print(f"Markdown generado: {r['destino']} ({r['bytes']} bytes, {r['version']})")
+                print(f"El informe de diferencias fallo: {d.get('error', '?')}")
+            return 1
         if formato == "json":
             print(_json.dumps({"exportado": r, "diferencias": d}, ensure_ascii=False, indent=2))
         else:

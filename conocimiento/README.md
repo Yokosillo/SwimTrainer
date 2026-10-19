@@ -20,13 +20,14 @@ actuales, y el TOML se carga, valida, versiona y sincroniza sin cambiar el compo
 ## Campos
 
 ### `fuente`
-Obligatorios: `id` (`FU-###`), `tipo`, `titulo`, `url`, `cita` y `citas` (lista no vacía).
+Obligatorios: `id` (`FU-###`), `tipo`, `titulo`, `url` y al menos una cita (`cita` o `citas`).
 Opcionales: `autores`, `anio`, `doi`, `poblacion`, `intervencion`, `resultado`, `limitaciones`,
 `certeza`, `revisado_por`, `revisado_en`, `legacy_id` y `notas`.
 `legacy_id` guarda el número `[n]` del bloque `## Sources` del anexo T.
 
 ### `afirmacion`
 Obligatorios: `id` (`AF-###`), `texto` y `fuentes` (lista de `{ id = "FU-###", cita_local = "..." }`).
+`cita_local` tiene que aparecer literalmente en alguna cita de la fuente (se ignoran espacios de más).
 Alternativa al menos una fuente: `criterio_firmado = true` con `firmado_por`/`firmado_en`.
 Opcionales: `condiciones`, `efecto`, `direccion` (`mejora|neutro|empeora|incierto`), `tamano`,
 `aplicabilidad`, `certeza`, `estado` (`propuesta|revisada|rechazada`), `notas`.
@@ -73,6 +74,20 @@ docker compose exec -T entrenador python -m entrenador.cli conocimiento --sincro
 # exportar a Markdown (data/derived/conocimiento/) sin tocar informes/
 docker compose exec -T entrenador python -m entrenador.cli conocimiento --exportar-md
 ```
+
+## Ficheros que faltan
+
+Un fichero ausente se trata como vacío: el loader tolera que solo exista, por ejemplo, `fuentes.toml`.
+Si no queda conocimiento (o falta lo que referencian las demás tablas), `--validar` falla con
+`sin_conocimiento` o con la referencia rota correspondiente. Un fichero presente pero ilegible o con
+sintaxis TOML rota es error `toml_ilegible` / `toml_invalido`; `--validar --json` devuelve el JSON con
+`ok=false` y código de salida 1.
+
+## Migracion
+
+`scripts/migrar_conocimiento.py` propone los TOML en `data/derived/conocimiento/propuesta/`. Con
+`--apply --si` escribe la propuesta y deja la anterior en `propuesta.bak-AAAAMMDD-HHMMSS` (misma
+carpeta). Sin `--si` no escribe nada; por defecto hace `--dry-run`.
 
 ## Reglas
 
