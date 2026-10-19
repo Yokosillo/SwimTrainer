@@ -3086,12 +3086,16 @@ def pruebas_del_bucle_cerrado(ruta: str = "data/entrenador.db") -> None:
     cc.close()
 
 def pruebas_conocimiento_fuentes() -> None:
-    """F1-01..F1-03: T.9/T.10 sin duplicados, bloque Sources, citas y criterios sin firma.
+    """F1-01..F1-03 y R-02..R-06, R-09, R-10: integridad, fuentes, criterios y estado de firma.
 
-    Los casos rotos se prueban sobre un anexo sintetico en un directorio temporal: no dependen de los
+    Los casos rotos se prueban sobre anexos sinteticos en un directorio temporal: no dependen de los
     datos del atleta ni de que el anexo real cambie de contenido.
     """
-    from entrenador import conocimiento
+    import contextlib
+    import importlib.util
+    import io
+
+    from entrenador import conocimiento, db
 
     # --- documento canonico: integridad de secciones ---
     secs = conocimiento.secciones()
@@ -3106,7 +3110,7 @@ def pruebas_conocimiento_fuentes() -> None:
               f["secciones"] == ["T.9"] and f["fuentes"] == [] and f["grado"] == "criterio"
               and f["criterio"] is True, str(f))
 
-    # --- F1-02: bloque Sources del anexo canonico ---
+    # --- F1-02/R-04: bloque Sources del anexo canonico ---
     fuentes = conocimiento.fuentes()
     comprobar("F1-02: el bloque Sources se parsea (22 fuentes)", len(fuentes) == 22, str(sorted(fuentes)))
     comprobar("F1-02: cada fuente trae URL y cita literal",
@@ -3118,15 +3122,127 @@ def pruebas_conocimiento_fuentes() -> None:
               any(a["tipo"] == "fuente_huerfana" and a.get("fuente") == 24 for a in v["avisos"]),
               str(v["avisos"]))
 
-    # --- F1-03: criterios sin firma ---
-    comprobar("F1-03: se cuentan 21 criterios sin firma", len(conocimiento.criterios()) == 21,
-              str(len(conocimiento.criterios())))
+    # --- F1-03/R-06: criterios sin firma, sin solapes ni fuentes dentro ---
+    crits = conocimiento.criterios()
+    comprobar("F1-03/R-06: 21 lineas marcadas dan 22 clausulas distintas",
+              len(crits) == 22, str(len(crits)))
+    afirmaciones = [x["afirmacion"] for x in crits]
+    comprobar("R-06: no hay clausulas duplicadas", len(afirmaciones) == len(set(afirmaciones)),
+              str(len(afirmaciones) - len(set(afirmaciones))))
+    comprobar("R-06: ninguna clausula de T.2 arrastra una cita [n] (la fila con fuente)",
+              not any(x["seccion"] == "T.2" and re.search(r"\[\d+\]", x["afirmacion"]) for x in crits),
+              str([x["afirmacion"][:50] for x in crits if x["seccion"] == "T.2" and re.search(r"\[\d+\]", x["afirmacion"])]))
+    comprobar("R-06: T.5 se divide en sus dos marcas (dos clausulas, no una)",
+              len([x for x in crits if x["seccion"] == "T.5"]) == 2,
+              str([x["afirmacion"] for x in crits if x["seccion"] == "T.5"]))
     comprobar("F1-03: sin_fuente() ya no devuelve [] y no cuela las secciones de metodo",
               bool(conocimiento.sin_fuente())
               and all(x["id"] not in conocimiento.META for x in conocimiento.sin_fuente()),
               str([x["id"] for x in conocimiento.sin_fuente()]))
 
-    # --- F1-01/F1-02/F1-05: casos rotos sobre un anexo sintetico ---
+    # --- R-02: falla cerrado si el anexo no existe, esta vacio o no tiene secciones ---
+    with tempfile.TemporaryDirectory() as d:
+        ausente = os.path.join(d, "no-existe.md")
+        va = conocimiento.validar(ausente)
+        comprobar("R-02: anexo ausente -> anexo_ausente y ok=False",
+                  not va["ok"] and any(e["tipo"] == "anexo_ausente" for e in va["errores"]),
+                  str(va))
+        vacio = os.path.join(d, "vacio.md")
+        open(vacio, "w", encoding="utf-8").close()
+        vv = conocimiento.validar(vacio)
+        comprobar("R-02: anexo vacio -> anexo_vacio y ok=False",
+                  not vv["ok"] and any(e["tipo"] == "anexo_vacio" for e in vv["errores"]), str(vv))
+        sin_secciones = os.path.join(d, "sin-secciones.md")
+        with open(sin_secciones, "w", encoding="utf-8") as fh:
+            fh.write("# Un titulo sin secciones T.#\n")
+        vs = conocimiento.validar(sin_secciones)
+        comprobar("R-02: anexo sin secciones T.# -> anexo_vacio y ok=False",
+                  not vs["ok"] and any(e["tipo"] == "anexo_vacio" for e in vs["errores"]), str(vs))
+
+    # --- R-04: fuente duplicada en Sources ---
+    with tempfile.TemporaryDirectory() as d:
+        dup = os.path.join(d, "dup.md")
+        with open(dup, "w", encoding="utf-8") as fh:
+            fh.write('## T.1 Uno\n\nTexto [1].\n\n## Sources\n'
+                     '[1] https://example.org/a — A\n    > "a"\n'
+                     '[1] https://example.org/b — B\n    > "b"\n')
+        vd = conocimiento.validar(dup)
+        comprobar("R-04: una fuente [1] definida dos veces es error",
+                  not vd["ok"] and any(e["tipo"] == "fuente_duplicada" and e.get("fuente") == 1
+                                       for e in vd["errores"]), str(vd["errores"]))
+        comprobar("R-04: fuentes_duplicadas informa del numero y la linea",
+                  conocimiento.fuentes_duplicadas(dup) == [{"n": 1, "linea": 8}],
+                  str(conocimiento.fuentes_duplicadas(dup)))
+
+    # --- R-03: solo entrenador/atleta firman; el asistente no ---
+    cnf = db.conectar(":memory:")
+    conocimiento.marcar_revision(cnf, "T.4", "asistente", "revision de fuentes")
+    conocimiento.marcar_revision(cnf, "T.8", "asistente", "revision de fuentes")
+    conocimiento.marcar_revision(cnf, "T.7", "entrenador", "firmada")
+    comprobar("R-03: revisadas() solo cuenta a entrenador/atleta",
+              conocimiento.revisadas(cnf) == ["T.7"], str(conocimiento.revisadas(cnf)))
+    comprobar("R-03: revisadas_por_asistente() lista las del asistente",
+              conocimiento.revisadas_por_asistente(cnf) == ["T.4", "T.8"],
+              str(conocimiento.revisadas_por_asistente(cnf)))
+    cu = conocimiento.cuadro_revision(cnf)
+    por = {x["seccion"]: x for x in cu["secciones"]}
+    comprobar("R-03: el cuadro distingue firmada de revisada por asistente",
+              por["T.7"]["estado_revision"] == "firmada" and por["T.7"]["firmada"]
+              and por["T.4"]["estado_revision"] == "revisada_por_asistente"
+              and not por["T.4"]["firmada"]
+              and cu["revisadas"] == 1 and cu["revisadas_por_asistente"] == 2, str(cu))
+    con_estado = conocimiento.criterios(cn=cnf)
+    t4 = next(x for x in con_estado if x["seccion"] == "T.4")
+    t7 = next(x for x in con_estado if x["seccion"] == "T.7")
+    comprobar("R-03: los criterios llevan estado (asistente != firmada)",
+              t4["estado"] == "revisada_por_asistente" and t7["estado"] == "firmada",
+              f"T.4={t4['estado']} T.7={t7['estado']}")
+    sf = {x["id"]: x for x in conocimiento.sin_fuente(cn=cnf)}
+    comprobar("R-03: sin_fuente(cn) marca firma solo en T.7",
+              sf["T.4"]["estado_revision"] == "revisada_por_asistente" and not sf["T.4"]["firmada"]
+              and sf["T.7"]["firmada"] and sf["T.8"]["estado_revision"] == "revisada_por_asistente",
+              str({k: (v["estado_revision"], v["firmada"]) for k, v in sf.items()}))
+
+    # --- R-10: lista en Markdown reproducible, con estado ---
+    md = conocimiento.criterios_markdown(con_estado, fecha="2026-10-19T12:00:00+02:00")
+    filas_md = [x for x in md.splitlines() if re.match(r"^\| \d+ \|", x)]
+    comprobar("R-10: el Markdown lleva una fila por clausula y la nota de conteo",
+              len(filas_md) == 22 and "22 clausulas" in md and "revisada_por_asistente" in md
+              and "| # | Seccion | Estado | Afirmacion |" in md, f"{len(filas_md)} filas")
+
+    # --- R-02: el CLI devuelve RC=1 tambien en --json ---
+    from entrenador import cli
+    original = conocimiento.RUTA_ANEXO
+    try:
+        with tempfile.TemporaryDirectory() as d:
+            ausente = os.path.join(d, "no-existe.md")
+            vacio = os.path.join(d, "vacio.md")
+            open(vacio, "w", encoding="utf-8").close()
+            for ruta, tipo in ((ausente, "anexo_ausente"), (vacio, "anexo_vacio")):
+                conocimiento.RUTA_ANEXO = ruta
+                with contextlib.redirect_stdout(io.StringIO()) as salida:
+                    rc = cli.main(["conocimiento", "--validar", "--json"])
+                comprobar(f"R-02: CLI --json con {tipo} devuelve 1 y lo dice",
+                          rc == 1 and tipo in salida.getvalue(), f"rc={rc}")
+    finally:
+        conocimiento.RUTA_ANEXO = original
+
+    # --- R-09: el golden compara texto y codigo de salida ---
+    ruta_golden = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                               "scripts", "golden.py")
+    spec = importlib.util.spec_from_file_location("golden_mod", ruta_golden)
+    gm = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(gm)
+    comprobar("R-09: el golden acepta texto y codigo 0",
+              gm.snapshots_iguales("x", "hola\n", 0, "hola\n", 0))
+    comprobar("R-09: el golden falla si el codigo actual no es 0",
+              not gm.snapshots_iguales("x", "hola\n", 0, "hola\n", 1))
+    comprobar("R-09: el golden falla si el codigo esperado no es 0",
+              not gm.snapshots_iguales("x", "hola\n", 1, "hola\n", 1))
+    comprobar("R-09: el golden falla si cambia el texto",
+              not gm.snapshots_iguales("x", "hola\n", 0, "adios\n", 0))
+
+    # --- F1-01/F1-02: casos rotos sobre un anexo sintetico ---
     roto = """# Anexo de prueba
 
 ## T.1 Uno
