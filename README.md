@@ -151,7 +151,21 @@ docker compose up -d --build
 # 17. Pruebas (incluye ejecutar el JavaScript de la aplicacion con Node si esta instalado)
 .venv/Scripts/python.exe pruebas/pruebas_basicas.py
 node pruebas/comprobar_portal.js cuadro/panel.html    # a mano: comprueba ids, vistas y que el JS corre
+
+# 18. La base de conocimiento: validarla, ver los criterios pendientes de firma y firmar una seccion
+.venv/Scripts/python.exe -m entrenador.cli conocimiento --validar   # 0 = sin errores; !=0 = hay errores
+.venv/Scripts/python.exe -m entrenador.cli conocimiento --validar --json
+.venv/Scripts/python.exe -m entrenador.cli conocimiento --criterios # las 21 frases [criterio] y su estado
+.venv/Scripts/python.exe -m entrenador.cli conocimiento --revisar T.8 --quien entrenador
 ```
+
+La orden `conocimiento --validar` comprueba tres cosas sobre `informes/T_base_de_conocimiento.md`: que no
+haya **IDs de sección duplicados** (por ejemplo dos `T.9`), que toda cita `[n]` usada exista en el bloque
+`## Sources` y que no haya fuentes definidas y no citadas. Una cita rota o un ID duplicado es un error
+(código de salida distinto de 0); una fuente huérfana (como `[24]`) o sin cita literal es un aviso y no
+invalida el documento. `--criterios` lista las frases marcadas `[criterio]` que esperan la firma del
+entrenador, con su estado (`pendiente` o `firmada` si la sección ya se revisó).
+
 
 La orden `analizar` deja tres cosas: `cuadro/panel.html` (el cuadro de mando, se abre con doble clic, sin
 servidor ni internet), `informes/H_analitica_segmentos.md` (lo mismo en texto) y `data/derived/analitica.json`
