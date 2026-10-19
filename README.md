@@ -155,16 +155,24 @@ node pruebas/comprobar_portal.js cuadro/panel.html    # a mano: comprueba ids, v
 # 18. La base de conocimiento: validarla, ver los criterios pendientes de firma y firmar una seccion
 .venv/Scripts/python.exe -m entrenador.cli conocimiento --validar   # 0 = sin errores; !=0 = hay errores
 .venv/Scripts/python.exe -m entrenador.cli conocimiento --validar --json
-.venv/Scripts/python.exe -m entrenador.cli conocimiento --criterios # las 21 frases [criterio] y su estado
+.venv/Scripts/python.exe -m entrenador.cli conocimiento --criterios # 22 clausulas (21 lineas marcadas) y su estado
+.venv/Scripts/python.exe -m entrenador.cli conocimiento --criterios --formato md   # tabla Markdown reproducible
+.venv/Scripts/python.exe -m entrenador.cli conocimiento --criterios --formato json
 .venv/Scripts/python.exe -m entrenador.cli conocimiento --revisar T.8 --quien entrenador
 ```
 
 La orden `conocimiento --validar` comprueba tres cosas sobre `informes/T_base_de_conocimiento.md`: que no
 haya **IDs de sección duplicados** (por ejemplo dos `T.9`), que toda cita `[n]` usada exista en el bloque
-`## Sources` y que no haya fuentes definidas y no citadas. Una cita rota o un ID duplicado es un error
-(código de salida distinto de 0); una fuente huérfana (como `[24]`) o sin cita literal es un aviso y no
-invalida el documento. `--criterios` lista las frases marcadas `[criterio]` que esperan la firma del
-entrenador, con su estado (`pendiente` o `firmada` si la sección ya se revisó).
+`## Sources` y que no haya fuentes definidas y no citadas. Una cita rota, un ID duplicado o una
+**fuente duplicada** es un error (código de salida distinto de 0). Si el anexo no existe, está vacío o
+no tiene secciones `T.#`, la validación **falla cerrado** (`anexo_ausente` / `anexo_vacio`), también con
+`--json`. Una fuente huérfana (como `[24]`) o sin cita literal es un aviso y no invalida el documento.
+
+`--criterios` lista las cláusulas marcadas `[criterio]`, con su estado: `firmada` (solo si firma
+`entrenador` o `atleta`), `revisada_por_asistente` (sigue pendiente) o `pendiente`. El anexo tiene 21
+líneas marcadas, pero T.5 lleva dos marcas en la misma línea: salen **22 cláusulas**. `--formato md`
+imprime una tabla Markdown reproducible (con la fecha de generación) para guardar la lista sin editarla
+a mano.
 
 
 La orden `analizar` deja tres cosas: `cuadro/panel.html` (el cuadro de mando, se abre con doble clic, sin

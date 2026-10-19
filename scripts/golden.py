@@ -31,7 +31,9 @@ En Docker:
     docker compose exec -T entrenador python scripts/golden.py --guardar
     docker compose exec -T entrenador python scripts/golden.py --comparar
 
-Codigo de salida de `--comparar`: 0 si todo coincide, 1 si algo cambia o falta la referencia.
+Codigo de salida de `--comparar`: 0 si todo coincide (texto **y** codigo de salida), 1 si algo cambia
+o falta la referencia. Un comando que termina con codigo != 0 hace fallar la comparacion (R-09): un
+error no puede guardarse como si fuera comportamiento.
 """
 
 from __future__ import annotations
@@ -163,6 +165,7 @@ def guardar(carpeta: str) -> int:
         json.dump(panel, f, ensure_ascii=False, indent=2, sort_keys=True)
         f.write("\n")
     manifiesto["snapshots"]["panel"] = {"comando": "resumen de cuadro/panel.html",
+                                        "codigo": 0,
                                         "sha256": _sha256(_json_canonico(panel))}
     with open(os.path.join(carpeta, "manifiesto.json"), "w", encoding="utf-8", newline="\n") as f:
         json.dump(manifiesto, f, ensure_ascii=False, indent=2, sort_keys=True)
@@ -178,25 +181,47 @@ def _leer(ruta: str) -> str:
         return f.read()
 
 
-def _diferencia(nombre: str, esperado: str, actual: str, limite: int = 40) -> bool:
-    """Imprime la diferencia (recortada) y devuelve True si hay algo que contar."""
+def snapshots_iguales(nombre: str, esperado: str, codigo_esperado: int,
+                      actual: str, codigo_actual: int, limite: int = 40) -> bool:
+    """Compara texto **y** codigo de salida (R-09). Devuelve True solo si coinciden y el codigo es 0.
+
+    Un comando que falla (codigo != 0) no puede ser un golden valido aunque su texto coincida: se
+    guardaria el error como si fuera comportamiento. Si el codigo esperado y el actual difieren, tambien
+    falla.
+    """
+    if codigo_esperado != codigo_actual or codigo_actual != 0:
+        print(f"  [~] {nombre}: CODIGO {codigo_esperado} -> {codigo_actual} (tiene que ser 0)")
+        if esperado != actual:
+            _imprimir_diff(nombre, esperado, actual, limite)
+        return False
     if esperado == actual:
         print(f"  [=] {nombre}")
-        return False
+        return True
     print(f"  [~] {nombre}: CAMBIA")
+    _imprimir_diff(nombre, esperado, actual, limite)
+    return False
+
+
+def _imprimir_diff(nombre: str, esperado: str, actual: str, limite: int = 40) -> None:
     diff = list(difflib.unified_diff(esperado.splitlines(), actual.splitlines(),
                                      fromfile="golden/" + nombre, tofile="actual/" + nombre, lineterm=""))
     for linea in diff[:limite]:
         print("      " + linea)
     if len(diff) > limite:
         print(f"      ... ({len(diff) - limite} lineas mas)")
-    return True
 
 
 def comparar(carpeta: str) -> int:
     if not os.path.isdir(carpeta):
         print(f"No hay snapshots en {carpeta}: ejecuta antes `python scripts/golden.py --guardar`.")
         return 1
+    ruta_manifiesto = os.path.join(carpeta, "manifiesto.json")
+    if not os.path.isfile(ruta_manifiesto):
+        print(f"  [!] falta {ruta_manifiesto}: no se puede comprobar el codigo de salida (R-09)")
+        return 1
+    with open(ruta_manifiesto, encoding="utf-8") as f:
+        manifiesto = json.load(f)
+    snaps = manifiesto.get("snapshots") or {}
     cambios = 0
     for nombre, args in COMANDOS:
         ruta = os.path.join(carpeta, nombre + ".txt")
@@ -204,7 +229,9 @@ def comparar(carpeta: str) -> int:
             print(f"  [!] {nombre}: falta el snapshot")
             cambios += 1
             continue
-        if _diferencia(nombre, _leer(ruta), ejecutar(args)[0]):
+        codigo_esperado = int((snaps.get(nombre) or {}).get("codigo", 0))
+        actual, codigo_actual = ejecutar(args)
+        if not snapshots_iguales(nombre, _leer(ruta), codigo_esperado, actual, codigo_actual):
             cambios += 1
     ruta_panel = os.path.join(carpeta, "panel.json")
     if not os.path.isfile(ruta_panel):
@@ -212,14 +239,15 @@ def comparar(carpeta: str) -> int:
         cambios += 1
     else:
         actual = resumen_panel(os.path.join(RAIZ, "cuadro", "panel.html"))
-        if _diferencia("panel", _leer(ruta_panel),
-                       json.dumps(actual, ensure_ascii=False, indent=2, sort_keys=True) + "\n"):
+        texto_actual = json.dumps(actual, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+        codigo_esperado = int((snaps.get("panel") or {}).get("codigo", 0))
+        if not snapshots_iguales("panel", _leer(ruta_panel), codigo_esperado, texto_actual, 0):
             cambios += 1
     print()
     if cambios:
         print(f"CAMBIOS: {cambios} snapshot(s) no coinciden con {carpeta}.")
         return 1
-    print(f"OK: los {len(COMANDOS) + 1} snapshots coinciden con {carpeta}.")
+    print(f"OK: los {len(COMANDOS) + 1} snapshots coinciden con {carpeta} (texto y codigo).")
     return 0
 
 
