@@ -413,6 +413,8 @@ def proponer_semana(cn: sqlite3.Connection, hoy=None) -> dict:
         hoy = date.fromisoformat(db.ahora()[:10])
     elif isinstance(hoy, str):
         hoy = date.fromisoformat(hoy[:10])
+    if not plan.OBJETIVOS:
+        return {"semana": None, "cuantas": 0, "ids": [], "propuesta": {}, "falta": "sin plan"}
     try:
         dias_al_reto = (date.fromisoformat(plan.OBJETIVO_B["fecha"]) - hoy).days
     except (KeyError, ValueError):
