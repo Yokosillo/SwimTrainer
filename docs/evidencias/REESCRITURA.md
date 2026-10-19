@@ -46,6 +46,6 @@ histórico de la migración de `localStorage`, que no identifica a nadie).
 - Los autores y committers del historial se reescribieron a
   `Yokosillo <292332580+Yokosillo@users.noreply.github.com>`; ya no queda el nombre ni el correo
   personal en los metadatos.
-- El tag `conocimiento-f0-base` se recreó sobre el primer commit ejecutable posterior a la
-  reescritura (`main`), que sí incluye `entrenador/plan.py` genérico. El tag anterior apuntaba a un
-  commit sin `plan.py` y no servía para rollback.
+- El tag `conocimiento-f0-base` se recreó sobre un commit **pre-F1 ejecutable** que incluye
+  `entrenador/plan.py` genérico. El cierre de F1 queda en el tag `conocimiento-f1-final`.
+  El tag anterior apuntaba a un commit sin `plan.py` y no servía para rollback.
