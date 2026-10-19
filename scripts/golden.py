@@ -63,6 +63,18 @@ COMANDOS = (
 VOLATILES = ("generado",)
 
 
+def _normalizar_salida(texto: str) -> str:
+    """Quita de las snapshots lo que cambia solo por el dia en que se ejecutan.
+
+    `plan --recalculado` imprime la fecha de hoy; los textos de valoracion pueden decir "Quedan 26
+    dias". Ninguna de las dos cosas es comportamiento del motor, asi que se comparan normalizadas.
+    Las fechas de las sesiones y del plan se conservan: esas si son datos.
+    """
+    texto = re.sub(r"Plan recalculado el \d{4}-\d{2}-\d{2}", "Plan recalculado el <fecha>", texto)
+    texto = re.sub(r"\b(Quedan|quedan)\s+\d+\s+d[ií]as\b", r"\1 <n> dias", texto)
+    return texto
+
+
 def _sha256(texto: str) -> str:
     return hashlib.sha256(texto.encode("utf-8")).hexdigest()
 
@@ -151,6 +163,7 @@ def guardar(carpeta: str) -> int:
     fallos = 0
     for nombre, args in COMANDOS:
         texto, codigo = ejecutar(args)
+        texto = _normalizar_salida(texto)
         with open(os.path.join(carpeta, nombre + ".txt"), "w", encoding="utf-8", newline="\n") as f:
             f.write(texto)
         manifiesto["snapshots"][nombre] = {"comando": "python -m entrenador.cli " + " ".join(args),
@@ -231,6 +244,7 @@ def comparar(carpeta: str) -> int:
             continue
         codigo_esperado = int((snaps.get(nombre) or {}).get("codigo", 0))
         actual, codigo_actual = ejecutar(args)
+        actual = _normalizar_salida(actual)
         if not snapshots_iguales(nombre, _leer(ruta), codigo_esperado, actual, codigo_actual):
             cambios += 1
     ruta_panel = os.path.join(carpeta, "panel.json")
