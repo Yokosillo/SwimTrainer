@@ -45,6 +45,7 @@ FUENTES: dict[str, dict] = {
 # reglas numeradas R1.. salen del historial: son las que dan a la valoracion algo que decir que el atleta no
 # pueda leer ya en sus tiempos.
 
+# DEPRECATED (F3): la fuente nueva es conocimiento/local/reglas.toml (o la publica de ejemplo).
 REGLAS: list[dict] = [
     {
         "id": "R1",
@@ -142,6 +143,7 @@ REGLAS: list[dict] = [
 
 GRADOS: tuple[str, ...] = ("evidencia", "metodo", "pactado", "historial", "criterio")
 
+# DEPRECATED (F3): la metadata de cada regla va en el TOML; se conserva para v1/dual.
 CONOCIMIENTO: dict[str, dict] = {
     "R1": {"grado": "historial", "seccion_t": [], "sin_fuente": []},
     "R1b": {"grado": "historial", "seccion_t": ["T.2"], "sin_fuente": []},
@@ -166,6 +168,7 @@ for _regla in REGLAS:
 # para la fase del 400, se sube el peso del continuo sostenido por R1 (es lo que separa sus buenas semanas).
 # La punta y el ritmo de prueba entran como minimo obligatorio por R2: no son porcentaje, son "algo o nada".
 
+# DEPRECATED (F3): la fuente nueva es [reparto_objetivo] en conocimiento/local/reglas.toml.
 REPARTO_OBJETIVO: dict[str, dict[str, float]] = {
     "base": {"continuo_aerobico": 55, "continuo_sostenido": 20, "series_largas": 15, "series_medias": 10},
     "especifico_400": {"continuo_sostenido": 20, "series_largas": 25, "series_medias": 35,
@@ -174,6 +177,7 @@ REPARTO_OBJETIVO: dict[str, dict[str, float]] = {
 }
 
 # Clases que no valen con un porcentaje: o hay algo en la ventana o hay un hueco (regla R2).
+# DEPRECATED (F3): la fuente nueva es [minimos_obligatorios] en conocimiento/local/reglas.toml.
 MINIMOS_OBLIGATORIOS: dict[str, float] = {
     "ritmo_prueba": 400.0,          # metros en la ventana de 14 dias
     "velocidad_resistencia": 300.0,
@@ -181,7 +185,7 @@ MINIMOS_OBLIGATORIOS: dict[str, float] = {
 
 
 def reparto_objetivo(fase: str = "especifico_400") -> dict[str, float]:
-    return REPARTO_OBJETIVO.get(fase) or REPARTO_OBJETIVO["especifico_400"]
+    return REPARTO_OBJETIVO.get(fase) or REPARTO_OBJETIVO.get("especifico_400") or {}
 
 
 def cita(regla_id: str) -> str:
@@ -213,3 +217,28 @@ def sin_conocimiento() -> list[dict]:
     contra el historial y se revisan con el entrenador.
     """
     return [r for r in REGLAS if r.get("grado") not in ("evidencia", "metodo")]
+
+
+
+# --------------------------------------------------------------------------- adaptador F3
+def _aplicar_motor_conocimiento() -> None:
+    from . import motor_conocimiento
+    from .conocimiento import motor_version
+
+    modo = motor_version()
+    if modo not in ("v2", "dual"):
+        return
+    datos = motor_conocimiento.datos(motor_conocimiento.cargar())
+    nuevo = {"reglas": datos["reglas"], "reparto": datos["reparto"], "minimos": datos["minimos"]}
+    if modo == "v2":
+        global REGLAS, REPARTO_OBJETIVO, MINIMOS_OBLIGATORIOS
+        REGLAS = nuevo["reglas"]
+        REPARTO_OBJETIVO = nuevo["reparto"]
+        MINIMOS_OBLIGATORIOS = nuevo["minimos"]
+    else:
+        motor_conocimiento.registrar_dual("reglas", {
+            "reglas": REGLAS, "reparto": REPARTO_OBJETIVO, "minimos": MINIMOS_OBLIGATORIOS,
+        }, nuevo)
+
+
+_aplicar_motor_conocimiento()

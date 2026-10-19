@@ -35,19 +35,26 @@ from . import estimulos, reglas
 
 # --------------------------------------------------------------------------- el calendario y sus reglas
 
+# DEPRECATED (F3): la fuente nueva es conocimiento/calendario.toml.
 DIAS: tuple[str, ...] = ("lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo")
 
 # Regla R6 (anexo L): los lunes, miercoles y viernes los manda el entrenador y no se les anade nada.
+# DEPRECATED (F3): la fuente nueva es conocimiento/calendario.toml.
 DIAS_ENTRENADOR: tuple[str, ...] = ("lunes", "miercoles", "viernes")
+# DEPRECATED (F3): la fuente nueva es conocimiento/calendario.toml.
 DIA_BICI = "sabado"
+# DEPRECATED (F3): la fuente nueva es conocimiento/calendario.toml.
 DIAS_PROPIOS: tuple[str, ...] = ("martes", "jueves", "domingo")
 
 # Los dos dias con margen para trabajo duro, y el dia del bloque largo continuo.
+# DEPRECATED (F3): la fuente nueva es conocimiento/calendario.toml.
 DIAS_CALIDAD: tuple[str, ...] = ("martes", "jueves")
+# DEPRECATED (F3): la fuente nueva es conocimiento/calendario.toml.
 DIAS_LARGOS: tuple[str, ...] = ("domingo",)
 
 # A partir de cuantas horas de recuperacion una clase cuenta como carga dura. Las suaves (fondo facil, pataleo:
 # 12 h) pueden ir pegadas a cualquier cosa; las duras no.
+# DEPRECATED (F3): la fuente nueva es conocimiento/calendario.toml.
 DURO_H = 24.0
 
 
@@ -281,3 +288,39 @@ def propuesta_semana(deficits: list[dict], objetivo_100: float = 75.0, material:
             "volumen": {"km_plan": km_semana, "tope_m": tope, "fijos_m": fijos, "fijos_por_dia": dict(fijos_m or {}),
                         "propio_m": propio, "deja_m": deja, "cabe": not fuera_volumen,
                         "hueco_m": (None if deja is None else deja - propio)}}
+
+
+
+# --------------------------------------------------------------------------- adaptador F3
+def _aplicar_motor_conocimiento() -> None:
+    from . import motor_conocimiento
+    from .conocimiento import motor_version
+
+    modo = motor_version()
+    if modo not in ("v2", "dual"):
+        return
+    cal = motor_conocimiento.calendario(motor_conocimiento.cargar())
+    nuevo = {
+        "dias": cal["dias"], "dias_entrenador": cal["dias_entrenador"],
+        "dias_propios": cal["dias_propios"], "dia_bici": cal["dia_bici"],
+        "dias_calidad": cal["dias_calidad"], "dias_largos": cal["dias_largos"],
+        "duro_h": cal["duro_h"],
+    }
+    if modo == "v2":
+        global DIAS, DIAS_ENTRENADOR, DIA_BICI, DIAS_PROPIOS, DIAS_CALIDAD, DIAS_LARGOS, DURO_H
+        DIAS = nuevo["dias"] or DIAS
+        DIAS_ENTRENADOR = nuevo["dias_entrenador"] or DIAS_ENTRENADOR
+        DIA_BICI = nuevo["dia_bici"] or DIA_BICI
+        DIAS_PROPIOS = nuevo["dias_propios"] or DIAS_PROPIOS
+        DIAS_CALIDAD = nuevo["dias_calidad"] or DIAS_CALIDAD
+        DIAS_LARGOS = nuevo["dias_largos"] or DIAS_LARGOS
+        DURO_H = nuevo["duro_h"] if nuevo["duro_h"] is not None else DURO_H
+    else:
+        motor_conocimiento.registrar_dual("planificador", {
+            "dias": DIAS, "dias_entrenador": DIAS_ENTRENADOR, "dias_propios": DIAS_PROPIOS,
+            "dia_bici": DIA_BICI, "dias_calidad": DIAS_CALIDAD, "dias_largos": DIAS_LARGOS,
+            "duro_h": DURO_H,
+        }, nuevo)
+
+
+_aplicar_motor_conocimiento()

@@ -46,6 +46,8 @@ from . import reglas
 # Las clases de carga son las cinco que de verdad cambian algo; el material y la tecnica van aparte porque
 # modifican el ritmo sin cambiar el sistema que se entrena (por eso el material nunca cuenta como brazo libre).
 
+# DEPRECATED (F3): la fuente nueva es conocimiento/estimulos.toml. Se conserva para v1 y para
+# comparar en dual; no anadir conocimiento nuevo aqui.
 CLASES: dict[str, dict] = {
     "continuo_aerobico": {
         "nombre": "Fondo continuo suave",
@@ -151,6 +153,7 @@ CLASES: dict[str, dict] = {
 # respaldo y lo que dentro de la clase sigue siendo criterio sin fuente (y por tanto lo tiene que firmar el
 # entrenador). Se engancha a CLASES al cargar el modulo, para que cada clase pueda decir su procedencia (tareas
 # V1.0-02 y V1.0-03 del anexo U) sin duplicar la tabla de arriba.
+# DEPRECATED (F3): se deriva de conocimiento/estimulos.toml en v2.
 CONOCIMIENTO: dict[str, dict] = {
     "continuo_aerobico": {"seccion_T": ["T.2"], "grado": "metodo", "sin_fuente": ["recuperacion"]},
     "continuo_sostenido": {"seccion_T": ["T.2"], "grado": "metodo", "sin_fuente": ["recuperacion"]},
@@ -171,6 +174,7 @@ for _clase, _saber in CONOCIMIENTO.items():
 
 # Como ayuda el material. No cambia el sistema que se entrena, cambia el ritmo que se ve: por eso estos metros
 # NUNCA cuentan como brazo libre (regla del anexo F, riesgo confirmado).
+# DEPRECATED (F3): la fuente nueva es conocimiento/estimulos.toml ([[material]]).
 MATERIAL: dict[str, dict] = {
     "aletas": {"nombre": "aletas", "que_hace": "sube la velocidad y mejora la posicion; sirve para nadar rapido sin gastar",
                "ayuda_s100": 10.0, "ojo": "sus ritmos son los mas optimistas: no valen como referencia"},
@@ -309,6 +313,7 @@ def _titulo_de(clase: str) -> str:
 # De clase de estimulo a receta. El fondo continuo tiene dos clases (facil y sostenido) y una sola receta: la
 # sesion larga sin parar los cubre a los dos. Sin este mapa, un deficit de fondo sostenido pedia una receta que
 # no existe (`RECETAS["continuo_sostenido"]`) y el discurso se quedaba sin sesion que proponer.
+# DEPRECATED (F3): la fuente nueva es [receta_de_clase] en conocimiento/recetas.toml.
 RECETA_DE_CLASE: dict[str, str] = {"continuo_aerobico": "continuo", "continuo_sostenido": "continuo"}
 
 
@@ -417,6 +422,7 @@ def deficits(hist: dict, fase: str = "especifico_400", dias_al_reto: int | None 
 # valen igual si el dia de la prueba sale a 1:15 o a 1:18. `desde` dice donde encaja en la semana: los lunes,
 # miercoles y viernes son del entrenador personal y no se tocan (regla del plan).
 
+# DEPRECATED (F3): la fuente nueva es conocimiento/recetas.toml. Se conserva para v1.
 RECETAS: dict[str, dict] = {
     "series_largas": {
         "nombre": "series largas a ritmo de umbral",
@@ -551,3 +557,37 @@ def fuente_de(clase: str) -> dict:
 def clases_sin_fuente() -> list[str]:
     """Las clases que hoy son criterio sin fuente externa: la lista para que la revise el entrenador."""
     return sorted(c for c, v in CLASES.items() if v.get("grado") == "criterio")
+
+
+
+# --------------------------------------------------------------------------- adaptador F3
+# Con MOTOR_CONOCIMIENTO=v1 (por defecto) no se ejecuta nada: las constantes de arriba mandan.
+# Con v2 se sustituyen por el TOML (publico + local); con dual se comparan y se deja el informe.
+def _aplicar_motor_conocimiento() -> None:
+    from . import motor_conocimiento
+    from .conocimiento import motor_version
+
+    modo = motor_version()
+    if modo not in ("v2", "dual"):
+        return
+    datos = motor_conocimiento.datos(motor_conocimiento.cargar())
+    nuevo = {
+        "clases": datos["clases"], "conocimiento": datos["conocimiento"],
+        "material": datos["material"], "recetas": datos["recetas"],
+        "receta_de_clase": datos["receta_de_clase"],
+    }
+    if modo == "v2":
+        global CLASES, CONOCIMIENTO, MATERIAL, RECETAS, RECETA_DE_CLASE
+        CLASES = nuevo["clases"]
+        CONOCIMIENTO = nuevo["conocimiento"]
+        MATERIAL = nuevo["material"]
+        RECETAS = nuevo["recetas"]
+        RECETA_DE_CLASE = nuevo["receta_de_clase"]
+    else:
+        motor_conocimiento.registrar_dual("estimulos", {
+            "clases": CLASES, "conocimiento": CONOCIMIENTO, "material": MATERIAL,
+            "recetas": RECETAS, "receta_de_clase": RECETA_DE_CLASE,
+        }, nuevo)
+
+
+_aplicar_motor_conocimiento()
