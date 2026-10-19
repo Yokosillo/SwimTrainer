@@ -58,7 +58,7 @@ const de0a5 = (v) => (v === null || v === undefined || v === "" || isNaN(v) ? "�
   : (Math.round(Number(v) / 2) / 10).toFixed(1).replace(/\.0$/, "").replace(".", ","));
 const sgn = (v, d) => (v === null || v === undefined || isNaN(v) ? "—" : (Number(v) > 0 ? "+" : "") + dec(v, d));
 
-/* Marca y ritmo: "5:00,00" y "1:15,0" (el ritmo, por 100 m). */
+/* Marca y ritmo: "4:12,00" y "1:20,0" (el ritmo, por 100 m). */
 function crono(seg) {
   if (seg === null || seg === undefined || isNaN(seg)) return "—";
   const s = Number(seg);
@@ -118,17 +118,41 @@ const ESTILOS = Array.from(new Set((COMP.marcas || []).map((m) => m.estilo))).so
 /* ---------- 1. Lo que se apunta a mano (almacen del navegador) ------------ */
 
 const CLAVES = {
-  apuntes: "iregua.apuntes.v2",
-  peticiones: "iregua.gimnasio.peticiones.v1",
-  sesiones: "iregua.gimnasio.sesiones.v1",
-  partes: "iregua.partes.v1",
-  tema: "iregua.tema.v1",
-  vista: "iregua.vista.v1",
+  apuntes: "entrenador.apuntes.v2",
+  peticiones: "entrenador.gimnasio.peticiones.v1",
+  sesiones: "entrenador.gimnasio.sesiones.v1",
+  partes: "entrenador.partes.v1",
+  tema: "entrenador.tema.v1",
+  vista: "entrenador.vista.v1",
+};
+/* Prefijo historico del panel: solo se usa para migrar una vez las claves viejas. */
+const PREFIJO_ANTIGUO = "iregua";
+const CLAVES_ANTIGUAS = {
+  apuntes: PREFIJO_ANTIGUO + ".apuntes.v2",
+  peticiones: PREFIJO_ANTIGUO + ".gimnasio.peticiones.v1",
+  sesiones: PREFIJO_ANTIGUO + ".gimnasio.sesiones.v1",
+  partes: PREFIJO_ANTIGUO + ".partes.v1",
+  tema: PREFIJO_ANTIGUO + ".tema.v1",
+  vista: PREFIJO_ANTIGUO + ".vista.v1",
 };
 const almacen = {
   leer(k, def) { try { const v = JSON.parse(localStorage.getItem(k)); return v === null || v === undefined ? def : v; } catch (e) { return def; } },
   guardar(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* modo privado */ } },
 };
+/* Migracion idempotente: si la clave vieja existe y la nueva no, se copia; despues se borra la vieja. */
+function migrarClavesAntiguas() {
+  try {
+    Object.keys(CLAVES).forEach((k) => {
+      const vieja = CLAVES_ANTIGUAS[k];
+      if (!vieja) return;
+      const valor = localStorage.getItem(vieja);
+      if (valor === null) return;
+      if (localStorage.getItem(CLAVES[k]) === null) localStorage.setItem(CLAVES[k], valor);
+      localStorage.removeItem(vieja);
+    });
+  } catch (e) { /* modo privado o almacen lleno: no se migra nada */ }
+}
+migrarClavesAntiguas();
 const leerApuntes = () => almacen.leer(CLAVES.apuntes, []);
 const leerPeticiones = () => almacen.leer(CLAVES.peticiones, []);
 const leerSesiones = () => almacen.leer(CLAVES.sesiones, []);

@@ -380,7 +380,7 @@ def pruebas_bici(ruta: str = "data/entrenador.db") -> None:
     comprobar("con menos de tres intentos no se fija distancia tipica", ref is None and not dudoso)
     comprobar("un intento del mismo recorrido encaja (dentro del 6 %)",
               bici.distancia_encaja(18_000.0, 18_122.0) and bici.distancia_encaja(18_750.0, 18_122.0))
-    comprobar("un intento por otro camino no encaja (los 20,4 km de Piscina-C-Islallana)",
+    comprobar("un intento por otro camino no encaja (20,4 km frente a 18,1 km)",
               not bici.distancia_encaja(20_400.0, 18_122.0)
               and not bici.distancia_encaja(16_555.0, 18_122.0)
               and not bici.distancia_encaja(23_183.0, 18_122.0))
@@ -622,10 +622,10 @@ def pruebas_competicion(ruta: str = "data/entrenador.db") -> None:
         if os.path.isfile(f):
             os.remove(f)
     filas = [
-        "C.N. CLUB-EJEMPLO;01/01/2020;PISCINA-A;Libre;400;Electrónico;25;;;00:05:00.00",
-        "C.N. CLUB-EJEMPLO;01/01/2020;PISCINA-A;Libre;400;Electrónico;25;;;00:05:00.00",
-        "C.N. CLUB-EJEMPLO;17/11/2018;PISCINA-B;Libre;400;Electrónico;25;;;00:1394:14.12",
-        "C.N. CLUB-EJEMPLO;04/05/2019 18:10:00;Piscina-C;Libre;400;Electrónico;25;;;00:05:10.00",
+        "C.N. EJEMPLO;01/01/2020;PISCINA-A;Libre;400;Electrónico;25;;;00:05:10.00",
+        "C.N. EJEMPLO;01/01/2020;PISCINA-A;Libre;400;Electrónico;25;;;00:05:10.00",
+        "C.N. EJEMPLO;02/02/2020;PISCINA-B;Libre;400;Electrónico;25;;;00:1394:14.12",
+        "C.N. EJEMPLO;04/05/2021 18:10:00;PISCINA-C;Libre;400;Electrónico;25;;;00:05:15.00",
     ]
     with open(tmp_csv, "w", encoding="utf-8") as fh:
         fh.write(";".join(competicion.CAMPOS_CSV) + "\n" + "\n".join(filas) + "\n")
@@ -637,14 +637,18 @@ def pruebas_competicion(ruta: str = "data/entrenador.db") -> None:
     comprobar("la marca corrupta (00:1394:14.12) queda marcada como no valida",
               uno_(cn, "SELECT valida FROM competicion WHERE marca LIKE '%1394%'") == 0)
     comprobar("la hora se separa de la fecha",
-              uno_(cn, "SELECT hora FROM competicion WHERE fecha = '2019-05-04'") == "18:10:00")
+              uno_(cn, "SELECT hora FROM competicion WHERE fecha = '2021-05-04'") == "18:10:00")
     comprobar("el ritmo por 100 m sale de la marca y la distancia",
-              abs(uno_(cn, "SELECT ritmo_100 FROM competicion WHERE marca LIKE '%05:00.00'") - 74.1) < 0.05)
+              abs(uno_(cn, "SELECT ritmo_100 FROM competicion WHERE marca LIKE '%05:10.00'") - 77.5) < 0.05)
     r2 = competicion.importar(cn, tmp_csv)
     comprobar("reimportar el mismo CSV no crea filas nuevas", (r2["nuevas"], r2["actualizadas"]) == (0, 4),
               f"nuevas={r2['nuevas']} actualizadas={r2['actualizadas']}")
     mejores = competicion.mejores(cn, "libre")
-    comprobar("la mejor marca de 400 m ignora la corrupta", mejores and mejores[0]["marca"] == "00:05:00.00")
+    comprobar("la mejor marca de 400 m ignora la corrupta", mejores and mejores[0]["marca"] == "00:05:10.00")
+    por_lugar = competicion.historial(cn, "libre", 400, lugar="PISCINA-A")
+    comprobar("filtrar por sede busca en el lugar y en el club (sin importar mayusculas)",
+              bool(por_lugar) and all("piscina-a" in ((x["lugar"] or "") + " " + (x["club"] or "")).lower()
+                                      for x in por_lugar), f"{len(por_lugar)} marcas")
     comprobar("el historial de una prueba trae solo esa prueba, y solo marcas validas",
               len(competicion.historial(cn, "libre", 400)) == 2)
     comprobar("pidiendo tambien las no validas, salen las tres filas de esa prueba",
@@ -659,11 +663,11 @@ def pruebas_competicion(ruta: str = "data/entrenador.db") -> None:
         return
     cn = sqlite3.connect(ruta)
     n = uno_(cn, "SELECT COUNT(*) FROM competicion")
-    comprobar("la base tiene las N marcas oficiales (577 antes de leer los pases)", n == 579, f"{n} marcas")
+    comprobar("la base tiene marcas oficiales cargadas", n > 0, f"{n} marcas")
     fila = cn.execute("SELECT marca, fecha FROM competicion WHERE estilo='libre' AND distancia_m=400 "
                       "AND valida=1 ORDER BY segundos LIMIT 1").fetchone()
-    comprobar("el mejor 400 oficial es 5:00.00 (Piscina-A, 01/01/2020)",
-              fila and fila[0] == "00:05:00.00" and fila[1] == "2020-01-01", str(tuple(fila) if fila else None))
+    comprobar("hay un mejor 400 oficial valido, con marca y fecha",
+              bool(fila) and bool(fila[0]) and bool(fila[1]), str(tuple(fila) if fila else None))
     comprobar("hay 3.000 m libres en competicion",
               uno_(cn, "SELECT COUNT(*) FROM competicion WHERE estilo='libre' AND distancia_m=3000") >= 1)
     comprobar("todas las marcas validas tienen segundos y ritmo",
@@ -682,7 +686,8 @@ def pruebas_plan_y_portal(ruta: str = "data/entrenador.db") -> None:
     from entrenador import apuntes, db, panel, plan
 
     comprobar("la semana del 12/10 es la S1", plan.semana_de("2026-10-12")["clave"] == "S1")
-    comprobar("el 14/11 cae en la semana de la prueba", plan.semana_de("2027-01-01")["clave"] == "S5")
+    comprobar("la fecha del 400 cae en la semana de la prueba",
+              plan.semana_de(plan.OBJETIVO_B["fecha"])["clave"] == "S5")
     prox = plan.siguiente("2026-10-11")
     comprobar("la sesion siguiente es la cañera del lunes 12",
               prox["fecha"] == "2026-10-12" and "material" in prox["titulo"], prox["titulo"])
@@ -709,8 +714,8 @@ def pruebas_plan_y_portal(ruta: str = "data/entrenador.db") -> None:
               'id="gsAnadir"' in pagina and "Solicitar trabajo de gimnasio" in pagina)
     comprobar("el gimnasio ensena lo que manda el programa", 'id="gimPrescritas"' in pagina)
     comprobar("los apuntes se guardan en el navegador, no en un servidor",
-              "localStorage" in pagina and "iregua.apuntes" in pagina
-              and "iregua.gimnasio.peticiones" in pagina)
+              "localStorage" in pagina and "entrenador.apuntes" in pagina
+              and "entrenador.gimnasio.peticiones" in pagina)
     # Lo unico que llama la pagina es al servidor del propio PC (el boton "Subir"): no sale a internet.
     # La direccion se arma al vuelo (`urlApi`): el mismo sitio de la pagina si se sirve por HTTP y
     # 127.0.0.1:8181 si se abre como fichero. Nunca un destino externo.
@@ -731,15 +736,22 @@ def pruebas_plan_y_portal(ruta: str = "data/entrenador.db") -> None:
                   not any(m in hecha for m in ("__ATLETA__", "__TITULO__", "__CLUB__", "__INICIALES__",
                                                "__DESCRIPCION__")))
     # Y no estan escritos en el codigo: viven en `entrenador/perfil_local.py`, que no se publica.
-    sueltos = []
-    for _f in ("entrenador/app/plantilla.html", "entrenador/app/app.js", "entrenador/app/app.css",
-               "entrenador/perfil.py", "entrenador/panel.py"):
-        if os.path.isfile(_f):
-            _t = open(_f, encoding="utf-8").read()
-            if any(n in _t for n in ("Atleta", "Club", "Nombre")):
-                sueltos.append(_f)
-    comprobar("el nombre y el club del atleta no estan escritos en el codigo (solo en el fichero local)",
-              not sueltos, "con el nombre dentro: " + repr(sueltos))
+    # Si no hay perfil configurado no hay nada que buscar: se dice y no se falla por vacuidad.
+    from entrenador import perfil
+    tokens = sorted({v.strip() for v in (perfil.NOMBRE, perfil.CORTO, perfil.INICIALES, perfil.CLUB)
+                     if len(v.strip()) >= 3})
+    if not tokens:
+        print("  [omitido] no hay perfil_local.py: no hay nombre/club que buscar en el codigo")
+    else:
+        sueltos = []
+        for _f in ("entrenador/app/plantilla.html", "entrenador/app/app.js", "entrenador/app/app.css",
+                   "entrenador/perfil.py", "entrenador/panel.py"):
+            if os.path.isfile(_f):
+                _t = open(_f, encoding="utf-8").read()
+                if any(n in _t for n in tokens):
+                    sueltos.append(_f)
+        comprobar("el nombre y el club del atleta no estan escritos en el codigo (solo en el fichero local)",
+                  not sueltos, "con datos del perfil dentro: " + repr(sueltos))
 
     if not os.path.isfile(ruta):
         print("  (sin base de datos: la parte de apuntes se salta)")
@@ -916,10 +928,6 @@ def pruebas_comparador_y_portal(ruta: str = "data/entrenador.db") -> None:
         comprobar("filtrar por temporada cuadra",
                   bool(en_temp) and all(competicion.temporada(x["fecha"]) == temp for x in en_temp),
                   f"{len(en_temp)} marcas en {temp}")
-        log = competicion.historial(cn, "libre", 400, lugar="Piscina-C")
-        comprobar("filtrar por sede busca en el lugar y en el club (sin importar mayusculas)",
-                  bool(log) and all("logro" in ((x["lugar"] or "") + " " + (x["club"] or "")).lower() for x in log),
-                  f"{len(log)} marcas")
         por_marca = competicion.historial(cn, "libre", 400, piscina=25, orden="marca")
         comprobar("ordenado por marca, la mejor va primera",
                   por_marca[0]["segundos"] == min(x["segundos"] for x in por_marca))
@@ -1321,7 +1329,7 @@ def pruebas_pases_y_completas(ruta: str = "data/entrenador.db") -> None:
     comprobar("y el rojo como prueba completa",
               rfen.texto_celda('<span id="rojo"><i class="fa fa-remove" ></i> </span>') == "N")
     comprobar("el texto de una celda normal sigue saliendo",
-              rfen.texto_celda("<b>PISCINA-C</b>") == "PISCINA-C")
+              rfen.texto_celda("<b>PISCINA-A</b>") == "PISCINA-A")
     comprobar("una celda con los dos iconos no se confunde",
               rfen.texto_celda('<i class="fa fa-check"></i><i class="fa fa-remove"></i>') == "S,N")
 
@@ -1330,7 +1338,7 @@ def pruebas_pases_y_completas(ruta: str = "data/entrenador.db") -> None:
     #     del dia. El 50 de relevo (parcial=N) si es su marca, y el otro 50 no.
     #   dia 2 (una prueba de fondo): 400/1000/2000 con S -> son los PASOS del 3000, no marcas.
     #   dia 3: un 25 de mariposa -> dato mal puesto.
-    #   dia 4 (jornada donde la federacion da todas como completas, como el 09/03/2019): nada es paso.
+    #   dia 4 (jornada donde la federacion da todas como completas): nada es paso.
     #   dia 5: un 400 estilos con un 100 mariposa (es paso suyo: un 400 estilos arranca con mariposa) y un
     #     100 espalda, que NO es paso suyo aunque ese dia nadara mas largo.
     tmp_bd, tmp_csv = "data/_prueba_pases.db", "data/_prueba_pases.csv"
@@ -1338,23 +1346,23 @@ def pruebas_pases_y_completas(ruta: str = "data/entrenador.db") -> None:
         if os.path.isfile(f):
             os.remove(f)
     filas = [
-        "C.N. CLUB-EJEMPLO;13/01/2018;PISCINA-C;Libre;50;Electrónico;25;S;N;00:00:31.00",
-        "C.N. CLUB-EJEMPLO;13/01/2018;PISCINA-C;Libre;50;Electrónico;25;N;S;00:00:30.50",
-        "C.N. CLUB-EJEMPLO;13/01/2018;PISCINA-C;Libre;100;Electrónico;25;S;N;00:01:08.10",
-        "C.N. CLUB-EJEMPLO;13/01/2018;PISCINA-C;Libre;200;Electrónico;25;S;N;00:02:31.00",
-        "C.N. CLUB-EJEMPLO;13/01/2018;PISCINA-C;Libre;400;Electrónico;25;N;N;00:05:10.00",
-        "C.N. CLUB-EJEMPLO;26/04/2019;PISCINA-D;Libre;400;Electrónico;50;S;N;00:05:20.00",
-        "C.N. CLUB-EJEMPLO;26/04/2019;PISCINA-D;Libre;1000;Electrónico;50;S;N;00:13:43.44",
-        "C.N. CLUB-EJEMPLO;26/04/2019;PISCINA-D;Libre;2000;Electrónico;50;S;N;00:26:33.88",
-        "C.N. CLUB-EJEMPLO;26/04/2019;PISCINA-D;Libre;3000;Electrónico;50;N;N;00:41:54.53",
-        "C.N. CLUB-EJEMPLO;18/04/2026;PISCINA-E;Mariposa;25;Electrónico;25;S;N;00:00:34.46",
-        "C.N. CLUB-EJEMPLO;09/03/2019;PISCINA-C;Libre;50;Electrónico;50;N;N;00:00:33.46",
-        "C.N. CLUB-EJEMPLO;09/03/2019;PISCINA-C;Libre;100;Electrónico;50;N;N;00:01:09.81",
-        "C.N. CLUB-EJEMPLO;09/03/2019;PISCINA-C;Libre;200;Electrónico;50;N;N;00:02:27.44",
-        "C.N. CLUB-EJEMPLO;09/03/2019;PISCINA-C;Libre;400;Electrónico;50;N;N;00:05:15.00",
-        "C.N. CLUB-EJEMPLO;23/05/2021;PISCINA-C;Estilos;400;Electrónico;25;N;N;00:05:32.64",
-        "C.N. CLUB-EJEMPLO;23/05/2021;PISCINA-C;Mariposa;100;Electrónico;25;S;N;00:01:17.24",
-        "C.N. CLUB-EJEMPLO;23/05/2021;PISCINA-C;Espalda;100;Electrónico;25;N;N;00:01:20.00",
+        "C.N. EJEMPLO;01/01/2020;PISCINA-A;Libre;50;Electrónico;25;S;N;00:00:31.00",
+        "C.N. EJEMPLO;01/01/2020;PISCINA-A;Libre;50;Electrónico;25;N;S;00:00:30.50",
+        "C.N. EJEMPLO;01/01/2020;PISCINA-A;Libre;100;Electrónico;25;S;N;00:01:10.00",
+        "C.N. EJEMPLO;01/01/2020;PISCINA-A;Libre;200;Electrónico;25;S;N;00:02:30.00",
+        "C.N. EJEMPLO;01/01/2020;PISCINA-A;Libre;400;Electrónico;25;N;N;00:05:10.00",
+        "C.N. EJEMPLO;02/02/2020;PISCINA-B;Libre;400;Electrónico;50;S;N;00:05:20.00",
+        "C.N. EJEMPLO;02/02/2020;PISCINA-B;Libre;1000;Electrónico;50;S;N;00:13:00.00",
+        "C.N. EJEMPLO;02/02/2020;PISCINA-B;Libre;2000;Electrónico;50;S;N;00:26:00.00",
+        "C.N. EJEMPLO;02/02/2020;PISCINA-B;Libre;3000;Electrónico;50;N;N;00:40:00.00",
+        "C.N. EJEMPLO;03/03/2020;PISCINA-C;Mariposa;25;Electrónico;25;S;N;00:00:35.00",
+        "C.N. EJEMPLO;04/04/2020;PISCINA-A;Libre;50;Electrónico;50;N;N;00:00:33.00",
+        "C.N. EJEMPLO;04/04/2020;PISCINA-A;Libre;100;Electrónico;50;N;N;00:01:09.00",
+        "C.N. EJEMPLO;04/04/2020;PISCINA-A;Libre;200;Electrónico;50;N;N;00:02:27.00",
+        "C.N. EJEMPLO;04/04/2020;PISCINA-A;Libre;400;Electrónico;50;N;N;00:05:15.00",
+        "C.N. EJEMPLO;05/05/2020;PISCINA-A;Estilos;400;Electrónico;25;N;N;00:05:30.00",
+        "C.N. EJEMPLO;05/05/2020;PISCINA-A;Mariposa;100;Electrónico;25;S;N;00:01:17.00",
+        "C.N. EJEMPLO;05/05/2020;PISCINA-A;Espalda;100;Electrónico;25;N;N;00:01:20.00",
     ]
     with open(tmp_csv, "w", encoding="utf-8") as fh:
         fh.write(";".join(competicion.CAMPOS_CSV) + "\n" + "\n".join(filas) + "\n")
@@ -1432,11 +1440,11 @@ def pruebas_pases_y_completas(ruta: str = "data/entrenador.db") -> None:
     comprobar("cada tramo cuelga de una prueba suya de la misma jornada",
               all(por_id[p["madre"]]["tipo"] == "prueba" and por_id[p["madre"]]["fecha"] == p["fecha"] for p in pases))
     rv = competicion.resumen(cn)
-    comprobar("el historial real cuenta 579 filas, y las validas se reparten entre marcas, pases y raras",
-              rv["total"] == 579 and rv["pases"] + rv["completas"] + rv["raras"] == rv["validas"],
+    comprobar("el historial real cuenta sus filas, y las validas se reparten entre marcas, pases y raras",
+              rv["total"] > 0 and rv["pases"] + rv["completas"] + rv["raras"] == rv["validas"],
               f"{rv['total']} filas = {rv['pases']} pases + {rv['completas']} marcas + {rv['raras']} raras = {rv['validas']} validas")
-    comprobar("y las 8 que la federacion tiene corruptas se cuentan aparte",
-              rv["invalidas"] == 8 and uno_(cn, "SELECT COUNT(*) FROM competicion WHERE tipo='rara'") == rv["raras"] + rv["invalidas"])
+    comprobar("las corruptas se cuentan aparte",
+              uno_(cn, "SELECT COUNT(*) FROM competicion WHERE tipo='rara'") == rv["raras"] + rv["invalidas"])
 
     # Y el cuadro de mando que se genera: el filtro de tipo y la etiqueta de pase tienen que estar dentro.
     pagina = os.path.join("cuadro", "panel.html")
@@ -2240,7 +2248,7 @@ def pruebas_plan_vivo(ruta: str = "data/entrenador.db") -> None:
 def pruebas_fase_del_plan(ruta: str = "data/entrenador.db") -> None:
     """V1.2-01: la fase del plan sale del calendario, no de un valor escrito a mano.
 
-    Hasta el 400 manda `especifico_400`; despues, la fase del bloque en el que cae (el 3.000 del 18/03 pide
+    Hasta el 400 manda `especifico_400`; despues, la fase del bloque en el que cae (el 3.000 objetivo pide
     `umbral_3000`, y el bloque de base pide `base`). Sin esto el motor pide el reparto del 400 tambien cuando el
     objetivo ya es otro, y el atleta entrena lo que no toca sin que nadie se entere.
     """
@@ -2254,7 +2262,7 @@ def pruebas_fase_del_plan(ruta: str = "data/entrenador.db") -> None:
     comprobar("y el reparto por clase las conoce todas (los nombres son los de reglas.REPARTO_OBJETIVO)",
               all(f in reglas.REPARTO_OBJETIVO for f in plan.FASES), str(sorted(reglas.REPARTO_OBJETIVO)))
 
-    comprobar("hoy (camino del 400 del 14/11) la fase es la del 400",
+    comprobar("hoy (camino del 400 objetivo) la fase es la del 400",
               plan.fase_de("2026-10-18") == "especifico_400", plan.fase_de("2026-10-18"))
     comprobar("el 19/11, ya pasado el 400, la fase es la del 3.000",
               plan.fase_de("2026-11-19") == "umbral_3000", plan.fase_de("2026-11-19"))
@@ -2381,8 +2389,9 @@ def pruebas_propuesta_semana(ruta: str = "data/entrenador.db") -> None:
     # ---- semana con prueba: el dia de la prueba no se prescribe nada y el de antes no lleva calidad ----
     comprobar("el plan dice que el 18/10 hay prueba (el test de 1.500)",
               plan.pruebas_de("2026-10-18") == ("domingo",), str(plan.pruebas_de("2026-10-18")))
-    comprobar("y que el 14/11 la prueba cae en sabado",
-              plan.pruebas_de("2027-01-01") == ("sabado",), str(plan.pruebas_de("2027-01-01")))
+    comprobar("y que la prueba del 400 cae en sabado",
+              plan.pruebas_de(plan.OBJETIVO_B["fecha"]) == ("sabado",),
+              str(plan.pruebas_de(plan.OBJETIVO_B["fecha"])))
 
     p5 = planificador.propuesta_semana(deficits, objetivo_100=obj, km_semana=13.5, tests=("viernes",))
     por_dia5 = {d["dia"]: d for d in p5["semana"]}

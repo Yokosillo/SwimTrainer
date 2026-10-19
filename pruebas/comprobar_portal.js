@@ -133,6 +133,37 @@ if (!fallos.length) {
   }
 }
 
+/* ---------- 4b. migracion de las claves viejas del panel ---------- */
+if (!fallos.length) {
+  const CLAVE_VIEJA = "iregua.partes.v1";   /* prefijo historico: solo para probar la migracion */
+  const almacenViejo = {
+    _d: { [CLAVE_VIEJA]: JSON.stringify([{ actividad_id: 1, series: [] }]) },
+    getItem(k) { return this._d[k] === undefined ? null : this._d[k]; },
+    setItem(k, v) { this._d[k] = String(v); },
+    removeItem(k) { delete this._d[k]; },
+  };
+  const cajaMig = Object.assign({}, sandbox, { localStorage: almacenViejo });
+  vm.createContext(cajaMig);
+  try {
+    vm.runInContext(js, cajaMig, { timeout: 30000, filename: "app.js" });
+    const nueva = almacenViejo.getItem("entrenador.partes.v1");
+    if (!nueva || almacenViejo.getItem(CLAVE_VIEJA) !== null) {
+      fallos.push("la migracion de claves viejas no copia/borra el parte");
+    } else {
+      console.log("migracion de claves: la clave vieja pasa a entrenador.* y se borra");
+    }
+    /* idempotente: una segunda carga, en un contexto nuevo, no cambia nada */
+    const cajaMig2 = Object.assign({}, sandbox, { localStorage: almacenViejo });
+    vm.createContext(cajaMig2);
+    vm.runInContext(js, cajaMig2, { timeout: 30000, filename: "app.js" });
+    if (almacenViejo.getItem("entrenador.partes.v1") !== nueva) {
+      fallos.push("la migracion de claves no es idempotente");
+    }
+  } catch (e) {
+    fallos.push("la migracion de claves revienta: " + e.message);
+  }
+}
+
 /* ---------- 5. ids que el JS necesita ---------- */
 const ids_js = new Set(Array.from(js.matchAll(/(?:getElementById|pintar|q)\("([A-Za-z0-9_]+)"/g)).map((x) => x[1]));
 /* Los de la fila de anadir del gimnasio: se pintan al vuelo con la tabla, no estan en el HTML fijo. */
@@ -425,7 +456,7 @@ if (!fallos.length) {
       { tipo: "continuo", metros: 200, tiempo_s: 171, laps: [11],
         reps: [{ lap_idx: 11, dist_m: 200, timer_s: 171, tiempo_s: 171 }] },
     ] };
-    almacen.setItem("iregua.partes.v1", JSON.stringify([{
+    almacen.setItem("entrenador.partes.v1", JSON.stringify([{
       actividad_id: 4242, compania: "solo",
       series: [{ tipo: "continuo", metros: 200, tiempo_s: 165, cada_s: 190, laps: [11], material: [],
                  intensidad: "ae2", reps: [{ lap: 11, tiempo_s: 168 }] }],
@@ -436,7 +467,7 @@ if (!fallos.length) {
     if (g5.tiempo_s !== 165) fallos.push("al reabrir, el tiempo del grupo vuelve al del reloj (" + g5.tiempo_s + ")");
     if (g5.cada_s !== 190) fallos.push("al reabrir, el cada guardado no vuelve (" + g5.cada_s + ")");
     if (r5.tiempo_s !== 168) fallos.push("al reabrir, el tiempo corregido de la repeticion no vuelve (" + r5.tiempo_s + ")");
-    almacen.removeItem("iregua.partes.v1");
+    almacen.removeItem("entrenador.partes.v1");
     console.log("al reabrir: el tiempo del grupo, el de la repeticion y el cada vuelven los tres");
   }
 
@@ -475,7 +506,7 @@ if (!fallos.length) {
     fallos.push("no hay ninguna sesion reciente sin parte en la base para comprobar la lista de entrenamientos");
   } else {
     const id = String(elegida.actividad_id);
-    almacen.setItem("iregua.partes.v1", JSON.stringify([{ actividad_id: elegida.actividad_id, fecha: elegida.fecha, series: [] }]));
+    almacen.setItem("entrenador.partes.v1", JSON.stringify([{ actividad_id: elegida.actividad_id, fecha: elegida.fecha, series: [] }]));
     sandbox.pintarEntrenos();
     const tabla = String(pintados.entrenosTabla || "");
     if (tabla.indexOf("hecho · sin subir") < 0) fallos.push("un parte guardado y sin subir no aparece como hecho en la lista de entrenamientos");
@@ -488,7 +519,7 @@ if (!fallos.length) {
     }
     if (fila.indexOf("hecho") < 0) fallos.push("la fila de la sesion " + id + " no dice que el parte esta hecho");
     console.log("parte guardado sin subir: la lista dice \"" + (/(hecho · sin subir)/.test(tabla) ? "hecho · sin subir" : "nada") + "\"");
-    almacen.removeItem("iregua.partes.v1");
+    almacen.removeItem("entrenador.partes.v1");
     sandbox.pintarEntrenos();
   }
 
@@ -497,13 +528,13 @@ if (!fallos.length) {
   const yaEnBase = recientes.filter((x) => enBase.indexOf(String(x.actividad_id)) >= 0)[0];
   if (yaEnBase) {
     const idBase = String(yaEnBase.actividad_id);
-    almacen.setItem("iregua.partes.v1", JSON.stringify([{ actividad_id: yaEnBase.actividad_id, fecha: yaEnBase.fecha, series: [] }]));
+    almacen.setItem("entrenador.partes.v1", JSON.stringify([{ actividad_id: yaEnBase.actividad_id, fecha: yaEnBase.fecha, series: [] }]));
     sandbox.pintarEntrenos();
     const filaBase = String(pintados.entrenosTabla || "").split('data-sesion="' + idBase + '"')[1] || "";
     if (filaBase.indexOf("hecho") < 0) fallos.push("la sesion " + idBase + ", con el parte ya en la base, no sale como hecha");
     if (filaBase.indexOf("sin subir") >= 0) fallos.push("una sesion con el parte ya en la base sigue diciendo \"sin subir\"");
     console.log("parte ya en la base: la lista dice \"" + (filaBase.indexOf("hecho") >= 0 ? "hecho" : "nada") + "\"");
-    almacen.removeItem("iregua.partes.v1");
+    almacen.removeItem("entrenador.partes.v1");
     sandbox.pintarEntrenos();
   }
 
@@ -567,19 +598,19 @@ if (!fallos.length) {
   if (typeof leer !== "function" || typeof sandbox.compararFilas !== "function") {
     fallos.push("el ordenador de tablas no esta disponible");
   } else {
-    const f = leer(celdaPrueba("04/05/2019"));
-    if (!f || f.t !== 0 || f.v !== 20190504) fallos.push("no se lee bien una fecha para ordenar");
+    const f = leer(celdaPrueba("01/01/2020"));
+    if (!f || f.t !== 0 || f.v !== 20200101) fallos.push("no se lee bien una fecha para ordenar");
     const t = leer(celdaPrueba("1:05:00.00"));
-    if (!t || t.t !== 1 || Math.abs(t.v - 3896.4) > 0.0001) fallos.push("no se lee bien un tiempo para ordenar");
-    const r = leer(celdaPrueba("74,1 s/100"));
-    if (!r || r.t !== 2 || Math.abs(r.v - 74.1) > 0.0001) fallos.push("no se lee bien un ritmo con unidad");
-    const m = leer(celdaPrueba("1:14,1"));
-    if (!m || m.t !== 1 || Math.abs(m.v - 74.1) > 0.0001) fallos.push("no se lee bien un ritmo en minutos y segundos");
+    if (!t || t.t !== 1 || Math.abs(t.v - 3900.0) > 0.0001) fallos.push("no se lee bien un tiempo para ordenar");
+    const r = leer(celdaPrueba("75,0 s/100"));
+    if (!r || r.t !== 2 || Math.abs(r.v - 75.0) > 0.0001) fallos.push("no se lee bien un ritmo con unidad");
+    const m = leer(celdaPrueba("1:15,0"));
+    if (!m || m.t !== 1 || Math.abs(m.v - 75.0) > 0.0001) fallos.push("no se lee bien un ritmo en minutos y segundos");
     if (leer(celdaPrueba("—")) !== null) fallos.push("un guion tiene que contar como hueco");
-    if (compararPrueba("1:12.00", "1:04.00", 1) <= 0) fallos.push("los tiempos no se ordenan de mejor a peor");
-    if (compararPrueba("1:12.00", "1:04.00", -1) >= 0) fallos.push("los tiempos no se pueden invertir");
-    if (compararPrueba("04/05/2019", "12/05/2021", -1) <= 0) fallos.push("las fechas no se ordenan de lo mas reciente hacia atras");
-    if (compararPrueba("1:04.00", "—", 1) >= 0) fallos.push("los huecos no se van al final");
+    if (compararPrueba("1:20.00", "1:10.00", 1) <= 0) fallos.push("los tiempos no se ordenan de mejor a peor");
+    if (compararPrueba("1:20.00", "1:10.00", -1) >= 0) fallos.push("los tiempos no se pueden invertir");
+    if (compararPrueba("01/01/2020", "01/01/2022", -1) <= 0) fallos.push("las fechas no se ordenan de lo mas reciente hacia atras");
+    if (compararPrueba("1:10.00", "—", 1) >= 0) fallos.push("los huecos no se van al final");
   }
 }
 
@@ -808,7 +839,7 @@ try {
     console.log("parte guardado: no hay bloque de 1.500 que probar");
   } else {
     const copia = () => JSON.parse(JSON.stringify(bloque));
-    const guardando = (tiempo) => almacen.setItem("iregua.partes.v1", JSON.stringify(
+    const guardando = (tiempo) => almacen.setItem("entrenador.partes.v1", JSON.stringify(
       [{ actividad_id: pendiente.actividad_id, series: [{ laps: bloque.laps || [], tiempo_s: tiempo }] }]));
 
     guardando(bloque.reps[0].lap_del_reloj_s);            /* tal como estaba guardado: el tiempo del reloj */
@@ -830,7 +861,7 @@ try {
       console.log("parte guardado: el tiempo del reloj (" + bloque.reps[0].lap_del_reloj_s
         + " s) no tapa la corrección (" + trasReponer + " s), y el que escribe él (" + trasEscribir + " s) vuelve");
     }
-    almacen.removeItem("iregua.partes.v1");
+    almacen.removeItem("entrenador.partes.v1");
   }
 } catch (e) {
   fallos.push("no se pudo probar el parte guardado en el navegador: " + e.message);

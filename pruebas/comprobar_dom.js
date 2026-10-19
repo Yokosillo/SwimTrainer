@@ -165,7 +165,7 @@ setTimeout(() => {
         cajaDelCada.value = "2:30";
         cajaDelCada.dispatchEvent(new w.Event("input", { bubbles: true }));
         cajaDelCada.dispatchEvent(new w.Event("change", { bubbles: true }));
-        const suyo = (JSON.parse(w.localStorage.getItem("iregua.partes.v1") || "[]")
+        const suyo = (JSON.parse(w.localStorage.getItem("entrenador.partes.v1") || "[]")
           .filter((p) => String(p.actividad_id) === String(sesion))[0] || { series: [] }).series
           .filter((x) => x.cada_apuntado === "2:30")[0];
         comprobar("y el cada que escribe el atleta se guarda con su marca (cada_s 150, apuntado 2:30)",
