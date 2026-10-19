@@ -92,6 +92,21 @@ def main() -> int:
     comprobar("y lo que ha aprendido, con su fecha",
               bool((ppa.get("aprendizaje") or {}).get("generado"))
               and ppa["aprendizaje"]["margen_s_100"] > 0, str(ppa.get("aprendizaje")))
+
+    # Un bloque juntado a mano guarda `reps` vacio: sus numeros tienen que salir de los laps del reloj, no del
+    # parte (un bloque de 3 repeticiones decia 300 m cuando sus vueltas sumaban 275 y se veia sin filas).
+    juntados = [s for g in partes.partes_de(cn, limite=12) for s in g["series"]
+                if (s.get("tipo") == "bloque" and s.get("laps"))]
+    if juntados:
+        s = juntados[0]
+        comprobar("un bloque juntado a mano trae sus repeticiones del reloj (no filas en blanco)",
+                  len(s.get("reps_reloj") or []) == len(s["laps"]),
+                  f"{len(s.get('reps_reloj') or [])} de {len(s['laps'])}")
+        comprobar("con la distancia y el tiempo de cada una de esos laps",
+                  all(r.get("dist_m") and r.get("tiempo_s") for r in s["reps_reloj"]),
+                  str([(r.get("dist_m"), round(float(r.get("tiempo_s") or 0), 1)) for r in s["reps_reloj"]]))
+        comprobar("y si las vueltas no son iguales, lo avisa para poder corregirlo",
+                  bool(s.get("avisos")), str(s.get("avisos")))
     cn.close()
 
     print("\n" + (f"{len(fallos)} fallos: " + ", ".join(fallos) if fallos else "Todo bien."))

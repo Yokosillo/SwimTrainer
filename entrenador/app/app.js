@@ -2562,7 +2562,10 @@ function pintarParteSubido(p) {
   if (val) art.appendChild(cajaValoracion(val));
   const cuerpo = el("div", { clase: "semana-cuerpo" });
   (p.series || []).forEach((g) => {
-    const swolfs = (g.reps || []).map((r) => r.swolf).filter((x) => x);
+    /* Las repeticiones del reloj, no solo las correcciones del atleta: un bloque juntado a mano no guarda
+       repeticiones propias (su JSON va vacio) y sin esto se quedaba sin SWOLF y sin distancia por repeticion. */
+    const susReps = (g.reps && g.reps.length) ? g.reps : (g.reps_reloj || []);
+    const swolfs = susReps.map((r) => r.swolf || r.swolf_apuntado).filter((x) => x);
     const chips = (g.material || []).map((m) => chip(NOMBRE_MATERIAL[m] || m)).join("")
       + (g.intensidad ? chip(nombreIntensidad(g.intensidad)) : "")
       + (swolfs.length ? chip("SWOLF " + swolfs.join(", ")) : "");
@@ -2768,7 +2771,7 @@ function pintarPartesImportados(partes) {
   pintar("parteImportados", tablaHTML([{ n: "Fecha" }, { n: "Metros", num: true }, { n: "Grupos", num: true }, { n: "Con material", num: true }, { n: "Grupos del parte" }],
     partes.map((p) => ["<span class='ahora'>" + esc(fechaCorta(p.fecha)) + "</span>", entero(p.metros), (p.series || []).length,
       (p.series || []).filter((s) => (s.material || []).length).length,
-      "<span class='gris'>" + esc((p.series || []).map((s) => (s.tipo === "continuo" ? entero(s.metros) + "m" : s.n_reps + "x" + entero(s.rep_m))
+      "<span class='gris'>" + esc((p.series || []).map((s) => (s.tipo === "continuo" || !s.rep_m ? entero(s.metros) + "m" : s.n_reps + "x" + entero(s.rep_m))
         + " " + ((s.material || []).map((m) => NOMBRE_MATERIAL[m] || m).join("+") || "brazo libre")).join(" · ")) + "</span>"]),
     { compacta: true, vacio: "Todavia no se ha importado ningun parte." }));
 }

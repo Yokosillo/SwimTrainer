@@ -245,8 +245,13 @@ def forma_del_grupo(reps: list[dict], cn: sqlite3.Connection | None = None, acti
     para el ritmo.
     """
     ritmos = ritmos_de_reps(cn, actividad_id, reps)
+    # Una repeticion a otra distancia que las demas (una vuelta contada de menos) tiene el ritmo inflado: no
+    # entra en la forma, o un bloque regular saldria "aflojando" solo porque el reloj se comio un largo.
+    distancias = [round(float(r.get("dist_m") or 0)) for r in (reps or [])]
+    comun = max(set(distancias), key=distancias.count) if distancias else 0
     malos = [i for i, r in enumerate(ritmos)
-             if not (r and RITMO_MIN <= r <= RITMO_MAX)]
+             if not (r and RITMO_MIN <= r <= RITMO_MAX)
+             or (comun and abs(float((reps[i].get("dist_m") or 0)) - comun) > 1.0)]
     return concepto.medir(ritmos, malos=malos)
 
 
@@ -495,14 +500,23 @@ def partes_de(cn: sqlite3.Connection, limite: int = 12) -> list[dict]:
         p = dict(f)
         p["series"] = [dict(s) for s in cn.execute(
             "SELECT * FROM parte_serie WHERE parte_id = ? ORDER BY orden", (f["id"],))]
+        laps_reloj = {int(x["lap_idx"]): x for x in _laps_de(cn, f["actividad_id"])
+                      if x.get("lap_idx") is not None}
         for s in p["series"]:
             s["material"] = [m for m in (s.get("material") or "").split(",") if m]
             # `laps` y `reps` se guardan como JSON de texto: el portal trabaja con listas.
             s["laps"] = json.loads(s.get("laps") or "[]")
             s["reps"] = json.loads(s.get("reps") or "[]")
+            # Las repeticiones que vio el reloj, no solo las que el atleta corrigio: un bloque juntado a mano
+            # guarda `reps` vacio, y sin esto el portal lo enseñaba con las filas en blanco.
+            s["reps_reloj"] = reps_del_reloj(s, laps_reloj)
+            dists = sorted({round(float(r.get("dist_m") or 0)) for r in s["reps_reloj"] if r.get("dist_m")})
+            s["avisos"] = ([f"el reloj cuenta distinta distancia en las repeticiones "
+                            f"({dists[0]:.0f}-{dists[-1]:.0f} m): si una vuelta se quedo sin contar, corrige la "
+                            "distancia de esa repeticion"] if len(dists) > 1 else [])
             # La forma del bloque se mide de sus repeticiones al leerlo: no se guarda (sale de los tiempos y
             # cambiaria con el margen aprendido), asi que un parte viejo tambien la ensena.
-            evidencia = forma_del_grupo(s["reps"], cn, p["actividad_id"])
+            evidencia = forma_del_grupo(s["reps_reloj"], cn, p["actividad_id"])
             s["concepto"] = evidencia.get("concepto")
             s["concepto_evidencia"] = evidencia
         salida.append(p)
@@ -649,6 +663,60 @@ def resumen(cn: sqlite3.Connection) -> dict:
     }
 
 
+def reps_del_reloj(s: dict, por_lap: dict) -> list[dict]:
+    """Las repeticiones de un bloque guardado, sacadas de los laps del reloj.
+
+    Un parte guarda de cada bloque los indices de sus laps y, aparte, solo las repeticiones que el atleta
+    corrigio. En los bloques que se juntaron a mano (o en los partes viejos) ese JSON va vacio, y hasta ahora
+    el bloque se leia con sus filas en blanco y con los metros del parte, que no eran la suma de nada: un
+    bloque de tres repeticiones decia 300 m cuando sus laps sumaban 275. Los laps del reloj no cambian, asi
+    que de ahi salen la distancia y el tiempo de cada una; lo que el atleta apunto manda sobre el reloj.
+    """
+    crudo = s.get("reps")
+    if isinstance(crudo, str):
+        crudo = json.loads(crudo or "[]")
+    crudo = crudo or []
+    apuntados = {}
+    for r in crudo:
+        if isinstance(r, dict) and _numero(r.get("lap")) is not None:
+            apuntados[int(_numero(r.get("lap")))] = r
+    reps = []
+    sus_laps = s.get("laps")
+    if isinstance(sus_laps, str):
+        sus_laps = json.loads(sus_laps or "[]")
+    for i in [int(_numero(x)) for x in (sus_laps or []) if _numero(x) is not None]:
+        lap = por_lap.get(i)
+        if not lap:
+            continue
+        suyo = apuntados.get(i) or {}
+        dist = float(lap.get("dist_m") or 0)
+        tiempo = float(lap.get("timer_s") or 0)
+        if _numero(suyo.get("dist_m")):
+            dist = float(_numero(suyo.get("dist_m")))
+        if _numero(suyo.get("tiempo_s")):
+            tiempo = float(_numero(suyo.get("tiempo_s")))
+        ritmo = _ritmo(dist, tiempo)
+        reps.append({
+            "lap_idx": i, "dist_m": dist, "tiempo_s": tiempo, "timer_s": float(lap.get("timer_s") or 0),
+            "ritmo_100": ritmo, "brazadas": lap.get("brazadas"), "fc_media": lap.get("fc_media"),
+            "estilo": lap.get("estilo"), "swolf": _swolf(lap), "swolf_apuntado": suyo.get("swolf"),
+            "revisar": ritmo is None or not (RITMO_MIN <= ritmo <= RITMO_MAX),
+            "intensidad": suyo.get("intensidad"), "material_apuntado": suyo.get("material"),
+        })
+    # Las repeticiones que el atleta añadio a mano no tienen lap: van al final, con lo que escribio.
+    for r in crudo:
+        if not isinstance(r, dict) or _numero(r.get("lap")) is not None:
+            continue
+        seg = _numero(r.get("tiempo_s"))
+        dist = _numero(r.get("dist_m"))
+        reps.append({"lap_idx": None, "dist_m": dist, "tiempo_s": seg,
+                     "timer_s": seg, "ritmo_100": _ritmo(dist, seg) if (dist and seg) else None,
+                     "brazadas": None, "fc_media": None, "estilo": None, "swolf": None,
+                     "swolf_apuntado": r.get("swolf"), "revisar": False,
+                     "intensidad": r.get("intensidad"), "material_apuntado": r.get("material")})
+    return reps
+
+
 def _grupos_guardados(cn: sqlite3.Connection, parte_id: int, laps: list[dict]) -> list[dict]:
     """Los grupos de un parte ya subido, en la forma que el portal usa para el desglose de una sesion.
 
@@ -660,33 +728,24 @@ def _grupos_guardados(cn: sqlite3.Connection, parte_id: int, laps: list[dict]) -
     fuera = []
     for f in cn.execute("SELECT * FROM parte_serie WHERE parte_id = ? ORDER BY orden, id", (parte_id,)):
         s = dict(f)
-        reps = []
-        for r in json.loads(s.get("reps") or "[]"):
-            if not isinstance(r, dict):
-                continue
-            fila = {"lap_idx": None, "dist_m": r.get("dist_m"), "tiempo_s": r.get("tiempo_s"), "timer_s": None,
-                    "ritmo_100": None, "brazadas": None, "fc_media": None, "estilo": None,
-                    "swolf": r.get("swolf"), "revisar": False,
-                    "intensidad": r.get("intensidad"), "material_apuntado": r.get("material")}
-            lap = por_lap.get(int(_numero(r["lap"]))) if r.get("lap") is not None else None
-            if lap:
-                fila["lap_idx"] = int(_numero(r["lap"]))
-                fila["timer_s"] = lap.get("timer_s")
-                fila["brazadas"] = lap.get("brazadas")
-                fila["fc_media"] = lap.get("fc_media")
-                fila["estilo"] = lap.get("estilo")
-                fila["swolf"] = fila["swolf"] or _swolf(lap)
-                if fila["dist_m"] is None:
-                    fila["dist_m"] = lap.get("dist_m")
-                fila["ritmo_100"] = _ritmo(fila["dist_m"], fila["tiempo_s"] or fila["timer_s"])
-            reps.append(fila)
+        reps = reps_del_reloj(s, por_lap)
+        # Los numeros del parte mandan: son su palabra y ya estan corregidos si hacian falta. Lo que se rellena
+        # son las repeticiones que el parte no guardo (los bloques juntados a mano), para que el desglose no
+        # salga con las filas en blanco. Si sus vueltas no son todas iguales, se avisa: puede faltar un largo.
+        avisos = []
+        distancias = sorted({round(float(r.get("dist_m") or 0)) for r in reps if r.get("dist_m")})
+        if len(distancias) > 1:
+            avisos.append(
+                f"el reloj cuenta distinta distancia en las repeticiones ({distancias[0]:.0f}-{distancias[-1]:.0f} m): "
+                "si una vuelta se quedo sin contar, corrige la distancia de esa repeticion")
         fuera.append({
-            "orden": s.get("orden"), "tipo": s.get("tipo"), "rep_m": s.get("rep_m"), "n_reps": s.get("n_reps"),
+            "orden": s.get("orden"), "tipo": s.get("tipo"), "rep_m": s.get("rep_m"),
+            "n_reps": s.get("n_reps") or len(reps),
             "metros": s.get("metros"), "tiempo_s": s.get("tiempo_s"), "ritmo_100": s.get("ritmo_100"),
             "descanso_s": s.get("descanso_s"), "cada_s": s.get("cada_s"), "estilo": s.get("estilo"),
             "intensidad": s.get("intensidad"),
             "material": [m for m in (s.get("material") or "").split(",") if m],
-            "nota": s.get("nota") or "", "avisos": [], "reps": reps,
+            "nota": s.get("nota") or "", "avisos": avisos, "reps": reps,
             # La prueba de medicion que marco el atleta en este bloque (vacia si no lo es).
             "prueba": s.get("prueba"),
             "laps": [int(_numero(x)) for x in json.loads(s.get("laps") or "[]") if _numero(x) is not None],
