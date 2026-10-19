@@ -380,6 +380,18 @@ def _conocimiento(cn, args) -> int:
     formato = getattr(args, "formato", None) or ("json" if getattr(args, "json", False) else "texto")
     ruta_toml = getattr(args, "ruta_toml", conocimiento_toml.RUTA_CONOCIMIENTO)
 
+    if getattr(args, "firmar", None):
+        try:
+            r = conocimiento_toml.firmar(ruta=ruta_toml, id_=args.firmar,
+                                         quien=args.quien or "entrenador", notas=args.notas or "")
+        except ValueError as exc:
+            print(f"No se puede firmar: {exc}")
+            return 1
+        if formato == "json":
+            print(_json.dumps(r, ensure_ascii=False, indent=2))
+        else:
+            print(f"{r['id']} firmado por {r['firmado_por']} el {r['firmado_en']}.")
+        return 0
     if getattr(args, "version", False):
         e = conocimiento_toml.estructura(ruta=ruta_toml)
         if formato == "json":
@@ -633,6 +645,8 @@ def main(argv: list[str] | None = None) -> int:
                      help="firma una seccion como revisada (T.4, T.8...): quien la ha mirado y cuando")
     pco.add_argument("--validar", action="store_true",
                      help="valida el TOML y el anexo Markdown (0 = sin errores)")
+    pco.add_argument("--firmar", default=None, metavar="ID",
+                     help="firma un criterio/parametro local (AF-101, PA-101...)")
     pco.add_argument("--estructura", action="store_true",
                      help="resumen del conocimiento TOML: version, ficheros y conteos")
     pco.add_argument("--version", action="store_true", help="version KV-* y hash canonico del TOML")

@@ -37,11 +37,11 @@ RUTA_ANEXO = os.path.join("informes", "T_base_de_conocimiento.md")
 # por `motor_version()` y nunca por la variable. Hoy solo existe `v1` (el motor actual); `v2` se activara
 # en F5. La bandera no cambia ningun comportamiento todavia (F0-04): deja preparada la vuelta atras.
 MOTOR_POR_DEFECTO = "v1"
-MOTORES = ("v1", "v2")
+MOTORES = ("v1", "v2", "dual")
 
 
 def motor_version() -> str:
-    """La version del motor de conocimiento activa (`MOTOR_CONOCIMIENTO=v1|v2`).
+    """La version del motor de conocimiento activa (`MOTOR_CONOCIMIENTO=v1|v2|dual`).
 
     Un valor desconocido o vacio cae a `v1`: la bandera no puede dejar el sistema sin motor. Es el unico
     punto donde se lee la variable de entorno (INV-08 del plan).

@@ -15,7 +15,21 @@ actuales, y el TOML se carga, valida, versiona y sincroniza sin cambiar el compo
 | `estimulos.toml` | `[[estimulo]]`: clases de entrenamiento y su coste (`ES-*`). |
 | `recetas.toml` | `[[receta]]`: sesiones con pasos, progresión y regresión (`RE-*`). |
 | `calendario.toml` | `[calendario]`: días del entrenador y días propios. |
-| `revisiones.toml` | `[[revision]]`: firmas y revisiones (`RV-*`), vacío en F2. |
+| `revisiones.toml` | `[[revision]]`: firmas y revisiones (`RV-*`). |
+| `local/` | Overlay privado: `estimulos.toml`, `reglas.toml`, `parametros.toml`, `recetas.toml`, `afirmaciones.toml` y `firmas.toml`. No se versiona. |
+
+## Conocimiento publico y local (F3-00)
+
+- **Publico (`conocimiento/`)**: evidencia, clases de estimulo, material, recetas relativas,
+  calendario y esquemas. Nada de datos del atleta.
+- **Local (`conocimiento/local/`, ignorado por git y guardado en `SwimTrainer-personal/conocimiento/local/`)**:
+  reglas derivadas del historial, reparto/minimos, textos con sus rangos, los criterios pendientes
+  de firma y las firmas (`firmas.toml`). Sustituye a la publica por `id`/`clave`; lo que solo esta en
+  local se anade.
+- `conocimiento_toml.cargar()` **mergea** publico + local. `KV-*` incluye ambos. Sin local, el motor
+  funciona solo con el publico y avisa (`sin_conocimiento_local`); no revienta.
+- `conocimiento --firmar AF-101 --quien entrenador` escribe la firma en
+  `conocimiento/local/firmas.toml` (nunca en el publico).
 
 ## Campos
 

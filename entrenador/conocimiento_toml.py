@@ -27,8 +27,8 @@ import re
 import sqlite3
 import tomllib
 from collections.abc import Mapping
-from dataclasses import dataclass, field
-from datetime import datetime
+from dataclasses import dataclass, field, replace
+from datetime import date, datetime
 from pathlib import Path
 from types import MappingProxyType
 
@@ -42,6 +42,7 @@ FICHEROS = (
     "recetas.toml",
     "calendario.toml",
     "revisiones.toml",
+    "firmas.toml",
 )
 RUTA_SALIDA = os.path.join("data", "derived", "conocimiento")
 ID_RE = re.compile(r"^(FU|AF|RG|PA|ES|RE)-\d{3}$")
@@ -171,6 +172,13 @@ class Regla:
     estado: str = "revisada"
     estimulo: str = ""
     notas: str = ""
+    legacy_id: str = ""
+    fuente: str = ""
+    se_comprueba: str = ""
+    grado: str = ""
+    seccion_t: tuple[str, ...] = ()
+    sin_fuente: tuple[str, ...] = ()
+    orden: int = 0
 
 
 @dataclass(frozen=True)
@@ -187,6 +195,20 @@ class Estimulo:
     afirmaciones: tuple[str, ...] = ()
     seccion_T: tuple[str, ...] = ()
     notas: str = ""
+    clave: str = ""
+    grado: str = ""
+    sin_fuente: tuple[str, ...] = ()
+    orden: int = 0
+
+
+@dataclass(frozen=True)
+class Material:
+    clave: str
+    nombre: str = ""
+    que_hace: str = ""
+    ayuda_s100: float | None = None
+    ojo: str = ""
+    orden: int = 0
 
 
 @dataclass(frozen=True)
@@ -220,10 +242,14 @@ class Receta:
     afirmaciones: tuple[str, ...] = ()
     pasos: tuple[RecetaPaso, ...] = ()
     notas: str = ""
+    clave: str = ""
+    rel_ritmo: tuple[float, ...] = ()
+    orden: int = 0
 
 
 @dataclass(frozen=True)
 class Calendario:
+    dias: tuple[str, ...] = ()
     dias_entrenador: tuple[str, ...] = ()
     dias_propios: tuple[str, ...] = ()
     dia_bici: str = ""
@@ -240,17 +266,23 @@ class Conocimiento:
     parametros: tuple[Parametro, ...] = ()
     reglas: tuple[Regla, ...] = ()
     estimulos: tuple[Estimulo, ...] = ()
+    materiales: tuple[Material, ...] = ()
     recetas: tuple[Receta, ...] = ()
     calendario: Calendario = field(default_factory=Calendario)
+    reparto_objetivo: dict = field(default_factory=dict)
+    minimos_obligatorios: dict = field(default_factory=dict)
+    receta_de_clase: dict = field(default_factory=dict)
     version: str = ""
     hash: str = ""
     ficheros: tuple[tuple[str, str], ...] = ()
     errores_carga: tuple[dict, ...] = ()
+    local: bool = False
+    firmas: dict = field(default_factory=dict)
 
     def hay_conocimiento(self) -> bool:
         return bool(self.fuentes or self.afirmaciones or self.parametros or self.reglas
-                    or self.estimulos or self.recetas or self.calendario.dias_entrenador
-                    or self.calendario.dias_propios)
+                    or self.estimulos or self.materiales or self.recetas
+                    or self.calendario.dias_entrenador or self.calendario.dias_propios)
 
 
 # --------------------------------------------------------------------------- carga
@@ -338,7 +370,10 @@ def _regla(d: dict) -> Regla:
         metrica_exito=_mapa(d.get("metrica_exito")),
         revisar_en_dias=_ent(d.get("revisar_en_dias")), confianza=_num(d.get("confianza")),
         estado=_s(d.get("estado")) or "revisada", estimulo=_s(d.get("estimulo")),
-        notas=_s(d.get("notas")),
+        notas=_s(d.get("notas")), legacy_id=_s(d.get("legacy_id")), fuente=_s(d.get("fuente")),
+        se_comprueba=_s(d.get("se_comprueba")), grado=_s(d.get("grado")),
+        seccion_t=_lista(d.get("seccion_t")), sin_fuente=_lista(d.get("sin_fuente")),
+        orden=_ent(d.get("orden")) or 0,
     )
 
 
@@ -349,6 +384,15 @@ def _estimulo(d: dict) -> Estimulo:
         coste=_s(d.get("coste")), papel_400=_s(d.get("papel_400")), papel_3000=_s(d.get("papel_3000")),
         senal=_s(d.get("senal")), afirmaciones=_lista(d.get("afirmaciones")),
         seccion_T=_lista(d.get("seccion_T")), notas=_s(d.get("notas")),
+        clave=_s(d.get("clave")), grado=_s(d.get("grado")),
+        sin_fuente=_lista(d.get("sin_fuente")), orden=_ent(d.get("orden")) or 0,
+    )
+
+
+def _material(d: dict) -> Material:
+    return Material(
+        clave=_s(d.get("clave")), nombre=_s(d.get("nombre")), que_hace=_s(d.get("que_hace")),
+        ayuda_s100=_num(d.get("ayuda_s100")), ojo=_s(d.get("ojo")), orden=_ent(d.get("orden")) or 0,
     )
 
 
@@ -370,53 +414,186 @@ def _receta(d: dict) -> Receta:
         salida_s=_num(d.get("salida_s")), desde_dia=_s(d.get("desde_dia")), porque=_s(d.get("porque")),
         progresion=_s(d.get("progresion")), regresion=_s(d.get("regresion")),
         estimulo=_s(d.get("estimulo")), afirmaciones=_lista(d.get("afirmaciones")),
-        pasos=pasos, notas=_s(d.get("notas")),
+        pasos=pasos, notas=_s(d.get("notas")), clave=_s(d.get("clave")),
+        rel_ritmo=tuple(_num(x) or 0.0 for x in (d.get("rel_ritmo") or [])),
+        orden=_ent(d.get("orden")) or 0,
     )
 
 
 def _calendario(d: dict) -> Calendario:
     d = _mapa(d)
     return Calendario(
+        dias=_lista(d.get("dias")),
         dias_entrenador=_lista(d.get("dias_entrenador")), dias_propios=_lista(d.get("dias_propios")),
         dia_bici=_s(d.get("dia_bici")), dias_calidad=_lista(d.get("dias_calidad")),
         dias_largos=_lista(d.get("dias_largos")), duro_h=_num(d.get("duro_h")), notas=_s(d.get("notas")),
     )
 
 
-def cargar(ruta: str = RUTA_CONOCIMIENTO) -> Conocimiento:
-    """Lee `conocimiento/*.toml` y devuelve el conocimiento como dataclasses inmutables.
+def _fusionar(entidades_publicas, entidades_locales):
+    """Merge por id: la local sustituye a la publica y las nuevas se anaden al final."""
+    por_id = {x.id: x for x in entidades_publicas}
+    orden = [x.id for x in entidades_publicas]
+    for x in entidades_locales:
+        if x.id not in por_id:
+            orden.append(x.id)
+        por_id[x.id] = x
+    return tuple(por_id[i] for i in orden)
 
-    No escribe nada y no toca la base de datos. Si la carpeta no existe o esta vacia, devuelve un
-    `Conocimiento` vacio con `version=""`; el validador lo rechaza (`sin_conocimiento`).
+
+def _fusionar_clave(publicas, locales):
+    por_clave = {x.clave: x for x in publicas}
+    orden = [x.clave for x in publicas]
+    for x in locales:
+        if x.clave not in por_clave:
+            orden.append(x.clave)
+        por_clave[x.clave] = x
+    return tuple(por_clave[k] for k in orden)
+
+
+def _fusionar_calendario(pub: Calendario, loc: Calendario) -> Calendario:
+    return Calendario(
+        dias=loc.dias or pub.dias,
+        dias_entrenador=loc.dias_entrenador or pub.dias_entrenador,
+        dias_propios=loc.dias_propios or pub.dias_propios,
+        dia_bici=loc.dia_bici or pub.dia_bici,
+        dias_calidad=loc.dias_calidad or pub.dias_calidad,
+        dias_largos=loc.dias_largos or pub.dias_largos,
+        duro_h=loc.duro_h if loc.duro_h is not None else pub.duro_h,
+        notas=loc.notas or pub.notas,
+    )
+
+
+def _fusionar_mapas(pub: dict | None, loc: dict | None) -> dict:
+    fuera = dict(pub or {})
+    fuera.update(loc or {})
+    return fuera
+
+
+def _leer_firmas(crudos_local: dict) -> dict:
+    """Firmas locales: `[[firma]] id=... firmado_por=... firmado_en=... notas=...`."""
+    fuera: dict[str, dict] = {}
+    for f in (crudos_local.get("firmas.toml", {}).get("firma") or []):
+        if not isinstance(f, dict):
+            continue
+        id_ = _s(f.get("id"))
+        if id_:
+            fuera[id_] = {"firmado_por": _s(f.get("firmado_por")),
+                          "firmado_en": _s(f.get("firmado_en")), "notas": _s(f.get("notas"))}
+    return fuera
+
+
+def _aplicar_firmas(entidades, firmas: dict):
+    fuera = []
+    for x in entidades:
+        f = firmas.get(x.id)
+        if f and (f.get("firmado_por") or f.get("firmado_en")):
+            x = replace(x, firmado_por=f.get("firmado_por") or getattr(x, "firmado_por", ""),
+                        firmado_en=f.get("firmado_en") or getattr(x, "firmado_en", ""))
+        fuera.append(x)
+    return tuple(fuera)
+
+
+def _escribir_firmas(ruta: Path, firmas: dict) -> None:
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    lineas = ["# Firmas locales (privadas). Generado por `conocimiento --firmar`.", ""]
+    for id_ in sorted(firmas):
+        f = firmas[id_]
+        lineas += ["[[firma]]", f'id = {json.dumps(id_, ensure_ascii=False)}',
+                   f'firmado_por = {json.dumps(_s(f.get("firmado_por")), ensure_ascii=False)}',
+                   f'firmado_en = {json.dumps(_s(f.get("firmado_en")), ensure_ascii=False)}',
+                   f'notas = {json.dumps(_s(f.get("notas")), ensure_ascii=False)}', ""]
+    ruta.write_text("\n".join(lineas), encoding="utf-8")
+
+
+def firmar(ruta: str = RUTA_CONOCIMIENTO, id_: str | None = None, quien: str = "entrenador",
+           fecha: str | None = None, notas: str = "") -> dict:
+    """Firma un criterio/parametro local en `conocimiento/local/firmas.toml` (sin tocar el publico)."""
+    if not id_:
+        raise ValueError("falta el id que se firma")
+    c = cargar(ruta)
+    conocidos = ({a.id for a in c.afirmaciones} | {p.id for p in c.parametros}
+                 | {r.id for r in c.reglas} | {e.id for e in c.estimulos} | {r.id for r in c.recetas})
+    if id_ not in conocidos:
+        raise ValueError(f"no existe {id_} en el conocimiento")
+    firmas = dict(c.firmas)
+    firmas[id_] = {"firmado_por": _s(quien) or "entrenador",
+                   "firmado_en": _s(fecha) or date.today().isoformat(), "notas": _s(notas)}
+    _escribir_firmas(Path(ruta) / "local" / "firmas.toml", firmas)
+    return {"id": id_, **firmas[id_]}
+
+
+def cargar(ruta: str = RUTA_CONOCIMIENTO) -> Conocimiento:
+    """Lee `conocimiento/*.toml` y, si existe, `conocimiento/local/*.toml` (overlay privado).
+
+    No escribe nada y no toca la base de datos. La local sustituye por id/clave a la publica; lo que
+    solo esta en la local se anade. Si no hay local, el conocimiento publico sigue siendo valido y el
+    validador avisa (`sin_conocimiento_local`). Si un fichero no existe se trata como vacio; si un
+    fichero existe pero no se puede leer o tiene sintaxis rota, se guarda en `errores_carga` y el
+    validador falla cerrado (`toml_ilegible` / `toml_invalido`).
     """
     base = Path(ruta)
     errores_carga: list[dict] = []
-    crudos: dict[str, dict] = {nombre: _leer_toml(base, nombre, errores_carga) for nombre in FICHEROS}
-    canonico = _json_canonico(crudos)
+    publico: dict[str, dict] = {nombre: _leer_toml(base, nombre, errores_carga) for nombre in FICHEROS}
+    local: dict[str, dict] = {nombre: _leer_toml(base, f"local/{nombre}", errores_carga)
+                              for nombre in FICHEROS}
+    local_presente = any((base / "local" / nombre).is_file() for nombre in FICHEROS)
+    firmas = _leer_firmas(local)
+    canonico = _json_canonico({"publico": publico, "local": local})
     hash_ = _sha256_texto(canonico)
-    hay = any(bool(v) for v in crudos.values()) and not errores_carga
-    ficheros = tuple(sorted((nombre, _sha256_fichero(base / nombre))
-                            for nombre in FICHEROS if (base / nombre).is_file()))
+    hay = (any(bool(v) for v in publico.values()) or any(bool(v) for v in local.values())) and not errores_carga
+    ficheros = tuple(sorted(
+        [(nombre, _sha256_fichero(base / nombre)) for nombre in FICHEROS if (base / nombre).is_file()]
+        + [(f"local/{nombre}", _sha256_fichero(base / "local" / nombre))
+           for nombre in FICHEROS if (base / "local" / nombre).is_file()]))
+
+    def lista(crudos: dict, fichero: str, clave: str):
+        return [x for x in (crudos.get(fichero, {}).get(clave) or []) if isinstance(x, dict)]
+
+    def parsear(fn, fichero, clave):
+        return tuple(fn(x) for x in lista(publico, fichero, clave))
+
+    def parsear_local(fn, fichero, clave):
+        return tuple(fn(x) for x in lista(local, fichero, clave))
+
+    calendario = _fusionar_calendario(
+        _calendario(publico.get("calendario.toml", {}).get("calendario") or {}),
+        _calendario(local.get("calendario.toml", {}).get("calendario") or {}),
+    )
+    reparto = _fusionar_mapas(publico.get("reglas.toml", {}).get("reparto_objetivo"),
+                              local.get("reglas.toml", {}).get("reparto_objetivo"))
+    minimos = _fusionar_mapas(publico.get("reglas.toml", {}).get("minimos_obligatorios"),
+                              local.get("reglas.toml", {}).get("minimos_obligatorios"))
+    receta_de_clase = _fusionar_mapas(publico.get("recetas.toml", {}).get("receta_de_clase"),
+                                      local.get("recetas.toml", {}).get("receta_de_clase"))
     return Conocimiento(
-        fuentes=tuple(_fuente(x) for x in (crudos.get("fuentes.toml", {}).get("fuente") or [])
-                      if isinstance(x, dict)),
-        afirmaciones=tuple(_afirmacion(x) for x in (crudos.get("afirmaciones.toml", {}).get("afirmacion") or [])
-                           if isinstance(x, dict)),
-        parametros=tuple(_parametro(x) for x in (crudos.get("parametros.toml", {}).get("parametro") or [])
-                         if isinstance(x, dict)),
-        reglas=tuple(_regla(x) for x in (crudos.get("reglas.toml", {}).get("regla") or [])
-                     if isinstance(x, dict)),
-        estimulos=tuple(_estimulo(x) for x in (crudos.get("estimulos.toml", {}).get("estimulo") or [])
-                        if isinstance(x, dict)),
-        recetas=tuple(_receta(x) for x in (crudos.get("recetas.toml", {}).get("receta") or [])
-                      if isinstance(x, dict)),
-        calendario=_calendario(crudos.get("calendario.toml", {}).get("calendario") or {}),
+        fuentes=_fusionar(parsear(_fuente, "fuentes.toml", "fuente"),
+                          parsear_local(_fuente, "fuentes.toml", "fuente")),
+        afirmaciones=_aplicar_firmas(_fusionar(parsear(_afirmacion, "afirmaciones.toml", "afirmacion"),
+                                                parsear_local(_afirmacion, "afirmaciones.toml", "afirmacion")),
+                                     firmas),
+        parametros=_aplicar_firmas(_fusionar(parsear(_parametro, "parametros.toml", "parametro"),
+                                            parsear_local(_parametro, "parametros.toml", "parametro")),
+                                   firmas),
+        reglas=_fusionar(parsear(_regla, "reglas.toml", "regla"),
+                         parsear_local(_regla, "reglas.toml", "regla")),
+        estimulos=_fusionar(parsear(_estimulo, "estimulos.toml", "estimulo"),
+                            parsear_local(_estimulo, "estimulos.toml", "estimulo")),
+        materiales=_fusionar_clave(parsear(_material, "estimulos.toml", "material"),
+                                   parsear_local(_material, "estimulos.toml", "material")),
+        recetas=_fusionar(parsear(_receta, "recetas.toml", "receta"),
+                          parsear_local(_receta, "recetas.toml", "receta")),
+        calendario=calendario,
+        reparto_objetivo=reparto,
+        minimos_obligatorios=minimos,
+        receta_de_clase=receta_de_clase,
         version=(f"KV-{hash_[:16]}" if hay else ""),
         hash=(hash_ if hay else ""),
         ficheros=ficheros,
         errores_carga=tuple(errores_carga),
+        local=local_presente,
+        firmas=firmas,
     )
-
 
 def version(ruta: str = RUTA_CONOCIMIENTO) -> str:
     return cargar(ruta).version
@@ -431,6 +608,7 @@ def estructura(c: Conocimiento | None = None, ruta: str = RUTA_CONOCIMIENTO) -> 
         "ficheros": [{"nombre": n, "sha256": h} for n, h in c.ficheros],
         "conteos": _conteos(c),
         "errores_carga": list(c.errores_carga),
+        "local": c.local,
     }
 
 
@@ -441,6 +619,7 @@ def _conteos(c: Conocimiento) -> dict:
         "parametros": len(c.parametros),
         "reglas": len(c.reglas),
         "estimulos": len(c.estimulos),
+        "materiales": len(c.materiales),
         "recetas": len(c.recetas),
         "pasos": sum(len(r.pasos) for r in c.recetas),
         "calendario": bool(c.calendario.dias_entrenador or c.calendario.dias_propios),
@@ -500,6 +679,9 @@ def validar(c: Conocimiento | None = None, ruta: str = RUTA_CONOCIMIENTO) -> dic
     errores: list[dict] = []
     avisos: list[dict] = []
     errores.extend(c.errores_carga)
+    if not c.local:
+        _aviso(avisos, "sin_conocimiento_local",
+               "no hay conocimiento/local: se usa solo el conocimiento publico")
     if not c.hay_conocimiento():
         _error(errores, "sin_conocimiento", f"no hay conocimiento en {ruta} (faltan los TOML o estan vacios)")
         return {"ok": False, "errores": errores, "avisos": avisos, "version": "", "hash": "",
@@ -511,6 +693,12 @@ def validar(c: Conocimiento | None = None, ruta: str = RUTA_CONOCIMIENTO) -> dic
     reglas = {r.id: r for r in c.reglas}
     estimulos = {e.id: e for e in c.estimulos}
     recetas = {r.id: r for r in c.recetas}
+
+    conocidos = (set(fuentes) | set(afirmaciones) | set(parametros) | set(reglas)
+                 | set(estimulos) | set(recetas))
+    for fid in c.firmas:
+        if fid not in conocidos:
+            _aviso(avisos, "firma_huerfana", f"hay una firma para {fid}, que no existe", id=fid)
 
     # IDs: formato y duplicados.
     for tipo, entidades in (("fuente", c.fuentes), ("afirmacion", c.afirmaciones),

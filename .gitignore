@@ -33,6 +33,9 @@ entrenador/perfil_local.py
 # El plan personal (objetivos, marcas, fechas, semanas y decisiones): lo lee entrenador/plan.py desde aqui
 entrenador/plan_local.py
 
+# Overlay privado del conocimiento (reglas, criterios y textos del atleta)
+conocimiento/local/
+
 # Despliegue en Docker: la contrasenia del panel y el token de Garmin no se suben
 .env
 .garminconnect/
