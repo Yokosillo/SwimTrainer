@@ -28,8 +28,10 @@ import hashlib
 import json
 import sqlite3
 import statistics as st
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import date, timedelta
+from types import MappingProxyType
 
 from . import db
 
@@ -40,6 +42,14 @@ REGLA_CONFIANZA = (
 )
 
 # Umbrales de la regla, por familia de metrica. Estan aqui para poder auditarlos.
+FORMULAS_CARGA = {
+    "aguda_7d": "suma de minutos de las sesiones con fecha en [fecha-6, fecha]",
+    "cronica_28d": "suma de minutos en [fecha-27, fecha] / 4",
+    "ratio_carga": "aguda_7d / cronica_28d (si cronica_28d > 0)",
+    "monotonia_7d": "media(minutos diarios de los 7 dias) / desviacion_tipica_poblacional(esos 7 dias)",
+    "strain_7d": "aguda_7d * monotonia_7d",
+}
+
 UMBRALES = {
     "marcas": (4, 8),       # (media, alta)
     "carga": (8, 20),
@@ -49,6 +59,28 @@ UMBRALES = {
     "respuesta": (5, 15),
     "general": (5, 12),
 }
+
+
+def _congelar(valor):
+    """Copia profunda e inmutable: dict -> MappingProxyType, lista -> tupla, conjunto -> frozenset."""
+    if isinstance(valor, Mapping):
+        return MappingProxyType({str(k): _congelar(v) for k, v in valor.items()})
+    if isinstance(valor, (list, tuple)):
+        return tuple(_congelar(v) for v in valor)
+    if isinstance(valor, (set, frozenset)):
+        return frozenset(_congelar(v) for v in valor)
+    return valor
+
+
+def _descongelar(valor):
+    """Vuelve a dict/list para serializar el snapshot sin perder la copia inmutable interna."""
+    if isinstance(valor, Mapping):
+        return {str(k): _descongelar(v) for k, v in valor.items()}
+    if isinstance(valor, tuple):
+        return [_descongelar(v) for v in valor]
+    if isinstance(valor, frozenset):
+        return [_descongelar(v) for v in sorted(valor, key=repr)]
+    return valor
 
 
 @dataclass(frozen=True)
@@ -63,7 +95,12 @@ class Metrica:
     fuente: tuple[str, ...] = ()
     limitaciones: tuple[str, ...] = ()
     estado: str = "sin_datos"
-    detalle: dict = field(default_factory=dict)
+    detalle: Mapping = field(default_factory=lambda: MappingProxyType({}))
+
+    def __post_init__(self):
+        object.__setattr__(self, "fuente", tuple(self.fuente or ()))
+        object.__setattr__(self, "limitaciones", tuple(self.limitaciones or ()))
+        object.__setattr__(self, "detalle", _congelar(self.detalle or {}))
 
     def a_dict(self) -> dict:
         return {
@@ -71,7 +108,7 @@ class Metrica:
             "unidad": self.unidad, "n": self.n, "dispersion": self.dispersion,
             "confianza": self.confianza, "fuente": list(self.fuente),
             "limitaciones": list(self.limitaciones), "estado": self.estado,
-            "detalle": dict(self.detalle),
+            "detalle": _descongelar(self.detalle),
         }
 
 
@@ -98,6 +135,8 @@ class EstadoAtleta:
     generado_en: str = ""
     estado_id: str = ""
     hash: str = ""
+    knowledge_hash: str = ""
+    state_hash: str = ""
     regla_confianza: str = REGLA_CONFIANZA
 
     def a_dict(self, incluir_generado: bool = True) -> dict:
@@ -106,8 +145,11 @@ class EstadoAtleta:
             "fecha": self.fecha,
             "version_conocimiento": self.version_conocimiento,
             "version_hash": self.version_hash,
+            "knowledge_hash": self.knowledge_hash,
+            "state_hash": self.state_hash,
             "hash": self.hash,
             "regla_confianza": self.regla_confianza,
+            "formulas_carga": dict(FORMULAS_CARGA),
             "secciones": [s.a_dict() for s in self.secciones],
             "avisos": list(self.avisos),
             "fuentes": list(self.fuentes),
@@ -121,7 +163,8 @@ class EstadoAtleta:
     def texto(self) -> str:
         lineas = [
             f"ESTADO DEL ATLETA · {self.fecha} · {self.estado_id}",
-            f"Conocimiento: {self.version_conocimiento or 'sin version'}",
+            f"Conocimiento: {self.version_conocimiento or 'sin version'} (knowledge {self.knowledge_hash[:16]})",
+            f"Snapshot: {self.estado_id} (state {self.state_hash[:16]}; version {self.version_hash[:16]})",
             f"Regla de confianza: {self.regla_confianza}",
             "",
         ]
@@ -195,7 +238,7 @@ def _metrica(clave: str, etiqueta: str, valor=None, unidad: str = "", n: int = 0
             lims = ["No hay observaciones suficientes en la ventana."]
         return Metrica(clave=clave, etiqueta=etiqueta, valor=None, unidad=unidad, n=0,
                        dispersion=None, confianza="baja", fuente=tuple(fuente),
-                       limitaciones=tuple(lims), estado="sin_datos", detalle=dict(detalle or {}))
+                       limitaciones=tuple(lims), estado="sin_datos", detalle=_congelar(detalle or {}))
     conf = confianza or _confianza(n, familia)
     if conf == "baja" and not lims:
         lims = [f"n={n}: base pequeña, orientativo, no concluyente."]
@@ -203,7 +246,7 @@ def _metrica(clave: str, etiqueta: str, valor=None, unidad: str = "", n: int = 0
         estado = "parcial" if conf == "baja" else "ok"
     return Metrica(clave=clave, etiqueta=etiqueta, valor=valor, unidad=unidad, n=int(n),
                    dispersion=dispersion, confianza=conf, fuente=tuple(fuente),
-                   limitaciones=tuple(lims), estado=estado, detalle=dict(detalle or {}))
+                   limitaciones=tuple(lims), estado=estado, detalle=_congelar(detalle or {}))
 
 
 def _rango(fecha: str, dias: int) -> tuple[str, str]:
@@ -408,8 +451,10 @@ def _carga(cn: sqlite3.Connection, fecha: str) -> SeccionEstado:
     ses7, ses28 = len(ev7), len(ev28)
     aguda, cronica = total7, total28 / 4.0
     ratio = (aguda / cronica) if cronica > 0 else None
-    media28, sd28 = (st.mean(mins28), st.pstdev(mins28)) if mins28 else (None, None)
-    monotonia = (media28 / sd28) if (media28 and sd28) else None
+    media7, sd7 = (st.mean(mins7), st.pstdev(mins7)) if mins7 else (None, None)
+    # Monotonia 7 d: media diaria / desviacion tipica poblacional de esos mismos 7 dias.
+    monotonia = (media7 / sd7) if (media7 and sd7) else None
+    # Strain 7 d: carga aguda de la misma ventana por la monotonia de 7 d.
     strain = (total7 * monotonia) if monotonia is not None else None
     # Racha: dias seguidos con carga hasta el ultimo dia que se entreno (no se convierte un descanso en 0).
     ultimo_entreno = max((d for d, v in dias28.items() if v.get("min", 0) > 0 and d <= fecha), default=None)
@@ -438,24 +483,30 @@ def _carga(cn: sqlite3.Connection, fecha: str) -> SeccionEstado:
     metricas = [
         _metrica("carga_aguda_7d", "Carga aguda (7 d)", round(aguda, 1), "min", ses7,
                  _dispersion(mins7), fuente=_fuentes("actividad", "natacion_sesion", "apunte"),
-                 limitaciones=lims, familia="carga", detalle={"dias_con_carga": sum(1 for x in mins7 if x > 0)}),
+                 limitaciones=lims, familia="carga",
+                 detalle={"dias_con_carga": sum(1 for x in mins7 if x > 0),
+                          "formula": FORMULAS_CARGA["aguda_7d"]}),
         _metrica("carga_cronica_28d", "Carga cronica (media semanal 28 d)", round(cronica, 1), "min/sem",
                  ses28, _dispersion(mins28), fuente=_fuentes("actividad", "natacion_sesion", "apunte"),
-                 limitaciones=lims, familia="carga", detalle={"total_28d_min": round(total28, 1)}),
+                 limitaciones=lims, familia="carga",
+                 detalle={"total_28d_min": round(total28, 1),
+                          "formula": FORMULAS_CARGA["cronica_28d"]}),
         _metrica("ratio_carga", "Ratio aguda/cronica", round(ratio, 2) if ratio is not None else None, "x",
                  min(ses28, 28), None, fuente=_fuentes("actividad", "apunte"),
                  limitaciones=lims if ratio is not None else ("No hay carga cronica: no se puede calcular.",),
-                 familia="carga", detalle={"aguda_min": round(aguda, 1), "cronica_min": round(cronica, 1)}),
+                 familia="carga", detalle={"aguda_min": round(aguda, 1), "cronica_min": round(cronica, 1),
+                                            "formula": FORMULAS_CARGA["ratio_carga"]}),
         _metrica("monotonia", "Monotonia (7 d)", round(monotonia, 2) if monotonia is not None else None, "x",
                  7 if monotonia is not None else 0, None, fuente=_fuentes("actividad", "apunte"),
                  limitaciones=lims + (["Sin variacion diaria: la monotonia no esta definida."]
                                       if monotonia is None else []),
-                 familia="carga", detalle={"media_diaria_min": round(media28, 1) if media28 else None,
-                                            "sd_diaria_min": round(sd28, 1) if sd28 else None}),
+                 familia="carga", detalle={"media_diaria_7d_min": round(media7, 2) if media7 else None,
+                                            "sd_diaria_7d_min": round(sd7, 2) if sd7 else None,
+                                            "formula": FORMULAS_CARGA["monotonia_7d"]}),
         _metrica("strain", "Strain (7 d)", round(strain, 1) if strain is not None else None, "UA",
                  7 if strain is not None else 0, None, fuente=_fuentes("actividad", "apunte"),
                  limitaciones=lims + (["Sin monotonia no se puede calcular el strain."] if strain is None else []),
-                 familia="carga"),
+                 familia="carga", detalle={"formula": FORMULAS_CARGA["strain_7d"]}),
         _metrica("dias_consecutivos", "Dias consecutivos entrenando", racha, "dias", racha, None,
                  fuente=_fuentes("actividad", "apunte"),
                  limitaciones=("Cuenta la racha hasta el ultimo dia con sesion; si la fecha es de descanso no se "
@@ -754,6 +805,13 @@ def _adherencia(cn: sqlite3.Connection, fecha: str) -> SeccionEstado:
 
 # --------------------------------------------------------------------------- respuesta por estimulo
 
+def _piscina(valor):
+    try:
+        return int(round(float(valor))) if valor not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
+
+
 def _respuesta(cn: sqlite3.Connection, fecha: str) -> SeccionEstado:
     desde, hasta = _rango(fecha, 90)
     filas = [dict(f) for f in cn.execute(
@@ -763,8 +821,7 @@ def _respuesta(cn: sqlite3.Connection, fecha: str) -> SeccionEstado:
            LEFT JOIN natacion_sesion ns ON ns.actividad_id = p.actividad_id
            WHERE p.fecha BETWEEN ? AND ? AND ps.intensidad IS NOT NULL
              AND trim(ps.intensidad) <> ''""", (desde, hasta))]
-    grupos: dict[str, list[dict]] = {}
-    todos_ritmos = []
+    grupos: dict[tuple[str, int | None], list[dict]] = {}
     for f in filas:
         ritmo = f["ritmo_100"]
         if ritmo is None and f["tiempo_s"] and f["metros"]:
@@ -772,47 +829,81 @@ def _respuesta(cn: sqlite3.Connection, fecha: str) -> SeccionEstado:
         if not ritmo:
             continue
         f["ritmo"] = float(ritmo)
-        clase = str(f["intensidad"]).strip().lower()
-        grupos.setdefault(clase, []).append(f)
-        todos_ritmos.append(f["ritmo"])
+        f["piscina"] = _piscina(f.get("piscina_m"))
+        f["clase"] = str(f["intensidad"]).strip().lower()
+        grupos.setdefault((f["clase"], f["piscina"]), []).append(f)
     if not grupos:
         return _seccion("respuesta", "Respuesta por estimulo", (
             _metrica("respuesta", "Respuesta por clase de estimulo", None, "s/100", 0,
                      fuente=_fuentes("parte_serie", "parte", "natacion_sesion"),
                      limitaciones=("No hay clases de estimulo con ritmo en los partes de los ultimos 90 dias.",)),
         ), ("No se declara causalidad: sin partes y sin repetir la misma clase no hay respuesta que medir.",))
-    global_ritmo = float(st.median(todos_ritmos))
-    global_fc = _media([f["fc_media"] for f in filas if f.get("fc_media") is not None])
-    global_rpe = _media([float(f["rpe"]) / 10.0 for f in filas if f.get("rpe") is not None])
+    # La referencia es la mediana de la MISMA piscina: un 25 y un 50 no son comparables.
+    ritmos_pool: dict[int | None, list[float]] = {}
+    for f in filas:
+        ritmo = f.get("ritmo")
+        if ritmo:
+            ritmos_pool.setdefault(_piscina(f.get("piscina_m")), []).append(float(ritmo))
+    fc_pool: dict[int | None, list[float]] = {}
+    rpe_pool: dict[int | None, list[float]] = {}
+    for f in filas:
+        p = _piscina(f.get("piscina_m"))
+        if f.get("fc_media") is not None:
+            fc_pool.setdefault(p, []).append(float(f["fc_media"]))
+        if f.get("rpe") is not None:
+            rpe_pool.setdefault(p, []).append(float(f["rpe"]) / 10.0)
+    clases_pool: dict[str, set] = {}
+    for (clase, piscina) in grupos:
+        clases_pool.setdefault(clase, set()).add(piscina)
     etiquetas = {"cal": "Calentamiento", "ae1": "Aerobico 1", "ae2": "Aerobico 2",
                  "ae3": "Aerobico 3", "sp": "Velocidad / potencia", "pies": "Pies"}
     metricas = []
-    for clase in sorted(grupos):
-        g = grupos[clase]
+    for (clase, piscina) in sorted(grupos, key=lambda x: (x[0], x[1] if x[1] is not None else -1)):
+        g = grupos[(clase, piscina)]
         ritmos = [x["ritmo"] for x in g]
         mediana = float(st.median(ritmos))
-        delta = mediana - global_ritmo
+        base = float(st.median(ritmos_pool[piscina])) if ritmos_pool.get(piscina) else mediana
+        delta = mediana - base
         fcs = [float(x["fc_media"]) for x in g if x.get("fc_media") is not None]
         rpes = [float(x["rpe"]) / 10.0 for x in g if x.get("rpe") is not None]
+        base_fc = _media(fc_pool.get(piscina))
+        base_rpe = _media(rpe_pool.get(piscina))
         materiales = sorted({m.strip() for x in g for m in (x.get("material") or "").split(",") if m.strip()})
-        lims = ["Delta frente a la mediana de todas las clases; no es un efecto causal.",
+        varias = len(clases_pool.get(clase, set())) > 1
+        sufijo = f"_{piscina}m" if piscina is not None else "_sin_piscina"
+        clave = f"respuesta_{clase}" + (sufijo if varias else "")
+        etiqueta = f"Respuesta {etiquetas.get(clase, clase)}"
+        if piscina is not None:
+            etiqueta += f" ({piscina} m)"
+        else:
+            etiqueta += " (piscina desconocida)"
+        lims = ["Delta frente a la mediana de la misma piscina; no es un efecto causal.",
                 "FC y RPE son de la sesion, no del bloque."]
+        if varias:
+            lims.append("Esta clase tiene mas de una piscina: se separa porque 25 y 50 m no son equivalentes.")
+        if piscina is None:
+            lims.append("Piscina desconocida: no se puede comparar con 25 ni con 50 m.")
         if materiales:
             lims.append(f"Hay bloques con material ({', '.join(materiales)}): confounder.")
         if len(g) < 5:
             lims.append("Pocas observaciones: no se puede separar la clase del resto de la sesion.")
         metricas.append(_metrica(
-            f"respuesta_{clase}", f"Respuesta {etiquetas.get(clase, clase)}", round(delta, 2), "s/100",
-            len(g), _dispersion(ritmos), fuente=_fuentes("parte_serie", "parte", "natacion_sesion"),
+            clave, etiqueta, round(delta, 2), "s/100", len(g), _dispersion(ritmos),
+            fuente=_fuentes("parte_serie", "parte", "natacion_sesion"),
             limitaciones=lims, familia="respuesta",
-            detalle={"clase": clase, "ritmo_mediano_s100": round(mediana, 2),
-                     "delta_fc_lpm": round((_media(fcs) - global_fc), 2) if (fcs and global_fc is not None) else None,
-                     "delta_rpe": round((_media(rpes) - global_rpe), 2) if (rpes and global_rpe is not None) else None,
+            detalle={"clase": clase, "piscina_m": piscina, "ritmo_mediano_s100": round(mediana, 2),
+                     "ritmo_base_piscina_s100": round(base, 2),
+                     "delta_fc_lpm": round((_media(fcs) - base_fc), 2)
+                     if (fcs and base_fc is not None) else None,
+                     "delta_rpe": round((_media(rpes) - base_rpe), 2)
+                     if (rpes and base_rpe is not None) else None,
                      "n_sesiones": len({x["parte_id"] for x in g}), "materiales": materiales}))
-    return _seccion("respuesta", "Respuesta por estimulo", metricas, (
-        "No se declara causalidad: el delta es descriptivo y puede estar confundido por material, fatiga, "
-        "piscina o el resto de la sesion.",
-    ))
+    hay_mezcla = any(len(p) > 1 for p in clases_pool.values())
+    notas = ["No se declara causalidad: el delta es descriptivo y puede estar confundido por material, fatiga, "
+             "piscina o el resto de la sesion."]
+    if hay_mezcla:
+        notas.append("Se separa por piscina: 25 y 50 m no son equivalentes y no se comparan entre si.")
+    return _seccion("respuesta", "Respuesta por estimulo", metricas, tuple(notas))
 
 
 # --------------------------------------------------------------------------- snapshot
@@ -844,11 +935,16 @@ def calcular(cn: sqlite3.Connection, fecha: str | None = None) -> EstadoAtleta:
     if not c.version:
         avisos.append("Sin version de conocimiento: el snapshot no puede citar una base estable.")
     canon = _canonico(fecha, c.version, secciones, avisos, fuentes)
-    h = hashlib.sha256(canon.encode("utf-8")).hexdigest()
-    estado_id = "EA-" + h[:16]
-    return EstadoAtleta(fecha=fecha, version_conocimiento=c.version, version_hash=c.hash,
+    state_hash = hashlib.sha256(canon.encode("utf-8")).hexdigest()
+    knowledge_hash = c.hash
+    # `version_hash` cubre las dos cosas: la base de conocimiento y la foto. `state_hash` es solo la
+    # foto; `knowledge_hash` es solo el TOML. Se guardan los tres para no confundir que cubre cada uno.
+    version_hash = hashlib.sha256(f"{knowledge_hash}:{state_hash}".encode("utf-8")).hexdigest()
+    estado_id = "EA-" + state_hash[:16]
+    return EstadoAtleta(fecha=fecha, version_conocimiento=c.version, version_hash=version_hash,
+                        knowledge_hash=knowledge_hash, state_hash=state_hash,
                         secciones=secciones, avisos=tuple(avisos), fuentes=fuentes,
-                        generado_en=db.ahora(), estado_id=estado_id, hash=h)
+                        generado_en=db.ahora(), estado_id=estado_id, hash=state_hash)
 
 
 def guardar(cn: sqlite3.Connection, estado: EstadoAtleta) -> str:

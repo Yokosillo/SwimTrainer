@@ -3917,6 +3917,15 @@ def pruebas_estado_f4() -> None:
                       ritmo_100, descanso_s, estilo, material, intensidad)
                       VALUES (1,1,?,?,?,?,?,?,?,?,?,?)""",
                    ("continuo", 400.0, 1, 400.0, 300.0, 75.0, 0.0, "libre", "", "ae2"))
+        # La misma clase en una piscina de 50 m: la respuesta no puede mezclarla con la de 25 m.
+        cn.execute("""INSERT INTO parte (clave, fecha, actividad_id, piscina_m, metros, minutos, sensacion,
+                      notas, compania, fuente, importado_en) VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                   ("p2", "2026-10-19", 2, 50.0, 400.0, 5.5, 70, "", "solo", "test",
+                    "2026-10-20T00:00:00"))
+        cn.execute("""INSERT INTO parte_serie (parte_id, orden, tipo, rep_m, n_reps, metros, tiempo_s,
+                      ritmo_100, descanso_s, estilo, material, intensidad)
+                      VALUES (2,1,?,?,?,?,?,?,?,?,?,?)""",
+                   ("continuo", 400.0, 1, 400.0, 330.0, 82.5, 0.0, "libre", "", "ae2"))
         cn.execute("""INSERT INTO apunte (clave, fecha, tipo, distancia_m, minutos, material, sensacion,
                       fuente, importado_en, quien) VALUES (?,?,?,?,?,?,?,?,?,?)""",
                    ("a1", "2026-10-18", "natacion", 1000.0, 20.0, "ninguno", 7, "test",
@@ -3945,6 +3954,29 @@ def pruebas_estado_f4() -> None:
                   and (estado.cargar(cn, e0.estado_id) or {}).get("estado_id") == e0.estado_id)
 
     with tempfile.TemporaryDirectory() as d:
+        from datetime import date as _date, timedelta as _td
+        cn = db.conectar(os.path.join(d, "carga.db"))
+        for i, minutos in enumerate((10, 20, 30, 40, 50, 60, 70), 1):
+            dia = (_date(2026, 10, 14) + _td(days=i - 1)).isoformat()
+            cn.execute("""INSERT INTO actividad (id, fichero, hash, fuente, disciplina, nombre, inicio_local,
+                          duracion_s, distancia_m, importado_en)
+                          VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                       (i, f"c{i}.fit", f"hc{i}", "test", "natacion", "carga",
+                        f"{dia} 10:00:00", minutos * 60.0, 1000.0, "2026-10-20T00:00:00"))
+        cn.commit()
+        carga = {m.clave: m for m in estado._carga(cn, "2026-10-20").metricas}
+        comprobar("F4-R-01: aguda/cronica/ratio con valores conocidos",
+                  carga["carga_aguda_7d"].valor == 280.0
+                  and carga["carga_cronica_28d"].valor == 70.0
+                  and carga["ratio_carga"].valor == 4.0,
+                  str({k: carga[k].valor for k in ("carga_aguda_7d", "carga_cronica_28d", "ratio_carga")}))
+        comprobar("F4-R-01: monotonia 7d = media/sd de los 7 dias y strain = aguda*monotonia",
+                  abs(carga["monotonia"].valor - 2.0) < 1e-9
+                  and abs(carga["strain"].valor - 560.0) < 1e-9
+                  and "7 dias" in carga["monotonia"].detalle["formula"],
+                  str({k: carga[k].valor for k in ("monotonia", "strain")}))
+
+    with tempfile.TemporaryDirectory() as d:
         ruta, cn = preparar(d)
         e = estado.calcular(cn, "2026-10-20")
         d_ = {m["clave"]: m for s in e.a_dict()["secciones"] for m in s["metricas"]}
@@ -3959,10 +3991,17 @@ def pruebas_estado_f4() -> None:
                   and d_["dias_entrenador_28d"]["n"] == 1 and d_["piscina_habitual"]["valor"] == 25.0,
                   str({k: d_[k]["n"] for k in ("sueno_horas_7d", "fuerza_sesiones_28d",
                                                 "dias_entrenador_28d", "piscina_habitual")}))
+        claves_resp = {k for k in d_ if k.startswith("respuesta_ae2")}
+        comprobar("F4-R-02: respuesta separa la misma clase en 25 y 50 m",
+                  {"respuesta_ae2_25m", "respuesta_ae2_50m"} <= claves_resp
+                  and d_["respuesta_ae2_25m"]["detalle"]["piscina_m"] == 25
+                  and d_["respuesta_ae2_50m"]["detalle"]["piscina_m"] == 50,
+                  str({k: d_[k]["detalle"].get("piscina_m") for k in claves_resp}))
+        una_resp = d_["respuesta_ae2_25m"]
         comprobar("F4-04: respuesta por estimulo con n y sin causalidad",
-                  d_["respuesta_ae2"]["n"] >= 1
-                  and any("causal" in x.lower() for x in d_["respuesta_ae2"]["limitaciones"]),
-                  str(d_["respuesta_ae2"]))
+                  una_resp["n"] >= 1
+                  and any("causal" in x.lower() for x in una_resp["limitaciones"]),
+                  str(una_resp))
         comprobar("F4-08: la base con datos cubre al menos una metrica por seccion",
                   all(any(m["estado"] != "sin_datos" for m in s["metricas"])
                       for s in e.a_dict()["secciones"]),
@@ -3981,6 +4020,24 @@ def pruebas_estado_f4() -> None:
                   estado.guardar(cn, e) == e.estado_id
                   and fila(cn, "SELECT COUNT(*) FROM estado_atleta WHERE id = ?", (e.estado_id,))[0] == 1
                   and (estado.cargar(cn, e.estado_id) or {}).get("fecha") == "2026-10-20")
+        import hashlib
+        comprobar("F4-R-04: version_hash combina knowledge_hash y state_hash",
+                  bool(e.knowledge_hash) and e.state_hash == e.hash
+                  and e.version_hash == hashlib.sha256(f"{e.knowledge_hash}:{e.state_hash}".encode()).hexdigest()
+                  and e.version_hash != e.knowledge_hash,
+                  f"knowledge={e.knowledge_hash[:12]} state={e.state_hash[:12]} version={e.version_hash[:12]}")
+        comprobar("F4-R-04: la tabla guarda el version_hash combinado",
+                  fila(cn, "SELECT version_hash FROM estado_atleta WHERE id = ?", (e.estado_id,))[0] == e.version_hash)
+        from entrenador.estado import Metrica
+        metric = Metrica("x", "x", valor=1, n=1, estado="ok", detalle={"a": {"b": [1, 2]}})
+        try:
+            metric.detalle["a"]["b"].append(3)
+            congelado = False
+        except (TypeError, AttributeError):
+            congelado = True
+        comprobar("F4-R-03: detalle anidado congelado (no se puede mutar)",
+                  congelado and isinstance(metric.detalle["a"]["b"], tuple),
+                  repr(metric.detalle))
 
         # Dolor declarado: la restriccion se enciende y la seccion avisa.
         cn.execute("UPDATE gimnasio_sesion SET notas = ? WHERE clave = ?",
