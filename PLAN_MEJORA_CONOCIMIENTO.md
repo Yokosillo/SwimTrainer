@@ -843,11 +843,14 @@ Markdown. El motor sigue en `v1`; `RG-002` no se usa todavía. Evidencia en `doc
 | F3-07 | Firmar o marcar los criterios y los parámetros | F1-06 | Cada `PA-*` tiene procedencia | Validación |
 | F3-08 | Golden diff v1 vs v2 con la base real | F3-05 | Diferencias justificadas una a una | Informe |
 
-**Implementación (2026-10-19):** `conocimiento/local/` (privado) + `entrenador/motor_conocimiento.py`
-(adaptador v1/v2/dual). El público tiene las 10 clases, 3 materiales, 7 recetas y el calendario; el
-local las 9 reglas, el reparto/minimos, los 22 criterios y las firmas pendientes. `MOTOR_CONOCIMIENTO`
-sigue en `v1` por defecto; v2 y dual reproducen v1 (golden 5/5, dual 0 diferencias). Evidencia en
-`docs/evidencias/F3.md`.
+**Implementación (2026-10-20):** `conocimiento/local/` (privado) + `entrenador/motor_conocimiento.py`
+(adaptador v1/v2/dual). El público tiene las 10 clases (todas con afirmaciones), 3 materiales, 7
+recetas con progresión/regresión y 19 pasos, y el calendario; el local las 9 reglas, el
+reparto/mínimos, los 22 criterios, 9 afirmaciones de reglas y 16 parámetros (`PA-101`…`PA-116`).
+El merge es **por campos**: la local manda donde aporta y el público rellena `afirmaciones`,
+`progresion`, `regresion` y `pasos`. `MOTOR_CONOCIMIENTO` sigue en `v1` por defecto; v2 y dual
+reproducen v1 (golden 5/5 con fechas normalizadas, dual 0 diferencias). Evidencia y correcciones de
+la auditoría F3-R-01…07 en `docs/evidencias/F3.md`.
 
 **Criterio de salida:** el motor lee del TOML; no hay conocimiento duplicado; v1 y v2 producen lo mismo salvo diferencias aprobadas.
 
