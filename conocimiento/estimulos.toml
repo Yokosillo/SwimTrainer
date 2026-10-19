@@ -1,0 +1,12 @@
+[[estimulo]]
+id = "ES-001"
+nombre = "ritmo de prueba"
+entrena = "tolerancia al lactato, tecnica y ritmo especifico del 400"
+no_entrena = "base aerobica de volumen; fuerza maxima"
+recuperacion_h = 36
+coste = "alto"
+papel_400 = "clave"
+papel_3000 = "apoyo"
+afirmaciones = ["AF-001", "AF-002"]
+seccion_T = ["T.1", "T.2", "T.3"]
+notas = "Piloto F2: la clase `ritmo_prueba` del motor v1."

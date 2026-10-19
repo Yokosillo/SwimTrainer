@@ -1,0 +1,23 @@
+[[parametro]]
+id = "PA-001"
+nombre = "minimo_ritmo_prueba_m"
+valor = 400
+unidad = "m"
+procedencia = "criterio_firmado"
+fuente = ""
+afirmacion = "AF-002"
+firmado_por = ""
+firmado_en = ""
+nota = "No hay fuente que fije el numero; se aprueba como criterio del entrenador. Firma pendiente (F2)."
+
+[[parametro]]
+id = "PA-002"
+nombre = "ventana_ritmo_prueba_dias"
+valor = 14
+unidad = "dias"
+procedencia = "criterio_firmado"
+fuente = ""
+afirmacion = "AF-002"
+firmado_por = ""
+firmado_en = ""
+nota = "Ventana de decision del piloto; firma pendiente (F2)."

@@ -1,0 +1,22 @@
+[[receta]]
+id = "RE-001"
+nombre = "8x100 con salida cada 2:00"
+sesion = "Calentamiento + 8x100 a ritmo de prueba con salida cada 2:00 + suelta."
+metros = 800
+reps = 8
+dist_m = 100
+ritmo_rel = "ritmo_prueba"
+descanso_s = 0.0
+salida_s = 120.0
+desde_dia = ""
+porque = "Es el bloque que mas se parece al 400: si la ultima repeticion no se cae de la primera, el ritmo esta puesto."
+progresion = "Si se sostiene, bajar la salida a 1:55."
+regresion = "Si la ultima repeticion cae mas de 3 s/100, volver a 4x200 con 45 s."
+estimulo = "ES-001"
+afirmaciones = ["AF-001", "AF-002"]
+pasos = [
+  { orden = 1, texto = "600 m suaves + 4x50 progresivos", tipo = "calentamiento", metros = 800.0, ritmo_100 = "88-95", descanso_s = 15.0, material = "", intensidad = "cal" },
+  { orden = 2, texto = "8x100 a ritmo de prueba con salida cada 2:00", tipo = "serie", metros = 800.0, ritmo_100 = "ritmo_prueba", descanso_s = 0.0, material = "", intensidad = "ae3" },
+  { orden = 3, texto = "200 m suaves", tipo = "suelta", metros = 200.0, ritmo_100 = "88-95", descanso_s = 0.0, material = "", intensidad = "cal" },
+]
+notas = "Piloto F2: la receta del corte vertical R2."

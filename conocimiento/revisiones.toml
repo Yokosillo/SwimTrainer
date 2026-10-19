@@ -1,0 +1,11 @@
+# Revisiones y firmas del conocimiento.
+#
+# Vacio en F2: los criterios del piloto estan pendientes de firma (F3-07). Cuando se firmen, cada
+# revision entra como:
+#
+# [[revision]]
+# id = "RV-2026-10-19-01"
+# entidad = "PA-001"
+# revisado_por = "entrenador"
+# revisado_en = "2026-10-19"
+# notas = "Se aprueba el minimo de 400 m para la ventana de 14 dias."

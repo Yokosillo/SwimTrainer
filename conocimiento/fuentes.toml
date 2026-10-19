@@ -1,0 +1,479 @@
+# Fuentes de la base de conocimiento.
+# Mapeo estable: FU-00N <- [N] del anexo T (legacy_id).
+# El campo `citas` guarda las citas literales del bloque `## Sources`.
+
+[[fuente]]
+id = "FU-001"
+tipo = "articulo"
+titulo = "Level 3 Physiology School"
+autores = []
+url = "https://swimcoach.co.za/wp-content/uploads/2013/07/Training-Zones-Dr-Ernie-Maglischo.pdf"
+doi = ""
+cita = "4 to 6 x continuous efforts of 5 to 8 minutes duration with 1 to 3 minutes rest between each."
+citas = [
+  "4 to 6 x continuous efforts of 5 to 8 minutes duration with 1 to 3 minutes rest between each.",
+  "10 to 30 x 20 to 40 sec. maximum efforts with rest periods of 10 secs. to 1 min.",
+]
+poblacion = ""
+intervencion = ""
+resultado = ""
+limitaciones = ""
+certeza = ""
+revisado_por = ""
+revisado_en = ""
+legacy_id = "1"
+notas = ""
+
+[[fuente]]
+id = "FU-002"
+tipo = "articulo"
+titulo = "Swimming Science Bulletin"
+autores = []
+url = "https://coachsci.sdsu.edu/swim/bullets/icar8990/icar12.htm"
+doi = ""
+cita = "Lactate tolerance training is most important for 200 and 400 m events."
+citas = [
+  "Lactate tolerance training is most important for 200 and 400 m events.",
+  "All events have a much larger aerobic component than previously theorized.",
+  "between a 50 and 100 m event, there is a 50% increase in the aerobic demand. However, between 800 and 1500 m distances, there is only a 5% increase",
+]
+poblacion = ""
+intervencion = ""
+resultado = ""
+limitaciones = ""
+certeza = ""
+revisado_por = ""
+revisado_en = ""
+legacy_id = "2"
+notas = ""
+
+[[fuente]]
+id = "FU-003"
+tipo = "articulo"
+titulo = "Intervalos largos vs cortos en entrenamiento en natación - Fisiología del Ejercicio"
+autores = []
+url = "https://www.fisiologiadelejercicio.com/intervalos-largos-vs-cortos-en-entrenamiento-en-natacion"
+doi = ""
+cita = "grupo de intervalos cortos (INT50, 12-16"
+citas = [
+  "grupo de intervalos cortos (INT50, 12-16",
+  "intervalos largos (INT100",
+  "los nadadores voluntarios fueron asignados",
+  "Los resultados mostraron que ambos protocolos mejoraron el rendimiento en 100 y 400 m",
+  "La potencia aeróbica pico solo aumentó significativamente en INT100",
+  "los protocolos cortos (50 m) y largos (100 m) mostraron mejoras análogas",
+]
+poblacion = ""
+intervencion = ""
+resultado = ""
+limitaciones = ""
+certeza = ""
+revisado_por = ""
+revisado_en = ""
+legacy_id = "3"
+notas = ""
+
+[[fuente]]
+id = "FU-006"
+tipo = "articulo"
+titulo = "Effects of taper on swim performance. Practical implications"
+autores = []
+url = "https://pubmed.ncbi.nlm.nih.gov/8009136"
+doi = ""
+cita = "A consistent performance improvement of approximately 3% has also been reported with taper in competitive swimmers."
+citas = [
+  "A consistent performance improvement of approximately 3% has also been reported with taper in competitive swimmers.",
+  "involves a substantial (60 to 90%) graded reduction in training volume, and daily high intensity interval work over a 7- to 21-day period.",
+]
+poblacion = ""
+intervencion = ""
+resultado = ""
+limitaciones = ""
+certeza = ""
+revisado_por = ""
+revisado_en = ""
+legacy_id = "6"
+notas = ""
+
+[[fuente]]
+id = "FU-008"
+tipo = "articulo"
+titulo = "A simple method for determining critical speed as swimming fatigue threshold in"
+autores = []
+url = "https://pubmed.ncbi.nlm.nih.gov/1521952"
+doi = ""
+cita = "CS defined as the swimming speed which could be theoretically maintained continuously without exhaustion"
+citas = [
+  "CS defined as the swimming speed which could be theoretically maintained continuously without exhaustion",
+]
+poblacion = ""
+intervencion = ""
+resultado = ""
+limitaciones = ""
+certeza = ""
+revisado_por = ""
+revisado_en = ""
+legacy_id = "8"
+notas = ""
+
+[[fuente]]
+id = "FU-011"
+tipo = "articulo"
+titulo = "Effect of Preventive Exercise Programs for Swimmer\\u2019s Shoulder Injury on Rotator"
+autores = []
+url = "https://pmc.ncbi.nlm.nih.gov/articles/PMC11899141"
+doi = ""
+cita = "Implementing a 12-week preventive program minimizes the progressive shoulder rotational imbalance over the season in competitive swimmers."
+citas = [
+  "Implementing a 12-week preventive program minimizes the progressive shoulder rotational imbalance over the season in competitive swimmers.",
+]
+poblacion = ""
+intervencion = ""
+resultado = ""
+limitaciones = ""
+certeza = ""
+revisado_por = ""
+revisado_en = ""
+legacy_id = "11"
+notas = ""
+
+[[fuente]]
+id = "FU-012"
+tipo = "articulo"
+titulo = "The Effectiveness of a Dry-Land Shoulder Rotators Strength Training"
+autores = []
+url = "https://pmc.ncbi.nlm.nih.gov/articles/PMC7052717"
+doi = ""
+cita = "Our findings suggest that a compensatory strength training program does not have a significant acute effect on the strength, endurance and muscle balance of shoulder rotators in young swimmers."
+citas = [
+  "Our findings suggest that a compensatory strength training program does not have a significant acute effect on the strength, endurance and muscle balance of shoulder rotators in young swimmers.",
+]
+poblacion = ""
+intervencion = ""
+resultado = ""
+limitaciones = ""
+certeza = ""
+revisado_por = ""
+revisado_en = ""
+legacy_id = "12"
+notas = ""
+
+[[fuente]]
+id = "FU-013"
+tipo = "articulo"
+titulo = "Effect of Dry-Land Core Training on Physical Fitness and Swimming P"
+autores = []
+url = "https://pmc.ncbi.nlm.nih.gov/articles/PMC8214624"
+doi = ""
+cita = "The 12-week dry-land core training program resulted in statistically significant improvements in anaerobic power, core stability, upper extremity muscular endurance, and swimming performance."
+citas = [
+  "The 12-week dry-land core training program resulted in statistically significant improvements in anaerobic power, core stability, upper extremity muscular endurance, and swimming performance.",
+]
+poblacion = ""
+intervencion = ""
+resultado = ""
+limitaciones = ""
+certeza = ""
+revisado_por = ""
+revisado_en = ""
+legacy_id = "13"
+notas = ""
+
+[[fuente]]
+id = "FU-015"
+tipo = "articulo"
+titulo = "Lower fatigue and faster recovery of ultra-short race pace swimming training ses"
+autores = []
+url = "https://pubmed.ncbi.nlm.nih.gov/34032530"
+doi = ""
+cita = "In conclusion, lower fatigue and better recovery were achieved during USRPT compared to traditional high-volume set."
+citas = [
+  "In conclusion, lower fatigue and better recovery were achieved during USRPT compared to traditional high-volume set.",
+]
+poblacion = ""
+intervencion = ""
+resultado = ""
+limitaciones = ""
+certeza = ""
+revisado_por = ""
+revisado_en = ""
+legacy_id = "15"
+notas = ""
+
+[[fuente]]
+id = "FU-016"
+tipo = "articulo"
+titulo = "Anaerobic Contribution Determined in Swimming Distances: Relation with Performan"
+autores = []
+url = "https://pmc.ncbi.nlm.nih.gov/articles/PMC5641383"
+doi = ""
+cita = "In conclusion, the highest values of anaerobic contribution were observed in the 200 and 400 m distances."
+citas = [
+  "In conclusion, the highest values of anaerobic contribution were observed in the 200 and 400 m distances.",
+]
+poblacion = ""
+intervencion = ""
+resultado = ""
+limitaciones = ""
+certeza = ""
+revisado_por = ""
+revisado_en = ""
+legacy_id = "16"
+notas = ""
+
+[[fuente]]
+id = "FU-017"
+tipo = "articulo"
+titulo = "Fatigue | Neuromuscular and autonomic function is fully recovered within 24 h fo"
+autores = []
+url = "https://www.springermedicine.com/fatigue/neuromuscular-and-autonomic-function-is-fully-recovered-within-2/25460214"
+doi = ""
+cita = "The results of this study show a full recovery of neuromuscular and autonomic functions a day after an all-out SIT session."
+citas = [
+  "The results of this study show a full recovery of neuromuscular and autonomic functions a day after an all-out SIT session.",
+]
+poblacion = ""
+intervencion = ""
+resultado = ""
+limitaciones = ""
+certeza = ""
+revisado_por = ""
+revisado_en = ""
+legacy_id = "17"
+notas = ""
+
+[[fuente]]
+id = "FU-018"
+tipo = "articulo"
+titulo = "Comparison of Ultra-Short Race Pace and High-Intensity Interval Training in Age"
+autores = []
+url = "https://pmc.ncbi.nlm.nih.gov/articles/PMC10537129"
+doi = ""
+cita = "a typical USRPT session is usually formed of short, distanced bouts (15"
+citas = [
+  "a typical USRPT session is usually formed of short, distanced bouts (15",
+  "USRPT session is usually formed of short, distanced bouts",
+  "with brief rest periods (15",
+  "A traditional USRPT set is 20",
+]
+poblacion = ""
+intervencion = ""
+resultado = ""
+limitaciones = ""
+certeza = ""
+revisado_por = ""
+revisado_en = ""
+legacy_id = "18"
+notas = ""
+
+[[fuente]]
+id = "FU-020"
+tipo = "articulo"
+titulo = "Effects of taper on swimming force and swimmer performance after an experimental"
+autores = []
+url = "https://pubmed.ncbi.nlm.nih.gov/17530932"
+doi = ""
+cita = "a taper period (TP) of 1.5 weeks' duration that incorporated a 48% reduction in weekly volume"
+citas = [
+  "a taper period (TP) of 1.5 weeks' duration that incorporated a 48% reduction in weekly volume",
+]
+poblacion = ""
+intervencion = ""
+resultado = ""
+limitaciones = ""
+certeza = ""
+revisado_por = ""
+revisado_en = ""
+legacy_id = "20"
+notas = ""
+
+[[fuente]]
+id = "FU-021"
+tipo = "articulo"
+titulo = "Effects of a 6-Week Period of Polarized or Threshold Training on Performance and"
+autores = []
+url = "https://pubmed.ncbi.nlm.nih.gov/30040002"
+doi = ""
+cita = "POL training elicited small to moderately greater improvement than THR on 100 m performance"
+citas = [
+  "POL training elicited small to moderately greater improvement than THR on 100 m performance",
+  "the training of middle-distance swimmers (200-400 m) has been characterized by a predominantly aerobic distribution, with 55-70% below the first lactate threshold",
+]
+poblacion = ""
+intervencion = ""
+resultado = ""
+limitaciones = ""
+certeza = ""
+revisado_por = ""
+revisado_en = ""
+legacy_id = "21"
+notas = ""
+
+[[fuente]]
+id = "FU-022"
+tipo = "articulo"
+titulo = "Comparison of Polarized Versus Other Types of Endurance Training Intensity Distr"
+autores = []
+url = "https://pubmed.ncbi.nlm.nih.gov/38717713"
+doi = ""
+cita = "The results suggest that POL more effectively improves aerobic power but is similar to other TIDs for improving aerobic capacity."
+citas = [
+  "The results suggest that POL more effectively improves aerobic power but is similar to other TIDs for improving aerobic capacity.",
+]
+poblacion = ""
+intervencion = ""
+resultado = ""
+limitaciones = ""
+certeza = ""
+revisado_por = ""
+revisado_en = ""
+legacy_id = "22"
+notas = ""
+
+[[fuente]]
+id = "FU-023"
+tipo = "articulo"
+titulo = "Time Course of Recovery after Cycling Repeated Sprints (Milioni et al., Med Sci Sports Exerc 2021;53(2):413-420, doi 10.1249/MSS.0000000000002482)"
+autores = []
+url = "https://pubmed.ncbi.nlm.nih.gov/33300757"
+doi = ""
+cita = "Cycling repeated sprints induce significant fatigue, particularly at the peripheral level, which is fully restored after 48 h, but not 24 h, of recovery."
+citas = [
+  "Cycling repeated sprints induce significant fatigue, particularly at the peripheral level, which is fully restored after 48 h, but not 24 h, of recovery.",
+]
+poblacion = ""
+intervencion = ""
+resultado = ""
+limitaciones = ""
+certeza = ""
+revisado_por = ""
+revisado_en = ""
+legacy_id = "23"
+notas = ""
+
+[[fuente]]
+id = "FU-024"
+tipo = "articulo"
+titulo = "Effect of Fitness Level on Time Course of Recovery After Acute Strength and High-Intensity Interval Training (Grammenou et al., J Strength Cond Res 2024)"
+autores = []
+url = "https://pubmed.ncbi.nlm.nih.gov/39808807"
+doi = ""
+cita = "Both training sessions resulted in a significant reduction in peak force (PF) that persisted for up to 6 ... and 24 hours"
+citas = [
+  "Both training sessions resulted in a significant reduction in peak force (PF) that persisted for up to 6 ... and 24 hours",
+]
+poblacion = ""
+intervencion = ""
+resultado = ""
+limitaciones = ""
+certeza = ""
+revisado_por = ""
+revisado_en = ""
+legacy_id = "24"
+notas = ""
+
+[[fuente]]
+id = "FU-025"
+tipo = "articulo"
+titulo = "Fundamentals of glycogen metabolism for coaches and athletes (Murray & Rosenbloom, Nutr Rev 2018)"
+autores = []
+url = "https://pmc.ncbi.nlm.nih.gov/articles/PMC6019055/"
+doi = ""
+cita = "Postexercise carbohydrate/protein intake, with high-carbohydrate meals and snacks, is needed to fully restore muscle glycogen within 24–36 h"
+citas = [
+  "Postexercise carbohydrate/protein intake, with high-carbohydrate meals and snacks, is needed to fully restore muscle glycogen within 24–36 h",
+]
+poblacion = ""
+intervencion = ""
+resultado = ""
+limitaciones = ""
+certeza = ""
+revisado_por = ""
+revisado_en = ""
+legacy_id = "25"
+notas = ""
+
+[[fuente]]
+id = "FU-026"
+tipo = "articulo"
+titulo = "One Sprinter, Two Olympic Preparations: A Single-Athlete Longitudinal Observational Study of Training-Intensity Distribution"
+autores = []
+url = "https://pmc.ncbi.nlm.nih.gov/articles/PMC12845544"
+doi = ""
+cita = "during the General (Z1: 80%, Z3: 20%, Z2: 0%) and Specific (Z1: 60%, Z3: 40%, Z2: 0%) periods, a polarized approach with high proportion in Z3"
+citas = [
+  "during the General (Z1: 80%, Z3: 20%, Z2: 0%) and Specific (Z1: 60%, Z3: 40%, Z2: 0%) periods, a polarized approach with high proportion in Z3",
+]
+poblacion = ""
+intervencion = ""
+resultado = ""
+limitaciones = ""
+certeza = ""
+revisado_por = ""
+revisado_en = ""
+legacy_id = "26"
+notas = ""
+
+[[fuente]]
+id = "FU-027"
+tipo = "articulo"
+titulo = "Acute responses of biomechanical parameters to different sizes of hand paddles in front-crawl stroke (Barbosa et al., J Sports Sci 2013;31(9):995-1004)"
+autores = []
+url = "https://pubmed.ncbi.nlm.nih.gov/23360179/"
+doi = ""
+cita = "Compared to free swimming, paddles provided significant increases of peak force (medium: 11.5%, large: 16.7%, extra-large: 21.7%) ... swimming velocity (medium: 2.2%, large: 3.2%, extra-large: 3.7%) and stroke length (medium: 9.0%, large: 9.0%, extra-large: 14.8%), while stroke rate decreased"
+citas = [
+  "Compared to free swimming, paddles provided significant increases of peak force (medium: 11.5%, large: 16.7%, extra-large: 21.7%) ... swimming velocity (medium: 2.2%, large: 3.2%, extra-large: 3.7%) and stroke length (medium: 9.0%, large: 9.0%, extra-large: 14.8%), while stroke rate decreased",
+]
+poblacion = ""
+intervencion = ""
+resultado = ""
+limitaciones = ""
+certeza = ""
+revisado_por = ""
+revisado_en = ""
+legacy_id = "27"
+notas = ""
+
+[[fuente]]
+id = "FU-028"
+tipo = "articulo"
+titulo = "Effects of tapering on performance in endurance athletes: A systematic review and meta-analysis"
+autores = []
+url = "https://pmc.ncbi.nlm.nih.gov/articles/PMC10171681/"
+doi = ""
+cita = "A tapering strategy that reduced training volume progressively by 41-60%, maintained training intensity and frequency, lasted <=21 days could significantly improve TT."
+citas = [
+  "A tapering strategy that reduced training volume progressively by 41-60%, maintained training intensity and frequency, lasted <=21 days could significantly improve TT.",
+  "Solli et al. reported that the proportion of HIT progressive increased in the 3 weeks before the major competition, with three HIT sessions completed in the last 7 days.",
+]
+poblacion = ""
+intervencion = ""
+resultado = ""
+limitaciones = ""
+certeza = ""
+revisado_por = ""
+revisado_en = ""
+legacy_id = "28"
+notas = ""
+
+[[fuente]]
+id = "FU-029"
+tipo = "articulo"
+titulo = "Integrating Deloading into Strength and Physique Sports Training"
+autores = []
+url = "https://pmc.ncbi.nlm.nih.gov/articles/PMC10511399/"
+doi = ""
+cita = "Deloading is generally undertaken every 4–6 weeks for a period of ~ 7 days"
+citas = [
+  "Deloading is generally undertaken every 4–6 weeks for a period of ~ 7 days",
+]
+poblacion = ""
+intervencion = ""
+resultado = ""
+limitaciones = ""
+certeza = ""
+revisado_por = ""
+revisado_en = ""
+legacy_id = "29"
+notas = ""

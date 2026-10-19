@@ -1,0 +1,8 @@
+[calendario]
+dias_entrenador = ["lunes", "miercoles", "viernes"]
+dias_propios = ["martes", "jueves", "domingo"]
+dia_bici = "sabado"
+dias_calidad = ["martes", "jueves"]
+dias_largos = ["domingo"]
+duro_h = 24.0
+notas = "Dias del entrenador y dias propios. En F2 el motor v1 sigue leyendo planificador.py; esto prepara F3."

@@ -1,0 +1,37 @@
+[[afirmacion]]
+id = "AF-001"
+texto = "Las series cortas con pausa corta y las largas a ritmo de prueba, igualadas en volumen e intensidad, mejoran de forma similar el rendimiento en 100 y 400 m."
+condiciones = "nadadores entrenados; 8 semanas; series de 50 frente a 100 m"
+efecto = "rendimiento similar en 100 y 400 m; la potencia aerobica pico sube mas con las largas"
+direccion = "neutro"
+tamano = "sin diferencia clara entre protocolos"
+aplicabilidad = "parcial para 400; no probado en 3.000"
+certeza = "moderada"
+estado = "propuesta"
+criterio_firmado = false
+firmado_por = ""
+firmado_en = ""
+fuentes = [
+  { id = "FU-003", cita_local = "Los resultados mostraron que ambos protocolos mejoraron el rendimiento en 100 y 400 m" },
+  { id = "FU-015", cita_local = "lower fatigue and better recovery were achieved during USRPT compared to traditional high-volume set" },
+]
+notas = "Piloto F2: afirmacion con evidencia del anexo T (T.1/T.3)."
+
+[[afirmacion]]
+id = "AF-002"
+texto = "El ritmo de prueba con pausa corta es el estimulo mas especifico para el 400 y necesita un minimo de trabajo en la ventana de decision."
+condiciones = "fase especifica de 400; piscina de 25 m; nadador entrenado"
+efecto = "mejora la tolerancia al lactato y la tecnica a ritmo de prueba"
+direccion = "mejora"
+tamano = "no cuantificado en el piloto"
+aplicabilidad = "400 m; el 3.000 usa el mismo tipo de trabajo con otro reparto"
+certeza = "moderada"
+estado = "propuesta"
+criterio_firmado = false
+firmado_por = ""
+firmado_en = ""
+fuentes = [
+  { id = "FU-002", cita_local = "Lactate tolerance training is most important for 200 and 400 m events." },
+  { id = "FU-021", cita_local = "the training of middle-distance swimmers (200-400 m) has been characterized by a predominantly aerobic distribution" },
+]
+notas = "Piloto F2: sostiene RG-002."

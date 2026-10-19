@@ -1,0 +1,14 @@
+[[regla]]
+id = "RG-002"
+version = 1
+enunciado = "Si en la ventana de 14 dias hay menos de 400 m a ritmo de prueba, priorizar una sesion especifica de ritmo de prueba."
+cuando = { fase = "especifico_400", metros_ritmo_prueba = "<400", ventana_dias = 14 }
+entonces = { prioridad = 1, receta = "RE-001", estimulo = "ES-001", minimo_m = 400 }
+evidencia = ["AF-002"]
+parametros = ["PA-001", "PA-002"]
+contraindicaciones = ["dolor_hombro", "lesion_activa", "carga_alta"]
+metrica_exito = { tipo = "ritmo_serie", criterio = "caida_ultima_rep < 3 s/100", ventana_dias = 3 }
+revisar_en_dias = 21
+confianza = 0.6
+estado = "revisada"
+notas = "Equivalente a R2 del motor v1; el motor sigue en v1 (F2 no lo usa)."
