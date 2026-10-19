@@ -40,3 +40,12 @@ git rev-list --all --objects | grep ' informes/'
 La búsqueda de identificadores concretos se hace con el patrón privado que vive en el repositorio
 privado, no en esta documentación pública. El resultado esperado es vacío (salvo el prefijo
 histórico de la migración de `localStorage`, que no identifica a nadie).
+
+## Metadatos y tag
+
+- Los autores y committers del historial se reescribieron a
+  `Yokosillo <292332580+Yokosillo@users.noreply.github.com>`; ya no queda el nombre ni el correo
+  personal en los metadatos.
+- El tag `conocimiento-f0-base` se recreó sobre el primer commit ejecutable posterior a la
+  reescritura (`main`), que sí incluye `entrenador/plan.py` genérico. El tag anterior apuntaba a un
+  commit sin `plan.py` y no servía para rollback.
