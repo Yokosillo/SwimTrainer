@@ -435,9 +435,23 @@ def criterios_markdown(filas: list[dict], fecha: str | None = None) -> str:
     ]
     for i, x in enumerate(filas, 1):
         texto = str(x.get("afirmacion") or "").replace("|", "\\|").replace("\n", " ")
-        lineas.append(f"| {i} | {x.get('seccion', '')} | {x.get('estado', 'pendiente')} | {texto} |")
+        estado = etiqueta_estado(str(x.get("estado") or "pendiente"))
+        lineas.append(f"| {i} | {x.get('seccion', '')} | {estado} | {texto} |")
     lineas.append("")
     return "\n".join(lineas)
+
+
+def etiqueta_estado(estado: str) -> str:
+    """El estado de un criterio como se lee en consola/Markdown (R-03).
+
+    El JSON conserva el token (`revisada_por_asistente`); aqui se dice entero: una revision del
+    asistente no es una firma.
+    """
+    return {
+        "firmada": "firmada",
+        "revisada_por_asistente": "revisada por asistente, pendiente de firma",
+        "pendiente": "pendiente",
+    }.get(estado, estado)
 
 
 def afirmaciones_sin_fuente(ruta: str | None = None) -> list[dict]:

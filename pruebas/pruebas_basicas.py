@@ -3207,7 +3207,8 @@ def pruebas_conocimiento_fuentes() -> None:
     md = conocimiento.criterios_markdown(con_estado, fecha="2026-10-19T12:00:00+02:00")
     filas_md = [x for x in md.splitlines() if re.match(r"^\| \d+ \|", x)]
     comprobar("R-10: el Markdown lleva una fila por clausula y la nota de conteo",
-              len(filas_md) == 22 and "22 clausulas" in md and "revisada_por_asistente" in md
+              len(filas_md) == 22 and "22 clausulas" in md
+              and "revisada por asistente, pendiente de firma" in md
               and "| # | Seccion | Estado | Afirmacion |" in md, f"{len(filas_md)} filas")
 
     # --- R-02: el CLI devuelve RC=1 tambien en --json ---

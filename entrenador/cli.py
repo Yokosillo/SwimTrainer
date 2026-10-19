@@ -403,7 +403,8 @@ def _conocimiento(cn, args) -> int:
             print(f"{len(filas)} clausulas [criterio] (21 lineas marcadas; T.5 lleva dos marcas).")
             print("Estado: firmada (entrenador/atleta), revisada_por_asistente (sigue pendiente) o pendiente.")
             for i, x in enumerate(filas, 1):
-                print(f"  {i:>2}. {x['seccion']:<5} [{x.get('estado', 'pendiente')}] {x['afirmacion']}")
+                estado = conocimiento.etiqueta_estado(x.get("estado", "pendiente"))
+                print(f"  {i:>2}. {x['seccion']:<5} [{estado}] {x['afirmacion']}")
         return 0
     if args.revisar:
         if not conocimiento.seccion(args.revisar):
