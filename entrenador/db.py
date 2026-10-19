@@ -485,6 +485,136 @@ CREATE TABLE IF NOT EXISTS verificacion (
     notas            TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_verif_regla ON verificacion(regla_id, fecha);
+
+-- ---------------------------------------------------------------------------
+-- Base de conocimiento estructurada (F2). Todo aditivo: no toca las tablas de arriba.
+-- La fuente de verdad es `conocimiento/*.toml`; estas tablas son la copia consultable.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS conocimiento_version (
+    id          TEXT PRIMARY KEY,   -- KV-xxxxxxxx
+    creado_en   TEXT NOT NULL,
+    hash        TEXT NOT NULL,
+    ficheros    TEXT,               -- JSON: [{nombre, sha256}]
+    notas       TEXT
+);
+
+CREATE TABLE IF NOT EXISTS fuente (
+    id            TEXT PRIMARY KEY, -- FU-001
+    tipo          TEXT NOT NULL,
+    titulo        TEXT,
+    autores       TEXT,             -- JSON: ["..."]
+    anio          INTEGER,
+    url           TEXT,
+    doi           TEXT,
+    cita          TEXT,
+    poblacion     TEXT,
+    intervencion  TEXT,
+    resultado     TEXT,
+    limitaciones  TEXT,
+    certeza       TEXT,
+    revisado_por  TEXT,
+    revisado_en   TEXT
+);
+
+CREATE TABLE IF NOT EXISTS afirmacion (
+    id            TEXT PRIMARY KEY, -- AF-001
+    texto         TEXT NOT NULL,
+    condiciones   TEXT,
+    efecto        TEXT,
+    direccion     TEXT,             -- mejora | neutro | empeora | incierto
+    tamano        TEXT,
+    aplicabilidad TEXT,
+    certeza       TEXT,
+    estado        TEXT NOT NULL DEFAULT 'propuesta',
+    firma_id      TEXT
+);
+
+CREATE TABLE IF NOT EXISTS afirmacion_fuente (
+    afirmacion_id TEXT NOT NULL REFERENCES afirmacion(id) ON DELETE CASCADE,
+    fuente_id     TEXT NOT NULL REFERENCES fuente(id) ON DELETE CASCADE,
+    cita_local    TEXT,
+    PRIMARY KEY (afirmacion_id, fuente_id)
+);
+
+CREATE TABLE IF NOT EXISTS parametro (
+    id            TEXT PRIMARY KEY, -- PA-001
+    nombre        TEXT NOT NULL,
+    valor         TEXT NOT NULL,
+    unidad        TEXT,
+    procedencia   TEXT NOT NULL,    -- evidencia | criterio_firmado | historial | pactado
+    fuente_id     TEXT REFERENCES fuente(id),
+    afirmacion_id TEXT REFERENCES afirmacion(id),
+    firmado_por   TEXT,
+    firmado_en    TEXT,
+    nota          TEXT
+);
+
+CREATE TABLE IF NOT EXISTS regla (
+    id                 TEXT PRIMARY KEY, -- RG-002
+    version            INTEGER NOT NULL DEFAULT 1,
+    enunciado          TEXT NOT NULL,
+    cuando_json        TEXT NOT NULL,
+    entonces_json      TEXT NOT NULL,
+    confianza          REAL,
+    estado             TEXT NOT NULL DEFAULT 'revisada',
+    revisar_en_dias    INTEGER,
+    metrica_exito_json TEXT
+);
+
+CREATE TABLE IF NOT EXISTS regla_afirmacion (
+    regla_id      TEXT NOT NULL REFERENCES regla(id) ON DELETE CASCADE,
+    afirmacion_id TEXT NOT NULL REFERENCES afirmacion(id) ON DELETE CASCADE,
+    papel         TEXT,             -- motiva | limita | avisa
+    PRIMARY KEY (regla_id, afirmacion_id, papel)
+);
+
+CREATE TABLE IF NOT EXISTS regla_parametro (
+    regla_id     TEXT NOT NULL REFERENCES regla(id) ON DELETE CASCADE,
+    parametro_id TEXT NOT NULL REFERENCES parametro(id) ON DELETE CASCADE,
+    PRIMARY KEY (regla_id, parametro_id)
+);
+
+CREATE TABLE IF NOT EXISTS estimulo (
+    id             TEXT PRIMARY KEY, -- ES-001
+    nombre         TEXT NOT NULL,
+    entrena        TEXT,
+    no_entrena     TEXT,
+    recuperacion_h REAL,
+    coste          TEXT,
+    papel_400      TEXT,
+    papel_3000     TEXT
+);
+
+CREATE TABLE IF NOT EXISTS receta (
+    id         TEXT PRIMARY KEY,   -- RE-001
+    nombre     TEXT NOT NULL,
+    sesion     TEXT NOT NULL,
+    metros     REAL,
+    reps       INTEGER,
+    dist_m     REAL,
+    ritmo_rel  TEXT,
+    descanso_s REAL,
+    salida_s   REAL,
+    desde_dia  TEXT,
+    porque     TEXT,
+    progresion TEXT,
+    regresion  TEXT
+);
+
+CREATE TABLE IF NOT EXISTS receta_paso (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    receta_id  TEXT NOT NULL REFERENCES receta(id) ON DELETE CASCADE,
+    orden      INTEGER NOT NULL,
+    texto      TEXT NOT NULL,
+    tipo       TEXT,                -- calentamiento | serie | suelta
+    metros     REAL,
+    ritmo_100  TEXT,
+    descanso_s REAL,
+    material   TEXT,
+    intensidad TEXT,
+    UNIQUE (receta_id, orden)
+);
 """
 
 # Columnas anadidas despues de la primera version del esquema. `conectar` las crea si faltan, para

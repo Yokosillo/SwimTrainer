@@ -635,3 +635,44 @@ def cuadro_revision(cn: sqlite3.Connection, ruta: str | None = None) -> dict:
             "sin_fuente": len(crits),
             "criterios_pendientes": len(crits),
             "secciones": lista}
+
+
+# --------------------------------------------------------------------------- API TOML (F2)
+# Envoltorios finos para no obligar a los llamadores a conocer el modulo `conocimiento_toml`.
+# La API Markdown de arriba sigue intacta: el motor v1 no cambia.
+
+def cargar(ruta: str = "conocimiento"):
+    """Carga el conocimiento TOML (ver `conocimiento_toml.cargar`). No escribe nada."""
+    from . import conocimiento_toml
+
+    return conocimiento_toml.cargar(ruta)
+
+
+def validar_toml(ruta: str = "conocimiento") -> dict:
+    from . import conocimiento_toml
+
+    return conocimiento_toml.validar(ruta=ruta)
+
+
+def version_toml(ruta: str = "conocimiento") -> str:
+    from . import conocimiento_toml
+
+    return conocimiento_toml.version(ruta)
+
+
+def estructura_toml(ruta: str = "conocimiento") -> dict:
+    from . import conocimiento_toml
+
+    return conocimiento_toml.estructura(ruta=ruta)
+
+
+def sincronizar_toml(cn, ruta: str = "conocimiento") -> dict:
+    from . import conocimiento_toml
+
+    return conocimiento_toml.sincronizar(cn, ruta=ruta)
+
+
+def exportar_markdown(ruta: str = "conocimiento", destino: str | None = None) -> dict:
+    from . import conocimiento_toml
+
+    return conocimiento_toml.exportar_markdown(ruta=ruta, destino=destino)
