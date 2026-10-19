@@ -3730,11 +3730,48 @@ def pruebas_motor_conocimiento_f3() -> None:
     locales_af = [a for a in c.afirmaciones if a.id.startswith("AF-1")]
     locales_pa = [p for p in c.parametros if p.id.startswith("PA-1")]
     comprobar("F3-07: 22 criterios locales pendientes de firma",
-              len(locales_af) == 22 and all(a.criterio_firmado and not a.firmado_por for a in locales_af),
+              len(locales_af) == 22 and all(a.criterio_firmado and not a.firmado_por
+                                            and a.procedencia == "criterio_firmado" for a in locales_af),
               f"{len(locales_af)} criterios")
     comprobar("F3-07: los parametros locales son criterio firmado pendiente",
-              len(locales_pa) == 10 and all(p.procedencia == "criterio_firmado" and not p.firmado_por
+              len(locales_pa) == 16 and all(p.procedencia == "criterio_firmado" and not p.firmado_por
                                             for p in locales_pa), f"{len(locales_pa)} parametros")
+
+    # F3-02/R: mapeo honesto regla -> afirmaciones/parametros, sin comodines.
+    esperado = {
+        "R1": ({"AF-201"}, set()),
+        "R1b": ({"AF-202", "AF-209"}, set()),
+        "R2": ({"AF-001", "AF-002"}, {"PA-101", "PA-102"}),
+        "R3": ({"AF-203"}, set()),
+        "R4": ({"AF-204"}, set()),
+        "R5": ({"AF-205"}, {"PA-106", "PA-111", "PA-112"}),
+        "R6": ({"AF-206"}, set()),
+        "R7": ({"AF-207"}, {"PA-113"}),
+        "R8": ({"AF-208", "AF-209"}, {"PA-114", "PA-115", "PA-116"}),
+    }
+    por_legacy = {r.legacy_id: r for r in c.reglas}
+    comprobar("F3-02: cada regla enlaza sus AF/PA y no el comodin AF-101/PA-101",
+              all(set(por_legacy[k].evidencia) == af and set(por_legacy[k].parametros) == pa
+                  for k, (af, pa) in esperado.items()),
+              str({k: (list(por_legacy[k].evidencia), list(por_legacy[k].parametros)) for k in esperado}))
+    hist = {a.id for a in c.afirmaciones if a.procedencia == "historial"}
+    comprobar("F3-02: R1/R1b/R3/R4 enlazan afirmaciones con procedencia=historial",
+              all(set(por_legacy[k].evidencia) & hist for k in ("R1", "R1b", "R3", "R4")), str(hist))
+    comprobar("F3-02: AF-201..204 son historial y estan sin firmar",
+              all(any(a.id == f"AF-{n}" and a.criterio_firmado and not a.firmado_por
+                      for a in c.afirmaciones) for n in (201, 202, 203, 204)))
+    from dataclasses import replace
+    reglas_mal = tuple(replace(r, evidencia=("AF-101",), parametros=("PA-101",)) for r in c.reglas)
+    v_mal = ct.validar(replace(c, reglas=reglas_mal))
+    comprobar("F3-02: el validador rechaza el enlace comodin",
+              any(e["tipo"] == "regla_enlace_comodin" for e in v_mal["errores"]), str(v_mal["errores"]))
+    reglas_hist = tuple(replace(r, evidencia=("AF-101",)) if r.legacy_id == "R1" else r for r in c.reglas)
+    v_hist = ct.validar(replace(c, reglas=reglas_hist))
+    comprobar("F3-02: el validador exige afirmacion historial en R1/R1b/R3/R4",
+              any(e["tipo"] == "regla_historial_sin_afirmacion_historial" for e in v_hist["errores"]),
+              str(v_hist["errores"]))
+    comprobar("F3-02: ninguna regla usa el par comodin AF-101/PA-101",
+              not any(set(r.evidencia) == {"AF-101"} and set(r.parametros) == {"PA-101"} for r in c.reglas))
 
     with tempfile.TemporaryDirectory() as d:
         dst = os.path.join(d, "conocimiento")
