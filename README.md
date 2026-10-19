@@ -157,6 +157,30 @@ La orden `analizar` deja tres cosas: `cuadro/panel.html` (el cuadro de mando, se
 servidor ni internet), `informes/H_analitica_segmentos.md` (lo mismo en texto) y `data/derived/analitica.json`
 (los datos crudos, por si se quieren consultar a mano).
 
+### Snapshots dorados (golden)
+
+Antes de tocar el motor de conocimiento se guarda lo que dice hoy, para poder comparar despues sin
+depender de la memoria. `scripts/golden.py` captura la salida de `cli valoracion`, `cli plan
+--recalculado`, `cli reglas` y `cli decision --lista`, mas un resumen de los datos de `cuadro/panel.html`
+(KPIs, conteos, version del conocimiento y valoracion; no se guarda el HTML entero).
+
+```bash
+# antes del cambio: guardar la referencia
+docker compose exec -T entrenador python scripts/golden.py --guardar
+
+# despues del cambio: comparar (codigo 0 = igual; 1 = hay diferencias)
+docker compose exec -T entrenador python scripts/golden.py --comparar
+
+# otra carpeta, por ejemplo para comparar v1 contra v2
+docker compose exec -T entrenador python scripts/golden.py --guardar --dir data/derived/golden/v1
+docker compose exec -T entrenador python scripts/golden.py --comparar --dir data/derived/golden/v1
+```
+
+Los snapshots llevan datos del atleta y se guardan en `data/derived/golden/`, que **no se versiona**.
+El script si es publico. Compara siempre sobre la misma base y el mismo dia: `plan --recalculado` y la
+valoracion dependen de la fecha y de los entrenamientos que hay en la base.
+
+
 El cuadro de mando es una **aplicacion local**: un solo fichero HTML con **menu lateral** (Resumen,
 Competicion, Plan, Entrenamientos, Gimnasio, Apuntar, Volumen y el portal de bici) y **pestanas** dentro de
 las secciones. Todo (filtros, comparaciones, tendencia y graficos) se calcula en el propio navegador: no
