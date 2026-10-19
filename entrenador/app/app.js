@@ -3183,7 +3183,7 @@ function pintarReglas() {
   pintar("conocimientoKpis", [
     kpi("Secciones del anexo", entero(cono.total), "lo que el motor sabe"),
     kpi("Revisadas", entero(cono.revisadas), "con firma y fecha"),
-    kpi("Sin fuente", entero(cono.sin_fuente), "criterio del entrenador"),
+    kpi("Criterios sin firma", entero(cono.sin_fuente), "criterio del entrenador"),
   ]);
   const listaCono = q("conocimientoLista");
   if (listaCono) {
@@ -3191,7 +3191,7 @@ function pintarReglas() {
       const firma = x.revisado_por ? ("Firmada por " + esc(x.revisado_por) + " el " + esc(fechaCorta(x.revisado_en)))
         : "Sin revisar";
       const respaldo = x.con_fuente ? ("Fuentes " + (x.fuentes || []).map((n) => "[" + n + "]").join(" "))
-        : "Criterio (sin cita literal)";
+        : (x.criterio ? "Criterio (sin cita literal)" : "Sección de método");
       return '<div class="item"><i class="i-marca"></i><div class="i-txt"><strong>' + esc(x.seccion) + " · "
         + esc(x.titulo || "") + "</strong><span>" + respaldo + (x.criterios ? " · " + entero(x.criterios)
         + " afirmacion(es) marcadas" : "") + '</span><span class="gris mini-txt">' + firma

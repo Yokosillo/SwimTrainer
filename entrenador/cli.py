@@ -372,8 +372,36 @@ def _fuerza(cn, args) -> int:
 
 
 def _conocimiento(cn, args) -> int:
-    """La firma del anexo T: que secciones hay, con que respaldo y quien las ha revisado (V1.3-01)."""
+    """La base de conocimiento: validacion, criterios pendientes y firma de secciones (F1)."""
+    import json as _json
+
     from . import conocimiento
+
+    if getattr(args, "validar", False):
+        v = conocimiento.validar()
+        if getattr(args, "json", False):
+            print(_json.dumps(v, ensure_ascii=False, indent=2))
+        else:
+            print(f"{v['anexo']}: {v['secciones']} secciones, {v['fuentes']} fuentes definidas, "
+                  f"{v['citas_usadas']} citas distintas.")
+            for e in v["errores"]:
+                print(f"  [ERROR] {e['tipo']}: {e['detalle']}")
+            for a in v["avisos"]:
+                print(f"  [AVISO] {a['tipo']}: {a['detalle']}")
+            print("OK: el anexo es coherente." if v["ok"]
+                  else f"FALLAN {len(v['errores'])} comprobacion(es).")
+        return 0 if v["ok"] else 1
+    if getattr(args, "criterios", False):
+        firmadas = set(conocimiento.revisadas(cn))
+        filas = [dict(x, estado=("firmada" if x["seccion"] in firmadas else "pendiente"))
+                 for x in conocimiento.criterios()]
+        if getattr(args, "json", False):
+            print(_json.dumps(filas, ensure_ascii=False, indent=2))
+        else:
+            print(f"{len(filas)} criterios sin fuente (estado = seccion firmada o pendiente de firma):")
+            for i, x in enumerate(filas, 1):
+                print(f"  {i:>2}. {x['seccion']:<5} [{x['estado']}] {x['afirmacion']}")
+        return 0
     if args.revisar:
         if not conocimiento.seccion(args.revisar):
             print(f"No existe la seccion {args.revisar} en el anexo.")
@@ -382,7 +410,8 @@ def _conocimiento(cn, args) -> int:
         conocimiento.marcar_revision(cn, args.revisar, quien, args.notas or "")
         print(f"{args.revisar} firmada por {quien}.")
     c = conocimiento.cuadro_revision(cn)
-    print(f"{c['anexo']}: {c['total']} secciones, {c['revisadas']} revisadas, {c['sin_fuente']} sin fuente.")
+    print(f"{c['anexo']}: {c['total']} secciones, {c['revisadas']} revisadas, "
+          f"{c['sin_fuente']} criterios sin firma.")
     for x in c["secciones"]:
         firma = (f"revisada por {x['revisado_por']} el {str(x['revisado_en'])[:10]}" if x["revisado_por"]
                  else "sin revisar")
@@ -525,9 +554,14 @@ def main(argv: list[str] | None = None) -> int:
     pfu = sub.add_parser("fuerza", help="la dosis preventiva del hombro (T.7), el aviso de abandono y su carga")
     pfu.add_argument("--fecha", default=None, help="la fecha del dia (por defecto, hoy)")
 
-    pco = sub.add_parser("conocimiento", help="la base de conocimiento: sus secciones y quien las ha revisado")
+    pco = sub.add_parser("conocimiento", help="la base de conocimiento: validacion, criterios y firmas")
     pco.add_argument("--revisar", default=None, metavar="SECCION",
                      help="firma una seccion como revisada (T.4, T.8...): quien la ha mirado y cuando")
+    pco.add_argument("--validar", action="store_true",
+                     help="valida IDs de seccion, citas [n] y el bloque Sources (0 = sin errores)")
+    pco.add_argument("--criterios", action="store_true",
+                     help="lista las afirmaciones [criterio] pendientes de firma, con su estado")
+    pco.add_argument("--json", action="store_true", help="salida JSON para --validar o --criterios")
     pco.add_argument("--quien", default=None, help="quien la firma (por defecto, el atleta)")
     pco.add_argument("--notas", default=None, help="con que notas queda firmada")
 

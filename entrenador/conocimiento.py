@@ -5,7 +5,7 @@
 Aqui no hay ningun modelo. El saber vive escrito a mano en `informes/T_base_de_conocimiento.md`, con su fuente
 citada al lado, y este modulo solo lo lee y lo pone a disposicion del motor. Tres piezas:
 
-  1. `secciones()` - las secciones del anexo (T.0 a T.9) con su texto, los numeros de fuente que citan y si se
+  1. `secciones()` - las secciones del anexo (T.0 a T.10) con su texto, los numeros de fuente que citan y si se
      declaran criterio sin fuente.
   2. `fuente_de(clave)` - de donde sale lo que el motor dice de una clase de estimulo (`ritmo_prueba`), de una
      regla (`R2`) o de una clave de conocimiento (`taper`). Si no tiene seccion, devuelve `criterio=True`.
@@ -62,35 +62,45 @@ CLAVES: dict[str, str] = {
 
 RE_SECCION = re.compile(r"^##\s+(T\.\d+)\b\s*(.*)$")
 RE_FUENTE = re.compile(r"\[(\d+)\]")
+# Una linea del bloque `## Sources`: `[n] URL — Titulo`. La URL es el primer token (no lleva espacios);
+# entre la URL y el titulo puede haber un parentetico con el DOI, asi que el separador se busca despues.
+RE_SOURCE = re.compile(r"^\[(\d+)\]\s+(\S+)\s*(.*)$")
+RE_TITULO_FUENTES = re.compile(r"^##\s+Sources\b", re.IGNORECASE)
 
 # Secciones que no son saber de natacion sino como funciona el propio anexo. Sus frases marcadas no son
 # afirmaciones que haya que respaldar ni revisar, asi que quedan fuera de las listas de trabajo.
-META: tuple[str, ...] = ("T.0", "T.9")
+# `T.10` es el cierre del anexo (que lee el motor y que no): tampoco es una afirmacion sobre natacion.
+META: tuple[str, ...] = ("T.0", "T.9", "T.10")
 
 
 def _camino(ruta: str | None = None) -> str:
     return ruta or RUTA_ANEXO
 
 
-def secciones(ruta: str | None = None) -> dict[str, dict]:
-    """Las secciones del anexo T, indexadas por id.
+def _leer_secciones(ruta: str | None = None) -> tuple[dict[str, dict], list[dict]]:
+    """Lee el anexo una vez y devuelve (secciones, duplicados). No sobrescribe nada.
 
-    Cada una sale como `{'id', 'titulo', 'texto', 'fuentes', 'criterio', 'criterios'}`: `fuentes` son los numeros
-    entre corchetes que la seccion cita (`[1]`, `[2]`...). `criterio` es True solo si la seccion **entera** va sin
-    fuente (todas sus afirmaciones son criterio); `criterios` lista las afirmaciones sueltas marcadas
-    `[criterio]` dentro de una seccion que si tiene fuentes. El bloque de fuentes final se ignora.
+    Si un ID de seccion aparece dos veces, **se queda la primera** y el duplicado se anota en la lista
+    que devuelve `duplicados()`. Antes el diccionario se sobrescribia en silencio y la segunda `T.9`
+    (el cierre) se comia a "Como se mantiene esto" (defecto D-01).
     """
     camino = _camino(ruta)
     if not os.path.isfile(camino):
-        return {}
+        return {}, []
     fuera: dict[str, dict] = {}
+    duplicados: list[dict] = []
     actual: str | None = None
     with open(camino, encoding="utf-8") as f:
-        for linea in f:
+        for numero, linea in enumerate(f, start=1):
             linea = linea.rstrip("\n")
             m = RE_SECCION.match(linea)
             if m:
-                actual = m.group(1)
+                sid = m.group(1)
+                if sid in fuera:
+                    duplicados.append({"id": sid, "titulo": m.group(2).strip(), "linea": numero})
+                    actual = None          # el contenido del duplicado no se mezcla con el de la primera
+                    continue
+                actual = sid
                 fuera[actual] = {"id": actual, "titulo": m.group(2).strip(), "texto": [],
                                  "fuentes": set(), "criterios": [], "con_criterio": False}
                 continue
@@ -111,7 +121,26 @@ def secciones(ruta: str | None = None) -> dict[str, dict]:
         # Criterio de verdad: afirmaciones marcadas y ninguna fuente en toda la seccion (asi T.8 sale criterio y
         # T.1, que cita cuatro fuentes y tiene una afirmacion marcada, no se tacha entera).
         s["criterio"] = bool(s["criterios"]) and not s["fuentes"]
-    return fuera
+    return fuera, duplicados
+
+
+def secciones(ruta: str | None = None) -> dict[str, dict]:
+    """Las secciones del anexo T, indexadas por id (la primera si hubiera un duplicado).
+
+    Cada una sale como `{'id', 'titulo', 'texto', 'fuentes', 'criterio', 'criterios'}`: `fuentes` son los numeros
+    entre corchetes que la seccion cita (`[1]`, `[2]`...). `criterio` es True solo si la seccion **entera** va sin
+    fuente (todas sus afirmaciones son criterio); `criterios` lista las afirmaciones sueltas marcadas
+    `[criterio]` dentro de una seccion que si tiene fuentes. El bloque de fuentes final se ignora.
+    """
+    return _leer_secciones(ruta)[0]
+
+
+def duplicados(ruta: str | None = None) -> list[dict]:
+    """Los IDs de seccion que aparecen mas de una vez, con la linea del duplicado.
+
+    Es la comprobacion de D-01: un anexo sano devuelve `[]`. El validador lo trata como error.
+    """
+    return _leer_secciones(ruta)[1]
 
 
 def seccion(sid: str, ruta: str | None = None) -> dict | None:
@@ -185,29 +214,200 @@ def _frase(secciones_clave: list[str], grado: str, sin_fuente: list[str]) -> str
     return base
 
 
+def fuentes(ruta: str | None = None) -> dict[int, dict]:
+    """El bloque `## Sources` del anexo, indexado por numero.
+
+    Cada fuente sale como `{'n', 'url', 'titulo', 'citas'}`. `citas` son las lineas `>` que van debajo
+    (la cita literal, sin el `>` ni las comillas de fuera). Si un numero se define dos veces, se queda
+    la primera y el duplicado no se mezcla: la validacion lo denuncia.
+
+    No se confunde con `secciones(...)['fuentes']`, que son los numeros que **cita** cada seccion. Esto
+    es el catalogo de lo que hay definido.
+    """
+    camino = _camino(ruta)
+    if not os.path.isfile(camino):
+        return {}
+    fuera: dict[int, dict] = {}
+    dentro = False
+    actual: int | None = None
+    with open(camino, encoding="utf-8") as f:
+        for linea in f:
+            linea = linea.rstrip("\n")
+            if RE_TITULO_FUENTES.match(linea):
+                dentro = True
+                actual = None
+                continue
+            if not dentro:
+                continue
+            if linea.startswith("## "):       # el siguiente titulo cierra el bloque de fuentes
+                break
+            m = RE_SOURCE.match(linea.strip())
+            if m:
+                n = int(m.group(1))
+                if n in fuera:                # duplicado: se queda la primera definicion
+                    actual = None
+                    continue
+                resto = m.group(3) or ""
+                # El titulo va detras del separador `—` (puede haber un `(doi ...)` antes).
+                partes = re.split(r"\s*[—-]\s+", resto, maxsplit=1)
+                titulo = partes[1] if len(partes) > 1 else resto
+                titulo = re.sub(r"\s+", " ", titulo.replace("\\n", " ")).strip()
+                fuera[n] = {"n": n, "url": m.group(2), "titulo": titulo, "citas": []}
+                actual = n
+                continue
+            if actual is not None and linea.strip().startswith(">"):
+                cita = linea.strip()[1:].strip()
+                if len(cita) >= 2 and cita.startswith('"') and cita.endswith('"'):
+                    cita = cita[1:-1]
+                if cita:
+                    fuera[actual]["citas"].append(cita)
+    return fuera
+
+
 def sin_fuente(ruta: str | None = None) -> list[dict]:
-    """Las secciones de saber que se declaran criterio entero: la lista para que la firme el entrenador."""
-    return [s for s in secciones(ruta).values() if s["criterio"] and s["id"] not in META]
+    """Las secciones que traen afirmaciones sin fuente (criterio) y que hay que firmar.
+
+    Ya no es solo la seccion entera sin fuentes: una seccion puede citar cuatro fuentes y tener dentro
+    frases marcadas `[criterio]`. Se devuelven las secciones que tienen alguna (con su cuenta en
+    `criterios`). Las secciones de metodo (T.0, T.9 y T.10) quedan fuera: no son saber de natacion.
+    """
+    return [s for s in secciones(ruta).values() if s["criterios"] and s["id"] not in META]
 
 
-def afirmaciones_sin_fuente(ruta: str | None = None) -> list[dict]:
-    """Las afirmaciones sueltas que el anexo declara criterio, con la seccion a la que pertenecen.
+def criterios(ruta: str | None = None) -> list[dict]:
+    """Las afirmaciones marcadas `[criterio]` que esperan firma, con la seccion a la que pertenecen.
 
-    Es la lista de trabajo de verdad: una seccion puede tener cuatro fuentes y una frase sin respaldo dentro. Las
-    secciones de metodo (T.0 y T.9) quedan fuera: no son afirmaciones sobre natacion.
+    Es la lista de trabajo de verdad: una seccion puede tener cuatro fuentes y una frase sin respaldo
+    dentro. Las secciones de metodo (T.0, T.9 y T.10) quedan fuera: no son afirmaciones sobre natacion.
+
+    El anexo va partido en lineas de 120 columnas, asi que la frase se reconstruye con la linea
+    anterior si el marcador cayo al principio de la siguiente (`_contexto`). Se cuenta **una por linea
+    marcada**, que es el criterio que fijo el plan (21): la linea de T.5 con dos marcas es un solo
+    criterio porque la segunda marca es una coletilla de la misma frase.
     """
     fuera = []
     for s in secciones(ruta).values():
         if s["id"] in META:
             continue
-        for linea in s["criterios"]:
-            fuera.append({"seccion": s["id"], "afirmacion": _limpia(linea)})
+        lineas = s["texto"].splitlines()
+        for i, linea in enumerate(lineas):
+            if "[criterio]" not in linea:
+                continue
+            fuera.append({"seccion": s["id"], "afirmacion": _limpia(_afirmacion_de(lineas, i))})
     return fuera
+
+
+_FIN_DE_FRASE = (".", ":", ";", "!", "?", "|")
+
+
+def _afirmacion_de(lineas: list[str], i: int) -> str:
+    """La frase que lleva el `[criterio]` de la linea `i`, con su contexto si venia partida.
+
+    En las tablas de T.8 el criterio vive en una fila: se usa la primera columna (la afirmacion), no
+    la fila entera con el estado y la justificacion.
+    """
+    linea = lineas[i].strip()
+    if linea.startswith("|"):
+        celdas = [c.strip() for c in linea.strip("|").split("|")]
+        if celdas and celdas[0]:
+            return celdas[0]
+    partes = [linea]
+    j = i - 1
+    while j >= 0:
+        previa = lineas[j].strip()
+        if not previa or previa.startswith("#") or previa.startswith("|"):
+            break
+        if "[criterio]" in previa:
+            # La frase empieza despues del ultimo marcador de la linea anterior; no se duplica.
+            cola = previa.rsplit("[criterio]", 1)[1].lstrip("`").lstrip()
+            cola = re.sub(r"^[.:;]\s*", "", cola)
+            if cola:
+                partes.insert(0, cola)
+            break
+        partes.insert(0, previa)
+        if previa.endswith(_FIN_DE_FRASE):
+            break
+        j -= 1
+    # Si el marcador cae a mitad de la frase, la frase sigue en las lineas de abajo: se completa
+    # hasta el punto (o hasta el siguiente marcador, que ya es otro criterio).
+    cola_actual = linea.rsplit("[criterio]", 1)[1].strip().lstrip("`").strip()
+    if cola_actual and not cola_actual.endswith(_FIN_DE_FRASE):
+        k = i + 1
+        while k < len(lineas):
+            siguiente = lineas[k].strip()
+            if not siguiente or siguiente.startswith("#") or siguiente.startswith("|"):
+                break
+            if "[criterio]" in siguiente:
+                antes = siguiente.split("[criterio]", 1)[0].strip()
+                if antes:
+                    partes.append(antes)
+                break
+            partes.append(siguiente)
+            if siguiente.endswith(_FIN_DE_FRASE):
+                break
+            k += 1
+    return " ".join(p.strip() for p in partes)
+
+
+def afirmaciones_sin_fuente(ruta: str | None = None) -> list[dict]:
+    """Compatibilidad: el mismo listado que `criterios()` (nombre historico del modulo)."""
+    return criterios(ruta)
+
+
+def validar(ruta: str | None = None) -> dict:
+    """Valida el anexo: IDs de seccion, citas y fuentes del bloque `## Sources`.
+
+    Devuelve `{'anexo', 'secciones', 'fuentes', 'citas_usadas', 'errores', 'avisos', 'ok'}`.
+    Un error invalida el documento (cita rota o seccion duplicada); un aviso no (fuente definida y no
+    citada, o fuente sin cita literal). El CLI devuelve 0 solo si `ok` y no hay errores.
+    """
+    secs = secciones(ruta)
+    defs = fuentes(ruta)
+    errores: list[dict] = []
+    avisos: list[dict] = []
+
+    for d in duplicados(ruta):
+        errores.append({"tipo": "seccion_duplicada",
+                        "detalle": f"{d['id']} aparece otra vez en la linea {d['linea']}",
+                        "id": d["id"]})
+
+    usadas: dict[int, list[str]] = {}
+    for sid, s in secs.items():
+        for n in s["fuentes"]:
+            usadas.setdefault(n, []).append(sid)
+
+    for n in sorted(usadas):
+        if n not in defs:
+            errores.append({"tipo": "cita_rota",
+                            "detalle": f"[{n}] se cita en {', '.join(usadas[n])} y no esta en Sources",
+                            "fuente": n})
+    for n in sorted(defs):
+        if n not in usadas:
+            avisos.append({"tipo": "fuente_huerfana",
+                           "detalle": f"[{n}] esta en Sources y no se cita en ninguna seccion",
+                           "fuente": n})
+        if not defs[n]["citas"]:
+            avisos.append({"tipo": "fuente_sin_cita",
+                           "detalle": f"[{n}] no trae cita literal (linea \"> ...\")",
+                           "fuente": n})
+
+    return {
+        "anexo": _camino(ruta),
+        "secciones": len(secs),
+        "fuentes": len(defs),
+        "citas_usadas": len(usadas),
+        "errores": errores,
+        "avisos": avisos,
+        "ok": not errores,
+    }
 
 
 def _limpia(linea: str) -> str:
     """La frase sin la marca de criterio ni las comillas de codigo que la acompanan en el anexo."""
-    return linea.replace("`[criterio]`", "").replace("[criterio]", "").strip().strip("`").strip()
+    frase = linea.replace("`[criterio]`", "").replace("[criterio]", "")
+    frase = re.sub(r"[ \t]+([.,;:])", r"\1", frase)      # "proyecto ." -> "proyecto."
+    frase = re.sub(r"[ \t]{2,}", " ", frase)
+    return frase.strip().strip("`").strip()
 
 
 def revision(cn: sqlite3.Connection, sid: str) -> dict | None:
@@ -260,7 +460,11 @@ def cuadro_revision(cn: sqlite3.Connection, ruta: str | None = None) -> dict:
             "criterio": bool(s.get("criterio")), "criterios": len(s.get("criterios") or []),
             "revisado_por": f.get("revisado_por"), "revisado_en": f.get("revisado_en"), "notas": f.get("notas"),
         })
+    crits = criterios(ruta)
     return {"anexo": RUTA_ANEXO, "total": len(lista),
             "revisadas": sum(1 for x in lista if x["revisado_por"]),
-            "sin_fuente": sum(1 for x in lista if not x["con_fuente"]),
+            # Criterios sin firma, no secciones sin fuente: una seccion con fuentes puede tener dentro
+            # frases `[criterio]`. Antes esto contaba secciones y el portal podia decir "todo con fuente".
+            "sin_fuente": len(crits),
+            "criterios_pendientes": len(crits),
             "secciones": lista}
