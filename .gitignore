@@ -12,6 +12,9 @@ __pycache__/
 # Los anexos (informes/) llevan sus marcas, sus ritmos y lo del hombro: se quedan en el PC. El repositorio
 # publico lleva el codigo, no el historial medico-deportivo.
 informes/
+
+# El otro repositorio (el privado, con los datos): vive aqui dentro pero es su propio git
+privado/
 data/
 export_*.zip
 *.db

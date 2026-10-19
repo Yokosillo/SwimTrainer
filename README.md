@@ -4,12 +4,13 @@ Aplicacion **local** para gestionar los entrenamientos (natacion, bicicleta, car
 de los ficheros del reloj Garmin y de los exports de Strava. Todo se guarda en el equipo del atleta:
 **ninguna dato sale a ningun servicio externo**.
 
-Proyecto personal. Los anexos (diagnostico, base de conocimiento y planificacion) se quedan en el equipo del
-atleta: llevan sus marcas, sus ritmos y sus notas, y el repositorio es publico.
+Proyecto personal. Los anexos (diagnostico, base de conocimiento y planificacion) se quedan en el
+repositorio **privado** del atleta: llevan sus marcas, sus ritmos y sus notas, y este repositorio es publico.
 
 ## Lo que no esta en el repositorio
 
-- Los anexos (`informes/`): el diagnostico, el plan y la base de conocimiento. Son personales.
+- Los anexos (`informes/`): el diagnostico, el plan y la base de conocimiento. Son personales: viven en el
+  repositorio privado del atleta (`SwimTrainer-personal`) y en su equipo.
 - Los datos: la base (`data/entrenador.db`), los exports del reloj y de Strava.
 - El nombre, el club y el sello del atleta: viven en `entrenador/perfil_local.py`, que no se sube. La aplicacion
   los lee de ahi (`entrenador/perfil.py`); sin ese fichero el portal se pinta sin nombre.
