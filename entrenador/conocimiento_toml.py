@@ -47,6 +47,8 @@ FICHEROS = (
 RUTA_SALIDA = os.path.join("data", "derived", "conocimiento")
 ID_RE = re.compile(r"^(FU|AF|RG|PA|ES|RE)-\d{3}$")
 PROCEDENCIAS = ("evidencia", "criterio_firmado", "historial", "pactado")
+PROCEDENCIAS_AFIRMACION = ("evidencia", "criterio_firmado", "historial", "pactado", "metodo")
+REGLAS_HISTORIAL_CON_AF = ("R1", "R1b", "R3", "R4")
 DIRECCIONES = ("mejora", "neutro", "empeora", "incierto")
 ESTADOS_AFIRMACION = ("propuesta", "revisada", "rechazada")
 
@@ -135,6 +137,7 @@ class Afirmacion:
     aplicabilidad: str = ""
     certeza: str = ""
     estado: str = "propuesta"
+    procedencia: str = ""
     criterio_firmado: bool = False
     firmado_por: str = ""
     firmado_en: str = ""
@@ -345,7 +348,8 @@ def _afirmacion(d: dict) -> Afirmacion:
         id=_s(d.get("id")), texto=_s(d.get("texto")), condiciones=_s(d.get("condiciones")),
         efecto=_s(d.get("efecto")), direccion=_s(d.get("direccion")), tamano=_s(d.get("tamano")),
         aplicabilidad=_s(d.get("aplicabilidad")), certeza=_s(d.get("certeza")),
-        estado=_s(d.get("estado")) or "propuesta", criterio_firmado=bool(d.get("criterio_firmado")),
+        estado=_s(d.get("estado")) or "propuesta", procedencia=_s(d.get("procedencia")),
+        criterio_firmado=bool(d.get("criterio_firmado")),
         firmado_por=_s(d.get("firmado_por")), firmado_en=_s(d.get("firmado_en")),
         fuentes=refs, notas=_s(d.get("notas")),
     )
@@ -729,6 +733,11 @@ def validar(c: Conocimiento | None = None, ruta: str = RUTA_CONOCIMIENTO) -> dic
             _error(errores, "afirmacion_direccion", f"{a.id} tiene direccion {a.direccion!r}", id=a.id)
         if a.estado not in ESTADOS_AFIRMACION:
             _error(errores, "afirmacion_estado", f"{a.id} tiene estado {a.estado!r}", id=a.id)
+        if a.procedencia and a.procedencia not in PROCEDENCIAS_AFIRMACION:
+            _error(errores, "afirmacion_procedencia",
+                   f"{a.id} tiene procedencia {a.procedencia!r}", id=a.id)
+        if not a.procedencia:
+            _aviso(avisos, "afirmacion_sin_procedencia", f"{a.id} no declara procedencia", id=a.id)
         if a.estado == "propuesta":
             _aviso(avisos, "afirmacion_propuesta",
                    f"{a.id} esta propuesta: aun no puede motivar una recomendacion", id=a.id)
@@ -792,6 +801,18 @@ def validar(c: Conocimiento | None = None, ruta: str = RUTA_CONOCIMIENTO) -> dic
             _error(errores, "estimulo_inexistente", f"{r.id} usa {estimulo}", id=r.id, estimulo=estimulo)
         if not r.contraindicaciones:
             _aviso(avisos, "regla_sin_contraindicaciones", f"{r.id} no declara contraindicaciones", id=r.id)
+
+    enlaces = {(tuple(sorted(r.evidencia)), tuple(sorted(r.parametros))) for r in c.reglas}
+    if len(c.reglas) > 1 and len(enlaces) == 1:
+        _error(errores, "regla_enlace_comodin",
+               "todas las reglas comparten el mismo conjunto de afirmaciones/parametros")
+    for r in c.reglas:
+        if r.legacy_id in REGLAS_HISTORIAL_CON_AF:
+            if not any(af in afirmaciones and afirmaciones[af].procedencia == "historial"
+                       for af in r.evidencia):
+                _error(errores, "regla_historial_sin_afirmacion_historial",
+                       f"{r.id} ({r.legacy_id}) es de historial y no enlaza ninguna afirmacion con procedencia=historial",
+                       id=r.id)
 
     # Estimulos.
     for e in c.estimulos:
@@ -881,7 +902,8 @@ def sincronizar(cn: sqlite3.Connection, c: Conocimiento | None = None,
             _upsert_entidad(cn, "afirmacion", {
                 "id": a.id, "texto": a.texto, "condiciones": a.condiciones, "efecto": a.efecto,
                 "direccion": a.direccion, "tamano": a.tamano, "aplicabilidad": a.aplicabilidad,
-                "certeza": a.certeza, "estado": a.estado, "firma_id": a.firmado_por})
+                "certeza": a.certeza, "estado": a.estado, "procedencia": a.procedencia,
+                "firma_id": a.firmado_por})
             for ref in a.fuentes:
                 cn.execute(
                     """INSERT INTO afirmacion_fuente (afirmacion_id, fuente_id, cita_local)

@@ -527,6 +527,7 @@ CREATE TABLE IF NOT EXISTS afirmacion (
     aplicabilidad TEXT,
     certeza       TEXT,
     estado        TEXT NOT NULL DEFAULT 'propuesta',
+    procedencia   TEXT,             -- evidencia | historial | pactado | metodo | criterio_firmado
     firma_id      TEXT
 );
 
@@ -635,6 +636,8 @@ MIGRACIONES = {
     # lunes, miercoles y viernes dejan de ser un hueco que el plan adivina: son carga de la semana como
     # cualquier otra.
     "apunte": {"quien": "TEXT DEFAULT 'atleta'"},
+    # F3: la procedencia de la afirmacion (evidencia, historial, pactado, metodo o criterio).
+    "afirmacion": {"procedencia": "TEXT"},
 }
 
 # Indices sobre columnas que llegan por migracion (no existian en las bases viejas al crear la tabla): hay que
