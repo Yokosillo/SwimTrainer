@@ -37,3 +37,22 @@ fuentes = [
   { id = "FU-021", cita_local = "the training of middle-distance swimmers (200-400 m) has been characterized by a predominantly aerobic distribution" },
 ]
 notas = "Piloto F2: sostiene RG-002."
+
+[[afirmacion]]
+id = "AF-003"
+texto = "Las clases de estimulo del motor se corresponden con las zonas de intensidad del anexo T.2; el bloque continuo y las series son las formas de entrenarlas."
+condiciones = "mapping metodologico de las clases ES-001..ES-010 a las zonas T.2"
+efecto = "permite enlazar cada clase con la seccion T.2 sin inventar evidencia para cada una"
+direccion = "neutro"
+tamano = "no cuantificado"
+aplicabilidad = "todas las clases"
+certeza = "metodo"
+estado = "propuesta"
+procedencia = "metodo"
+criterio_firmado = false
+firmado_por = ""
+firmado_en = ""
+fuentes = [
+  { id = "FU-001", cita_local = "4 to 6 x continuous efforts of 5 to 8 minutes duration with 1 to 3 minutes rest between each." },
+]
+notas = "Mapping metodo; no es una afirmacion de efecto. Se usa para que las clases tengan traza."

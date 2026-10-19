@@ -17,7 +17,7 @@ senal = "sesiones largas y continuas en las ultimas semanas"
 seccion_T = ["T.2"]
 grado = "metodo"
 sin_fuente = ["recuperacion"]
-afirmaciones = []
+afirmaciones = ["AF-003"]
 notas = "Version publica generica; la local tiene el texto exacto del atleta."
 
 [[estimulo]]
@@ -35,7 +35,7 @@ senal = "ningun bloque continuo largo en las ultimas dos semanas"
 seccion_T = ["T.2"]
 grado = "metodo"
 sin_fuente = ["recuperacion"]
-afirmaciones = []
+afirmaciones = ["AF-003"]
 
 [[estimulo]]
 id = "ES-003"
@@ -52,7 +52,7 @@ senal = "pocos metros en repeticiones de 200 m o mas en la ultima semana"
 seccion_T = ["T.2", "T.3"]
 grado = "metodo"
 sin_fuente = ["recuperacion"]
-afirmaciones = []
+afirmaciones = ["AF-003", "AF-001"]
 
 [[estimulo]]
 id = "ES-004"
@@ -69,7 +69,7 @@ senal = "pocos metros en repeticiones de 100-200 m en la ultima semana"
 seccion_T = ["T.2"]
 grado = "metodo"
 sin_fuente = ["recuperacion"]
-afirmaciones = []
+afirmaciones = ["AF-003", "AF-001"]
 
 [[estimulo]]
 id = "ES-005"
@@ -86,7 +86,7 @@ senal = "nada a ritmo de prueba con descanso de 30 s o menos en los ultimos dias
 seccion_T = ["T.1", "T.2", "T.3"]
 grado = "evidencia"
 sin_fuente = ["recuperacion"]
-afirmaciones = ["AF-002"]
+afirmaciones = ["AF-002", "AF-003"]
 notas = "Piloto F2/F3: la clase ritmo_prueba."
 
 [[estimulo]]
@@ -104,7 +104,7 @@ senal = "ningun bloque de 25-50 m rapido en las ultimas dos semanas"
 seccion_T = ["T.2", "T.3"]
 grado = "evidencia"
 sin_fuente = ["recuperacion"]
-afirmaciones = []
+afirmaciones = ["AF-003"]
 
 [[estimulo]]
 id = "ES-007"
@@ -121,7 +121,7 @@ senal = "no hacer pies en varias semanas"
 seccion_T = []
 grado = "criterio"
 sin_fuente = ["todo"]
-afirmaciones = []
+afirmaciones = ["AF-003"]
 
 [[estimulo]]
 id = "ES-008"
@@ -138,7 +138,7 @@ senal = "mucho tiempo sin salir con crono"
 seccion_T = []
 grado = "criterio"
 sin_fuente = ["todo"]
-afirmaciones = []
+afirmaciones = ["AF-003"]
 
 [[estimulo]]
 id = "ES-009"
@@ -155,7 +155,7 @@ senal = "siempre suma"
 seccion_T = []
 grado = "criterio"
 sin_fuente = ["todo"]
-afirmaciones = []
+afirmaciones = ["AF-003"]
 
 [[estimulo]]
 id = "ES-010"
@@ -172,7 +172,7 @@ senal = ""
 seccion_T = []
 grado = "criterio"
 sin_fuente = ["todo"]
-afirmaciones = []
+afirmaciones = ["AF-003"]
 
 [[material]]
 clave = "aletas"

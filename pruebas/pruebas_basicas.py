@@ -3395,7 +3395,7 @@ def pruebas_conocimiento_toml() -> None:
     shutil.copytree("conocimiento", destino_publico, ignore=shutil.ignore_patterns("local"))
     c = ct.cargar(destino_publico)
     comprobar("F2-02: el TOML carga las 22 fuentes y el piloto R2",
-              len(c.fuentes) == 22 and len(c.afirmaciones) == 2 and len(c.parametros) == 2
+              len(c.fuentes) == 22 and len(c.afirmaciones) == 3 and len(c.parametros) == 2
               and len(c.reglas) == 1 and len(c.estimulos) == 10 and len(c.recetas) == 7,
               str(ct.estructura(c)["conteos"]))
     comprobar("F2-05: la version es KV-* y el hash es sha256",
@@ -3585,7 +3585,7 @@ def pruebas_conocimiento_toml() -> None:
     r = ct.sincronizar(cn, c)
     cuenta = lambda t: cn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
     comprobar("F2-04: la sincronizacion crea las tablas y las filas",
-              r["ok"] and cuenta("fuente") == 22 and cuenta("afirmacion") == 2
+              r["ok"] and cuenta("fuente") == 22 and cuenta("afirmacion") == 3
               and cuenta("parametro") == 2 and cuenta("regla") == 1 and cuenta("receta") == 7
               and cuenta("receta_paso") == 19 and cuenta("conocimiento_version") == 1,
               str({t: cuenta(t) for t in ("fuente", "afirmacion", "parametro", "regla", "receta", "receta_paso")}))
@@ -3730,12 +3730,22 @@ def pruebas_motor_conocimiento_f3() -> None:
     locales_af = [a for a in c.afirmaciones if a.id.startswith("AF-1")]
     locales_pa = [p for p in c.parametros if p.id.startswith("PA-1")]
     comprobar("F3-07: 22 criterios locales pendientes de firma",
-              len(locales_af) == 22 and all(a.criterio_firmado and not a.firmado_por
+              len(locales_af) == 22 and all(not a.criterio_firmado and not a.firmado_por
                                             and a.procedencia == "criterio_firmado" for a in locales_af),
               f"{len(locales_af)} criterios")
     comprobar("F3-07: los parametros locales son criterio firmado pendiente",
               len(locales_pa) == 16 and all(p.procedencia == "criterio_firmado" and not p.firmado_por
                                             for p in locales_pa), f"{len(locales_pa)} parametros")
+
+    # F3-R-01: el overlay local no puede borrar campos que no aporta.
+    comprobar("F3-R-01: 10/10 estimulos conservan afirmaciones del publico",
+              len(c.estimulos) == 10 and all(e.afirmaciones for e in c.estimulos),
+              str({e.id: list(e.afirmaciones) for e in c.estimulos}))
+    comprobar("F3-R-01: 7/7 recetas conservan progresion, regresion y pasos",
+              len(c.recetas) == 7 and all(r.progresion and r.regresion and len(r.pasos) >= 2
+                                          for r in c.recetas)
+              and sum(len(r.pasos) for r in c.recetas) == 19,
+              str({r.id: (bool(r.progresion), bool(r.regresion), len(r.pasos)) for r in c.recetas}))
 
     # F3-02/R: mapeo honesto regla -> afirmaciones/parametros, sin comodines.
     esperado = {
@@ -3744,7 +3754,7 @@ def pruebas_motor_conocimiento_f3() -> None:
         "R2": ({"AF-001", "AF-002"}, {"PA-101", "PA-102"}),
         "R3": ({"AF-203"}, set()),
         "R4": ({"AF-204"}, set()),
-        "R5": ({"AF-205"}, {"PA-106", "PA-111", "PA-112"}),
+        "R5": ({"AF-205"}, {"PA-106", "PA-107", "PA-112"}),
         "R6": ({"AF-206"}, set()),
         "R7": ({"AF-207"}, {"PA-113"}),
         "R8": ({"AF-208", "AF-209"}, {"PA-114", "PA-115", "PA-116"}),
@@ -3758,20 +3768,53 @@ def pruebas_motor_conocimiento_f3() -> None:
     comprobar("F3-02: R1/R1b/R3/R4 enlazan afirmaciones con procedencia=historial",
               all(set(por_legacy[k].evidencia) & hist for k in ("R1", "R1b", "R3", "R4")), str(hist))
     comprobar("F3-02: AF-201..204 son historial y estan sin firmar",
-              all(any(a.id == f"AF-{n}" and a.criterio_firmado and not a.firmado_por
-                      for a in c.afirmaciones) for n in (201, 202, 203, 204)))
+              all(any(a.id == f"AF-{n}" and not a.criterio_firmado and not a.firmado_por
+                      and a.procedencia == "historial" for a in c.afirmaciones)
+                  for n in (201, 202, 203, 204)))
     from dataclasses import replace
-    reglas_mal = tuple(replace(r, evidencia=("AF-101",), parametros=("PA-101",)) for r in c.reglas)
+    reglas_mal = tuple(replace(r, evidencia=("AF-101",), parametros=("PA-101",)) if r.legacy_id == "R2"
+                       else r for r in c.reglas)
     v_mal = ct.validar(replace(c, reglas=reglas_mal))
-    comprobar("F3-02: el validador rechaza el enlace comodin",
-              any(e["tipo"] == "regla_enlace_comodin" for e in v_mal["errores"]), str(v_mal["errores"]))
+    comprobar("F3-R-02: el validador rechaza el comodin en una sola regla",
+              any(e["tipo"] == "regla_enlace_comodin" and e.get("id") == "RG-002"
+                  for e in v_mal["errores"]), str(v_mal["errores"]))
     reglas_hist = tuple(replace(r, evidencia=("AF-101",)) if r.legacy_id == "R1" else r for r in c.reglas)
     v_hist = ct.validar(replace(c, reglas=reglas_hist))
     comprobar("F3-02: el validador exige afirmacion historial en R1/R1b/R3/R4",
               any(e["tipo"] == "regla_historial_sin_afirmacion_historial" for e in v_hist["errores"]),
               str(v_hist["errores"]))
-    comprobar("F3-02: ninguna regla usa el par comodin AF-101/PA-101",
-              not any(set(r.evidencia) == {"AF-101"} and set(r.parametros) == {"PA-101"} for r in c.reglas))
+    comprobar("F3-02: ninguna regla usa AF-101",
+              not any("AF-101" in r.evidencia for r in c.reglas))
+
+    # F3-R-03: criterio_firmado=true exige firma real; mientras tanto, false.
+    af_mal = tuple(replace(a, criterio_firmado=True) if a.id == "AF-101" else a for a in c.afirmaciones)
+    v_firma = ct.validar(replace(c, afirmaciones=af_mal))
+    comprobar("F3-R-03: criterio_firmado=True sin firmado_por/firmado_en es error",
+              any(e["tipo"] == "afirmacion_criterio_sin_firma" and e.get("id") == "AF-101"
+                  for e in v_firma["errores"]), str(v_firma["errores"]))
+
+    # F3-R-04: el umbral de R5 es el que usa el motor, no una segunda fuente.
+    from entrenador import plan_vivo
+    p107 = next(p for p in c.parametros if p.id == "PA-107")
+    p111 = next(p for p in c.parametros if p.id == "PA-111")
+    comprobar("F3-R-04: R5 usa PA-107 (0.7, plan_vivo) y no PA-111",
+              set(por_legacy["R5"].parametros) == {"PA-106", "PA-107", "PA-112"}
+              and float(p107.valor) == float(plan_vivo.UMBRAL_CUMPLIR)
+              and "PA-111" not in por_legacy["R5"].parametros,
+              f"R5={por_legacy['R5'].parametros} PA107={p107.valor} motor={plan_vivo.UMBRAL_CUMPLIR}")
+    comprobar("F3-R-04: PA-111 queda documentado como referencia inactiva",
+              "no activo" in p111.nota.lower() and "pa-107" in p111.nota.lower(), p111.nota)
+
+    # F3-R-06: el golden no depende del dia.
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("golden_f3", "scripts/golden.py")
+    golden = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(golden)
+    comprobar("F3-R-06: el golden normaliza fecha de plan y dias relativos",
+              golden._normalizar_salida("Plan recalculado el 2026-10-19 (x)")
+              == golden._normalizar_salida("Plan recalculado el 2026-10-20 (x)")
+              and golden._normalizar_salida("Quedan 26 dias")
+              == golden._normalizar_salida("Quedan 27 dias"))
 
     with tempfile.TemporaryDirectory() as d:
         dst = os.path.join(d, "conocimiento")
@@ -3779,11 +3822,17 @@ def pruebas_motor_conocimiento_f3() -> None:
         r = ct.firmar(dst, id_="AF-101", quien="entrenador", fecha="2026-10-19", notas="firmado en test")
         c2 = ct.cargar(dst)
         af = next((a for a in c2.afirmaciones if a.id == "AF-101"), None)
-        comprobar("F3-07: --firmar deja la firma en local y el validador la ve",
+        v2 = ct.validar(c2)
+        comprobar("F3-07/F3-R-05: --firmar deja la firma, el criterio firmado y el estado revisado",
                   r["firmado_por"] == "entrenador" and af is not None
                   and af.firmado_por == "entrenador" and af.firmado_en == "2026-10-19"
+                  and af.criterio_firmado and af.estado == "revisada"
+                  and not any(a["tipo"] == "afirmacion_propuesta" and a.get("id") == "AF-101"
+                              for a in v2["avisos"])
+                  and not any(a["tipo"] == "afirmacion_criterio_sin_firma" and a.get("id") == "AF-101"
+                              for a in v2["errores"])
                   and os.path.isfile(os.path.join(dst, "local", "firmas.toml")),
-                  str(r))
+                  f"{r} estado={getattr(af, 'estado', None)} criterio={getattr(af, 'criterio_firmado', None)}")
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             rc = cli.main(["conocimiento", "--ruta-toml", dst, "--firmar", "PA-101",

@@ -27,7 +27,7 @@ import re
 import sqlite3
 import tomllib
 from collections.abc import Mapping
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field, fields, replace
 from datetime import date, datetime
 from pathlib import Path
 from types import MappingProxyType
@@ -48,7 +48,9 @@ RUTA_SALIDA = os.path.join("data", "derived", "conocimiento")
 ID_RE = re.compile(r"^(FU|AF|RG|PA|ES|RE)-\d{3}$")
 PROCEDENCIAS = ("evidencia", "criterio_firmado", "historial", "pactado")
 PROCEDENCIAS_AFIRMACION = ("evidencia", "criterio_firmado", "historial", "pactado", "metodo")
+PROCEDENCIAS_CRITERIO = ("criterio_firmado", "historial", "pactado", "metodo")
 REGLAS_HISTORIAL_CON_AF = ("R1", "R1b", "R3", "R4")
+ENLACE_PROHIBIDO_AF = ("AF-101",)
 DIRECCIONES = ("mejora", "neutro", "empeora", "incierto")
 ESTADOS_AFIRMACION = ("propuesta", "revisada", "rechazada")
 
@@ -434,14 +436,41 @@ def _calendario(d: dict) -> Calendario:
     )
 
 
+def _fusionar_campos(pub, loc):
+    """Completa la entidad local con los campos que no aporta, en vez de reemplazarla entera.
+
+    El overlay local manda en los campos que trae (textos exactos del atleta), pero no puede borrar
+    silenciosamente campos del publico que no rellena: `afirmaciones`, `progresion`, `regresion` o
+    `pasos`. Para `pasos` se conserva la lista mas completa; una receta local con un solo paso
+    generico no debe dejar la receta publica sin sus pasos reales.
+    """
+    cambios = {}
+    for campo in fields(pub):
+        vloc = getattr(loc, campo.name)
+        vpub = getattr(pub, campo.name)
+        if campo.name == "pasos":
+            cambios[campo.name] = vloc if len(vloc) >= len(vpub) else vpub
+        elif isinstance(vloc, tuple):
+            cambios[campo.name] = vloc or vpub
+        elif isinstance(vloc, str):
+            cambios[campo.name] = vloc or vpub
+        elif vloc is None:
+            cambios[campo.name] = vpub
+        else:
+            cambios[campo.name] = vloc
+    return replace(pub, **cambios)
+
+
 def _fusionar(entidades_publicas, entidades_locales):
-    """Merge por id: la local sustituye a la publica y las nuevas se anaden al final."""
+    """Merge por id y por campos: la local manda donde aporta; el publico rellena el resto."""
     por_id = {x.id: x for x in entidades_publicas}
     orden = [x.id for x in entidades_publicas]
     for x in entidades_locales:
         if x.id not in por_id:
             orden.append(x.id)
-        por_id[x.id] = x
+            por_id[x.id] = x
+        else:
+            por_id[x.id] = _fusionar_campos(por_id[x.id], x)
     return tuple(por_id[i] for i in orden)
 
 
@@ -451,7 +480,9 @@ def _fusionar_clave(publicas, locales):
     for x in locales:
         if x.clave not in por_clave:
             orden.append(x.clave)
-        por_clave[x.clave] = x
+            por_clave[x.clave] = x
+        else:
+            por_clave[x.clave] = _fusionar_campos(por_clave[x.clave], x)
     return tuple(por_clave[k] for k in orden)
 
 
@@ -492,8 +523,14 @@ def _aplicar_firmas(entidades, firmas: dict):
     for x in entidades:
         f = firmas.get(x.id)
         if f and (f.get("firmado_por") or f.get("firmado_en")):
-            x = replace(x, firmado_por=f.get("firmado_por") or getattr(x, "firmado_por", ""),
-                        firmado_en=f.get("firmado_en") or getattr(x, "firmado_en", ""))
+            cambios = {"firmado_por": f.get("firmado_por") or getattr(x, "firmado_por", ""),
+                       "firmado_en": f.get("firmado_en") or getattr(x, "firmado_en", "")}
+            if isinstance(x, Afirmacion):
+                # Firmar no es solo dejar el nombre: el criterio pasa a firmado y deja de estar
+                # "propuesta". El boolean y el estado son dos caras de la misma firma.
+                cambios["criterio_firmado"] = True
+                cambios["estado"] = "revisada"
+            x = replace(x, **cambios)
         fuera.append(x)
     return tuple(fuera)
 
@@ -726,9 +763,15 @@ def validar(c: Conocimiento | None = None, ruta: str = RUTA_CONOCIMIENTO) -> dic
     for a in c.afirmaciones:
         if not a.texto:
             _error(errores, "afirmacion_vacia", f"{a.id} no tiene texto", id=a.id)
-        if not a.fuentes and not a.criterio_firmado:
+        if not a.fuentes and not a.criterio_firmado and a.procedencia not in PROCEDENCIAS_CRITERIO:
             _error(errores, "afirmacion_sin_fuente",
                    f"{a.id} no tiene fuente ni criterio firmado", id=a.id)
+        if a.criterio_firmado and (not a.firmado_por or not a.firmado_en):
+            _error(errores, "afirmacion_criterio_sin_firma",
+                   f"{a.id} marca criterio_firmado=true pero no tiene firmado_por/firmado_en", id=a.id)
+        if not a.criterio_firmado and not a.firmado_por and a.procedencia in PROCEDENCIAS_CRITERIO:
+            _aviso(avisos, "firma_pendiente",
+                   f"{a.id} es un criterio y la firma esta pendiente", id=a.id)
         if a.direccion and a.direccion not in DIRECCIONES:
             _error(errores, "afirmacion_direccion", f"{a.id} tiene direccion {a.direccion!r}", id=a.id)
         if a.estado not in ESTADOS_AFIRMACION:
@@ -752,8 +795,6 @@ def validar(c: Conocimiento | None = None, ruta: str = RUTA_CONOCIMIENTO) -> dic
             elif not _cita_en_fuente(ref.cita_local, fuentes[ref.id]):
                 _error(errores, "cita_local_inexistente",
                        f"{a.id}: la cita_local no aparece en {ref.id}", id=a.id, fuente=ref.id)
-        if a.criterio_firmado and not a.firmado_por:
-            _aviso(avisos, "firma_pendiente", f"{a.id} es criterio firmado pero no tiene firma", id=a.id)
 
     # Parametros.
     for p in c.parametros:
@@ -807,6 +848,11 @@ def validar(c: Conocimiento | None = None, ruta: str = RUTA_CONOCIMIENTO) -> dic
         _error(errores, "regla_enlace_comodin",
                "todas las reglas comparten el mismo conjunto de afirmaciones/parametros")
     for r in c.reglas:
+        for af in r.evidencia:
+            if af in ENLACE_PROHIBIDO_AF:
+                _error(errores, "regla_enlace_comodin",
+                       f"{r.id} usa {af}, un enlace comodin que no sostiene la regla",
+                       id=r.id, afirmacion=af)
         if r.legacy_id in REGLAS_HISTORIAL_CON_AF:
             if not any(af in afirmaciones and afirmaciones[af].procedencia == "historial"
                        for af in r.evidencia):
