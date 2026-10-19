@@ -12,7 +12,7 @@ F1-04,F1,Integridad del conocimiento actual,`cli conocimiento --validar` con sal
 F1-05,F1,Integridad del conocimiento actual,"Tests de duplicados, citas rotas, fuentes huérfanas, criterios",F1-02,Tests verdes,Suite,hecha
 F1-06,F1,Integridad del conocimiento actual,Lista de criterios (22 cláusulas; 21 líneas marcadas) para firmar,F1-03,Lista exportable y con estado,`cli conocimiento --criterios`,hecha
 F1-07,F1,Integridad del conocimiento actual,Saneado de identificadores personales directos del árbol público,F1-06,"`git grep` no encuentra nombres, club ni marcas reales en ficheros versionados; tests verdes",Búsqueda + suite,hecha
-F1-08,F1,Integridad del conocimiento actual,Mover el plan personal de `entrenador/plan.py` a `entrenador/plan_local.py` (privado) con fallback genérico,F1-07,`plan.py` no lleva marcas/fechas del atleta; el panel funciona sin `plan_local.py`,Suite + grep,pendiente
+F1-08,F1,Integridad del conocimiento actual,Mover el plan personal de `entrenador/plan.py` a `entrenador/plan_local.py` (privado) con fallback genérico,F1-07,`plan.py` no lleva marcas/fechas del atleta; el panel funciona sin `plan_local.py`,Suite + grep,hecha
 F2-01,F2,Base estructurada y compilador,"Esquemas TOML de fuente, afirmación, regla, parámetro, estímulo, receta",F1,Documentados y con ejemplo,Revisión,pendiente
 F2-02,F2,Base estructurada y compilador,Loader `conocimiento.cargar()` con dataclasses,F2-01,Carga sin efectos secundarios,Unit test,pendiente
 F2-03,F2,Base estructurada y compilador,Validador con lista completa de errores,F2-02,"Falla con IDs duplicados, citas rotas, parámetros sin firma",Tests de error,pendiente

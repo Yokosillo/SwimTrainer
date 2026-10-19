@@ -34,6 +34,15 @@ cp -a ../SwimTrainer-personal/informes/. informes/
 `data/`, `informes/` y `cuadro/` estan en `.gitignore`: no se suben nunca al repositorio publico.
 Si se parte de cero, el arranque crea una base vacia con `cli init`.
 
+El plan personal y el perfil tambien son privados. Se copian desde el repositorio privado:
+
+```bash
+cp -a ../SwimTrainer-personal/entrenador/plan_local.py entrenador/
+cp -a ../SwimTrainer-personal/entrenador/perfil_local.py entrenador/ 2>/dev/null || true
+```
+
+Sin `plan_local.py` la aplicacion arranca igual, pero con el plan vacio.
+
 ## 2. Contrasenia
 
 ```bash
@@ -76,6 +85,16 @@ y generarlo cuando haga falta:
 docker compose exec entrenador python -m entrenador.cli portal \
     --destino /app/cuadro/strava/index.html
 ```
+
+### Datos privados dentro de la imagen local
+
+La imagen `entrenador:local` se construye en esta maquina y **no se publica**. El `Dockerfile` copia
+`entrenador/` completo, asi que `entrenador/perfil_local.py` y `entrenador/plan_local.py` (privados y
+en `.gitignore`) van dentro de la imagen. No se sube a ningun registro ni se comparte.
+
+Si algun dia se publica o se comparte la imagen, hay que reconstruirla sin esos dos ficheros o
+montarlos como volumen de solo lectura. Sin `plan_local.py` la app arranca igual: el plan queda vacio
+(`plan.SEMANAS == []`) y el panel no muestra plan; sin `perfil_local.py` el panel no lleva nombre.
 
 ### Version del motor de conocimiento
 

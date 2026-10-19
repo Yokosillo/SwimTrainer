@@ -30,6 +30,8 @@ data/derived/
 
 # El nombre, el club y el sello del atleta: los lee entrenador/perfil.py desde aqui
 entrenador/perfil_local.py
+# El plan personal (objetivos, marcas, fechas, semanas y decisiones): lo lee entrenador/plan.py desde aqui
+entrenador/plan_local.py
 
 # Despliegue en Docker: la contrasenia del panel y el token de Garmin no se suben
 .env

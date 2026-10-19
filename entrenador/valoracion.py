@@ -411,6 +411,18 @@ def discurso(cn: sqlite3.Connection, bloques: list[dict], datos: dict,
              hoy: date | None = None) -> dict:
     """La valoracion entera: titular, parrafos con datos reales, dianas de entrenamiento y avisos."""
     hoy = hoy or date.today()
+    if not plan.OBJETIVOS:
+        # Sin plan_local.py no hay objetivo ni calendario: el discurso se queda en el aviso, no se inventa.
+        return {
+            "fecha": hoy.isoformat(),
+            "generado": datetime.now().astimezone().replace(microsecond=0).isoformat(),
+            "titular": "Sin plan configurado: falta entrenador/plan_local.py.",
+            "parrafos": [],
+            "dianas": [],
+            "avisos": ["No hay plan configurado (falta entrenador/plan_local.py): el panel sigue con los datos "
+                       "de entrenamiento, pero no muestra plan."],
+            "fuentes": {},
+        }
     obj = plan.OBJETIVO_B
     obj_a = plan.OBJETIVO_A
     r = float(obj["ritmo_objetivo_100"])

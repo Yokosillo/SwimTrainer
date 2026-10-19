@@ -1600,10 +1600,10 @@ F3; si alguna pasa a afectar una decisión, se abre tarea y se justifica.
 
 #### Residuales de privacidad
 
-- **R-01b (residual):** `entrenador/plan.py` contiene marcas y fechas personales (los objetivos del
-  atleta). No se mueve en F1-07; se resolverá en **F3-04/F1-08** con `entrenador/plan_local.py`
-  privado y un *fallback* genérico. Mientras tanto, el fichero sigue versionado: no publicar el
-  repositorio sin resolverlo.
+- **R-01b (resuelto en F1-08):** el plan personal vive en `entrenador/plan_local.py`, privado y en
+  `.gitignore`. `entrenador/plan.py` ya no lleva marcas, fechas ni nombres; sin `plan_local.py` el plan
+  queda vacío y la app arranca igual. La imagen Docker local copia `plan_local.py`: **no publicar ni
+  compartir esa imagen**.
 - `entrenador/reglas.py` y `README.md` pueden contener porcentajes derivados del historial del
   atleta (no son identificadores directos). Se dejan, anotados.
 - La migración de `localStorage` conserva el prefijo antiguo **solo** en el código de

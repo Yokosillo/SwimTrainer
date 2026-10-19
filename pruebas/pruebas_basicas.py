@@ -685,19 +685,22 @@ def pruebas_plan_y_portal(ruta: str = "data/entrenador.db") -> None:
 
     from entrenador import apuntes, db, panel, plan
 
-    comprobar("la semana del 12/10 es la S1", plan.semana_de("2026-10-12")["clave"] == "S1")
-    comprobar("la fecha del 400 cae en la semana de la prueba",
-              plan.semana_de(plan.OBJETIVO_B["fecha"])["clave"] == "S5")
-    prox = plan.siguiente("2026-10-11")
-    comprobar("la sesion siguiente es la cañera del lunes 12",
-              prox["fecha"] == "2026-10-12" and "material" in prox["titulo"], prox["titulo"])
-    kms = [plan.KILOMETROS_SEMANA[k] for k in ("S1", "S2", "S3", "S4", "S5")]
-    comprobar("el volumen sube como mucho un 10 % por semana",
-              all(b <= a * 1.10 for a, b in zip(kms, kms[1:])))
-    comprobar("la cuarta semana baja (descarga)", kms[3] <= kms[2] * 0.80, f"{kms[2]} -> {kms[3]} km")
-    texto = plan.texto("2026-10-11")
-    comprobar("el plan en texto lleva los dos objetivos y las reglas",
-              "OBJETIVO B" in texto and "OBJETIVO A" in texto and "80 %" in texto)
+    if not plan.SEMANAS or not plan.OBJETIVOS:
+        print("  [omitido] no hay plan_local.py: se salta la parte del plan real")
+    else:
+        comprobar("la semana del 12/10 es la S1", plan.semana_de("2026-10-12")["clave"] == "S1")
+        comprobar("la fecha del 400 cae en la semana de la prueba",
+                  plan.semana_de(plan.OBJETIVO_B["fecha"])["clave"] == "S5")
+        prox = plan.siguiente("2026-10-11")
+        comprobar("la sesion siguiente es la cañera del lunes 12",
+                  prox["fecha"] == "2026-10-12" and "material" in prox["titulo"], prox["titulo"])
+        kms = [plan.KILOMETROS_SEMANA[k] for k in ("S1", "S2", "S3", "S4", "S5")]
+        comprobar("el volumen sube como mucho un 10 % por semana",
+                  all(b <= a * 1.10 for a, b in zip(kms, kms[1:])))
+        comprobar("la cuarta semana baja (descarga)", kms[3] <= kms[2] * 0.80, f"{kms[2]} -> {kms[3]} km")
+        texto = plan.texto("2026-10-11")
+        comprobar("el plan en texto lleva los dos objetivos y las reglas",
+                  "OBJETIVO B" in texto and "OBJETIVO A" in texto and "80 %" in texto)
     for fichero in panel.FICHEROS_APP:
         comprobar(f"la aplicacion trae su {fichero}", os.path.isfile(os.path.join(panel.APP, fichero)))
     pagina = panel.panel_html({"generado": "2026-10-12T20:00:00", "apuntes": {}, "plan": {}, "competicion": {}})
@@ -1936,6 +1939,9 @@ def pruebas_reparto_por_dia(ruta: str = "data/entrenador.db") -> None:
     """
     from entrenador import db, estimulos, planificador, plan, series_dia
 
+    if not plan.SEMANAS or not plan.OBJETIVOS:
+        print("  [omitido] no hay plan_local.py: se saltan los tests del plan real")
+        return
     cn = db.conectar(ruta)
     obj = plan.OBJETIVOS[0]["ritmo_objetivo_100"]
 
@@ -2004,6 +2010,9 @@ def pruebas_motor_en_el_discurso(ruta: str = "data/entrenador.db") -> None:
     from datetime import date
     from entrenador import db, plan, valoracion
 
+    if not plan.SEMANAS or not plan.OBJETIVOS:
+        print("  [omitido] no hay plan_local.py: se saltan los tests del plan real")
+        return
     cn = db.conectar(ruta)
     obj = plan.OBJETIVOS[0]
     r = obj["ritmo_objetivo_100"]
@@ -2171,6 +2180,9 @@ def pruebas_plan_vivo(ruta: str = "data/entrenador.db") -> None:
     from datetime import date
     from entrenador import db, panel, plan, plan_vivo
 
+    if not plan.SEMANAS or not plan.OBJETIVOS:
+        print("  [omitido] no hay plan_local.py: se saltan los tests del plan real")
+        return
     cerrada = {"clave": "S1", "km_plan": 13.5, "cumplimiento": 1.0, "sesiones": []}
     siguiente = {"clave": "S2", "km": 14.0, "desde": "2026-10-19", "hasta": "2026-10-25"}
 
@@ -2255,6 +2267,9 @@ def pruebas_fase_del_plan(ruta: str = "data/entrenador.db") -> None:
     from datetime import date
     from entrenador import db, plan, reglas, valoracion
 
+    if not plan.SEMANAS or not plan.OBJETIVOS:
+        print("  [omitido] no hay plan_local.py: se saltan los tests del plan real")
+        return
     # Un nombre de fase mal escrito no da error: el reparto se cae al del 400 y nadie se entera. Por eso se mira.
     comprobar("las fases que usan los bloques son fases que el motor sabe repartir",
               all(b.get("fase") in plan.FASES for b in plan.BLOQUES),
@@ -2305,6 +2320,9 @@ def pruebas_propuesta_semana(ruta: str = "data/entrenador.db") -> None:
 
     from entrenador import db, estimulos, plan, planificador, series_dia
 
+    if not plan.SEMANAS or not plan.OBJETIVOS:
+        print("  [omitido] no hay plan_local.py: se saltan los tests del plan real")
+        return
     cn = db.conectar(ruta)
     obj = plan.OBJETIVOS[0]["ritmo_objetivo_100"]
     fijos = {"lunes": 3400.0, "miercoles": 2900.0, "viernes": 3300.0}       # lo que ponen esos dias, de media
@@ -3010,6 +3028,9 @@ def pruebas_del_bucle_cerrado(ruta: str = "data/entrenador.db") -> None:
     print("\nEl bucle cerrado: propuesta con su porque, decision y verificacion (V1.3)")
     from entrenador import decision, estimulos, plan, planificador, reglas as mod_reglas, series_dia
 
+    if not plan.SEMANAS or not plan.OBJETIVOS:
+        print("  [omitido] no hay plan_local.py: se saltan los tests del plan real")
+        return
     cn = sqlite3.connect(ruta)
     cn.row_factory = sqlite3.Row
     cc = sqlite3.connect(":memory:")
@@ -3292,6 +3313,71 @@ Texto con [1].
                   and conocimiento.fuentes(ruta)[1]["citas"] == ["cita literal uno"])
 
 
+def pruebas_plan_local_y_fallback() -> None:
+    """F1-08: el plan personal vive en `plan_local.py` (privado) y `plan.py` tiene fallback vacio.
+
+    - `plan.py` no puede llevar marcas ni fechas del atleta.
+    - `plan_local.py` no puede estar trackeado por git (se comprueba solo si hay repo).
+    - Sin `plan_local.py`, la API de `plan.py` devuelve vacio/None y no revienta.
+    """
+    print("\nF1-08. Plan privado (plan_local.py) y fallback sin datos personales")
+    import importlib
+    import shutil
+    import subprocess
+
+    ruta_plan = os.path.join("entrenador", "plan.py")
+    fuente = open(ruta_plan, encoding="utf-8").read()
+    ruta_local = os.path.join("entrenador", "plan_local.py")
+    if os.path.isfile(ruta_local):
+        local = open(ruta_local, encoding="utf-8").read()
+        # Las fechas y marcas se sacan del fichero privado; no se escriben en el test publico.
+        patrones = re.findall(r"\b20\d{2}-\d{2}-\d{2}\b|\b\d{2}/\d{2}/\d{4}\b|"
+                              r"\b\d{1,2}:\d{2}(?:[.,]\d+)?\b|\b\d{2,}\.\d+\b", local)
+        tokens = sorted(set(patrones))
+        encontrados = [x for x in tokens if x in fuente]
+        comprobar("F1-08: plan.py no contiene marcas ni fechas de plan_local.py",
+                  not encontrados, str(encontrados))
+    else:
+        print("  [omitido] no hay plan_local.py: no se pueden extraer las marcas a buscar")
+
+    if shutil.which("git") and os.path.isdir(".git"):
+        r = subprocess.run(["git", "ls-files", "entrenador/plan_local.py"],
+                           capture_output=True, text=True)
+        comprobar("F1-08: plan_local.py no esta trackeado por git",
+                  r.returncode == 0 and not r.stdout.strip(), r.stdout.strip())
+    else:
+        print("  [omitido] sin repositorio git: no se comprueba el tracking de plan_local.py")
+
+    # Fallback: una copia de plan.py en un paquete temporal SIN plan_local.py.
+    with tempfile.TemporaryDirectory() as d:
+        pkg = os.path.join(d, "plan_sin_local")
+        os.makedirs(pkg)
+        open(os.path.join(pkg, "__init__.py"), "w", encoding="utf-8").close()
+        shutil.copy2(ruta_plan, os.path.join(pkg, "plan.py"))
+        sys.path.insert(0, d)
+        try:
+            mod = importlib.import_module("plan_sin_local.plan")
+            comprobar("F1-08: sin plan_local, los datos del plan quedan vacios",
+                      mod.OBJETIVOS == () and mod.SEMANAS == [] and mod.BLOQUES == []
+                      and mod.REGLAS == [] and mod.DECISIONES == [] and mod.KILOMETROS_SEMANA == {})
+            comprobar("F1-08: sin plan_local, las funciones no revientan",
+                      mod.objetivo_de("libre", 400, 25) is None
+                      and mod.semana_de("2020-01-01") is None
+                      and mod.fase_de("2020-01-01") == mod.FASE_POR_DEFECTO
+                      and mod.pruebas_de("2020-01-01") == ()
+                      and mod.siguiente("2020-01-01") is None
+                      and mod.sesion_de("2020-01-01") is None
+                      and mod.sesiones_para_evaluar("2020-01-01", "2020-12-31") == [])
+            comprobar("F1-08: sin plan_local, texto y datos dicen que no hay plan",
+                      "No hay plan configurado" in mod.texto("2020-01-01")
+                      and mod.datos()["semanas"] == [] and mod.datos()["objetivo_b"] == {})
+        finally:
+            sys.path.remove(d)
+            for k in list(sys.modules):
+                if k.startswith("plan_sin_local"):
+                    del sys.modules[k]
+
+
 if __name__ == "__main__":
     pruebas_unitarias()
     pruebas_base_de_datos()
@@ -3308,6 +3394,7 @@ if __name__ == "__main__":
     pruebas_selectores_del_parte()
     pruebas_conocimiento_y_series_dia()
     pruebas_conocimiento_fuentes()
+    pruebas_plan_local_y_fallback()
     pruebas_reparto_por_dia()
     pruebas_motor_en_el_discurso()
     pruebas_plan_vivo()
