@@ -499,6 +499,18 @@ CREATE TABLE IF NOT EXISTS conocimiento_version (
     notas       TEXT
 );
 
+-- F4: foto versionada del estado del atleta. `id` es el hash canonico de fecha + version + contenido;
+-- `json` guarda la foto completa (metricas, n, dispersion, confianza, fuentes y limitaciones). No se
+-- duplican las metricas en tablas auxiliares: el snapshot es la unidad que cita una recomendacion.
+CREATE TABLE IF NOT EXISTS estado_atleta (
+    id            TEXT PRIMARY KEY, -- EA-<16>
+    fecha         TEXT NOT NULL,
+    version_hash  TEXT,
+    json          TEXT NOT NULL,
+    creado_en     TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_estado_fecha ON estado_atleta(fecha);
+
 CREATE TABLE IF NOT EXISTS fuente (
     id            TEXT PRIMARY KEY, -- FU-001
     tipo          TEXT NOT NULL,
