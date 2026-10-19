@@ -793,6 +793,8 @@ segunda fuente de verdad.
 | F1-04 | `cli conocimiento --validar` con salida JSON y código de error | F1-02 | 0 errores en el documento actual | Ejecución |
 | F1-05 | Tests de duplicados, citas rotas, fuentes huérfanas, criterios | F1-02 | Tests verdes | Suite |
 | F1-06 | Lista de criterios (22 cláusulas; 21 líneas marcadas) para firmar | F1-03 | Lista exportable y con estado | `cli conocimiento --criterios` |
+| F1-07 | Saneado de identificadores personales directos del árbol público | F1-06 | `git grep` no encuentra nombres, club ni marcas reales en ficheros versionados; tests verdes | Búsqueda + suite |
+| F1-08 | Mover el plan personal de `entrenador/plan.py` a `entrenador/plan_local.py` (privado) con fallback genérico | F1-07 | `plan.py` no lleva marcas/fechas del atleta; el panel funciona sin `plan_local.py` | Suite + grep |
 
 **Criterio de salida:** el documento actual es consistente y validable. No se ha migrado aún.
 
@@ -1595,6 +1597,17 @@ F3; si alguna pasa a afectar una decisión, se abre tarea y se justifica.
 | `gimnasio.py`, `apuntes.py`, `sueno.py` | `PLANTILLA`, `DIAS`, `TIPOS`, `CAMPOS` | catálogo y datos, no prescripción |
 | `panel.py`, `servidor.py`, `db.py` | `ANCHO_PX`, `PUERTO_POR_DEFECTO`, `ESQUEMA`, … | infraestructura |
 | `pruebas.py` | `TIPOS`, `MEDIDAS`, `SEGUNDOS_FIJOS` | catálogo de pruebas de medición, no carga |
+
+#### Residuales de privacidad
+
+- **R-01b (residual):** `entrenador/plan.py` contiene marcas y fechas personales (los objetivos del
+  atleta). No se mueve en F1-07; se resolverá en **F3-04/F1-08** con `entrenador/plan_local.py`
+  privado y un *fallback* genérico. Mientras tanto, el fichero sigue versionado: no publicar el
+  repositorio sin resolverlo.
+- `entrenador/reglas.py` y `README.md` pueden contener porcentajes derivados del historial del
+  atleta (no son identificadores directos). Se dejan, anotados.
+- La migración de `localStorage` conserva el prefijo antiguo **solo** en el código de
+  migración (una vez) y en su test; no es un dato del atleta, es el nombre viejo de la aplicación.
 
 ---
 
