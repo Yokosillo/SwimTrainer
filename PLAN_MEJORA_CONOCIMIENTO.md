@@ -1257,21 +1257,56 @@ Si no hay decisión, se aplican las recomendaciones por defecto y se anotan en e
 
 ### Anexo A — Mapa de conocimiento hardcodeado
 
+Inventario verificado el 2026-10-19 (F0-02) sobre `estimulos.py`, `reglas.py`, `planificador.py`,
+`plan.py`, `plan_vivo.py`, `evaluacion.py`, `decision.py` y `valoracion.py`. Una fila por constante
+de nivel de módulo. `—` = no es conocimiento de natación (enumeración, nombre o dato del atleta) y no
+se migra.
+
 | Actual | Nuevo | Tarea | Estado |
 |---|---|---|---|
-| `estimulos.CLASES` | `conocimiento/estimulos.toml` | F3-01 | pendiente |
+| `estimulos.CLASES` | `conocimiento/estimulos.toml` (`ES-*`) | F3-01 | pendiente |
 | `estimulos.CONOCIMIENTO` | enlaces `ES-*` → `AF-*` | F3-01 | pendiente |
 | `estimulos.MATERIAL` | `conocimiento/estimulos.toml` | F3-01 | pendiente |
-| `estimulos.RECETAS` | `conocimiento/recetas.toml` | F3-03 | pendiente |
-| `reglas.REGLAS` | `conocimiento/reglas.toml` | F3-02 | pendiente |
+| `estimulos.RECETAS` | `conocimiento/recetas.toml` (`RE-*`) | F3-03 | pendiente |
+| `estimulos.RECETA_DE_CLASE` | `conocimiento/recetas.toml` | F3-03 | pendiente |
+| `estimulos.LENTO_SOBRE_OBJETIVO` (25,0 s/100) | `PA-*` (banda de calentamiento) | F3-02 | pendiente |
+| `estimulos.VENTANA_DIAS` (14) | `PA-*` (ventana de decisión) | F4-02 | pendiente |
+| `estimulos.DIAS_SIN_PARAR` (7,0) | `PA-*` | F3-02 | pendiente |
+| `estimulos.MIN_CONTINUO_M` (1.200 m) | `PA-*` | F3-02 | pendiente |
+| `reglas.REGLAS` | `conocimiento/reglas.toml` (`RG-*`) | F3-02 | pendiente |
+| `reglas.CONOCIMIENTO` | enlaces `RG-*` → `AF-*`/`PA-*` | F3-02 | pendiente |
 | `reglas.REPARTO_OBJETIVO` | `PA-*` + `RG-*` | F3-02 | pendiente |
 | `reglas.MINIMOS_OBLIGATORIOS` | `PA-*` | F3-02 | pendiente |
-| `planificador.DIAS_*` | `conocimiento/calendario.toml` | F3-03 | pendiente |
+| `reglas.FUENTES` | catálogo `FU-*` (`conocimiento/fuentes.toml`) | F2-01/F3-02 | pendiente |
+| `reglas.GRADOS` | enumeración (no es conocimiento) | — | — |
+| `planificador.DIAS`, `DIAS_ENTRENADOR`, `DIA_BICI`, `DIAS_PROPIOS`, `DIAS_CALIDAD`, `DIAS_LARGOS` | `conocimiento/calendario.toml` | F3-03 | pendiente |
+| `planificador.DURO_H` (24,0) | `PA-*` | F3-02 | pendiente |
 | `plan.KILOMETROS_SEMANA` | dato del plan / `PA-*` | F3-04 | pendiente |
 | `plan.SEMANAS` / `BLOQUES` | dato del atleta, no conocimiento | F3-04 | pendiente |
-| `plan_vivo.TOPE_*` | `PA-*` | F3-02 | pendiente |
-| `evaluacion.TOLERANCIA_*` | `PA-*` | F3-02 | pendiente |
-| `decision.MOTIVA` / `METRICAS` | `reglas.toml` | F3-02 | pendiente |
+| `plan.OBJETIVO_A` / `OBJETIVO_B` / `OBJETIVOS` | dato del atleta (marca objetivo) | F3-04 | pendiente |
+| `plan.ENTRENADOR`, `PISCINA`, `REGLAS`, `DECISIONES`, `FASES`, `FASE_POR_DEFECTO`, `DIAS_SEMANA` | dato/mixto del plan escrito | F3-04 | pendiente |
+| `plan_vivo.TOPE_SUBIDA_PCT` (10,0) | `PA-*` | F3-02 | pendiente |
+| `plan_vivo.UMBRAL_CUMPLIR` (0,7) | `PA-*` | F3-02 | pendiente |
+| `plan_vivo.BAJADA_DERIVA` (0,8) | `PA-*` | F3-02 | pendiente |
+| `plan_vivo.TOPE_DESCARGA` (0,8) | `PA-*` | F3-02 | pendiente |
+| `plan_vivo.REGLAS_DE_CARGA` | `conocimiento/reglas.toml` (`RG-*`) | F3-02 | pendiente |
+| `evaluacion.TOLERANCIA_RITMO` (1,5) | `PA-*` | F3-02 | pendiente |
+| `evaluacion.MIN_CUMPLE_REPS` (0,8) | `PA-*` | F3-02 | pendiente |
+| `evaluacion.DESCANSO_FUSION_S` (15,0) | `PA-*` | F3-02 | pendiente |
+| `evaluacion.ESTADOS` | enumeración (no es conocimiento) | — | — |
+| `decision.MOTIVA` | `conocimiento/reglas.toml` (regla que motiva) | F3-02 | pendiente |
+| `decision.METRICAS` | `conocimiento/reglas.toml` (`metrica_exito`) | F6-02 | pendiente |
+| `decision.ESTADOS` | enumeración (no es conocimiento) | — | — |
+| `valoracion.AYUDA_MATERIAL` | `conocimiento/estimulos.toml` (descuentos de material) | F3-01 | pendiente |
+| `valoracion.DIAS_SEMANA` (7) | `PA-*` (ventanas) | F4-02 | pendiente |
+| `valoracion.DIAS_MES` (30) | `PA-*` (ventanas) | F4-02 | pendiente |
+| `valoracion.DIAS_FIJOS` (42) | `PA-*` (ventanas) | F4-02 | pendiente |
+| `valoracion.PISCINA` | dato del atleta | F3-04 | pendiente |
+| `valoracion.INTENSAS` | `PA-*` / configuración de referencias | F3-02 | pendiente |
+
+Nota: además de estas constantes de módulo hay **números sueltos dentro de funciones** (porcentajes,
+tolerancias y bandas) que se recogen al migrar cada módulo en F3; no se listan uno a uno aquí porque no
+son símbolos con nombre. La verificación de F3-06 (`grep` + test) es la que cierra el inventario.
 
 ### Anexo B — Esquema mínimo de recomendación
 
