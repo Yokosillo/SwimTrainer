@@ -8,7 +8,8 @@ citada al lado, y este modulo solo lo lee y lo pone a disposicion del motor. Tre
   1. `secciones()` - las secciones del anexo (T.0 a T.10) con su texto, los numeros de fuente que citan y si se
      declaran criterio sin fuente.
   2. `fuente_de(clave)` - de donde sale lo que el motor dice de una clase de estimulo (`ritmo_prueba`), de una
-     regla (`R2`) o de una clave de conocimiento (`taper`). Si no tiene seccion, devuelve `criterio=True`.
+     regla (`R2`) o de una clave de conocimiento (`taper`). Si no tiene seccion, o la seccion se declara
+     criterio, devuelve `criterio=True`.
   3. `revision` / `marcar_revision` - quien ha revisado cada seccion y cuando. Una seccion firmada por el
      entrenador pesa mas que cualquier fuente: es el unico saber que no viene de un documento.
 
@@ -154,7 +155,8 @@ def fuente_de(clave: str, ruta: str | None = None) -> dict:
     `clave` puede ser una clase de estimulo (`ritmo_prueba`), una regla (`R2`) o una clave de conocimiento
     (`taper`). Devuelve las secciones del anexo que la sostienen, los numeros de fuente que citan, el grado
     (`evidencia`, `metodo`, `pactado`, `historial`, `criterio`) y lo que dentro de esa clase o regla sigue sin
-    fuente. Una clave desconocida sale como criterio: no se inventa respaldo.
+    fuente. `criterio=True` significa que no hay saber externo detras (clave desconocida o seccion declarada
+    criterio). Una clave desconocida sale como criterio: no se inventa respaldo.
     """
     from . import estimulos, reglas
 
@@ -188,7 +190,10 @@ def fuente_de(clave: str, ruta: str | None = None) -> dict:
         "secciones": secciones_clave,
         "fuentes": fuentes,
         "grado": grado,
-        "criterio": not secciones_clave,
+        # `criterio` = no hay saber externo detras: o la clave no tiene seccion, o la seccion se declara
+        # criterio (como T.9). Antes solo miraba lo primero y `como_se_mantiene` salia `False` aunque su
+        # grado fuera `criterio`.
+        "criterio": not secciones_clave or grado == "criterio",
         "sin_fuente": sin_fuente,
         "origen": origen,
         "frase": _frase(secciones_clave, grado, sin_fuente),

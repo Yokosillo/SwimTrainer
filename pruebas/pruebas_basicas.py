@@ -3103,7 +3103,8 @@ def pruebas_conocimiento_fuentes() -> None:
               f"T.9={secs.get('T.9', {}).get('titulo')!r} T.10={secs.get('T.10', {}).get('titulo')!r}")
     f = conocimiento.fuente_de("como_se_mantiene")
     comprobar("F1-01: fuente_de('como_se_mantiene') usa T.9 y no las fuentes del cierre",
-              f["secciones"] == ["T.9"] and f["fuentes"] == [] and f["grado"] == "criterio", str(f))
+              f["secciones"] == ["T.9"] and f["fuentes"] == [] and f["grado"] == "criterio"
+              and f["criterio"] is True, str(f))
 
     # --- F1-02: bloque Sources del anexo canonico ---
     fuentes = conocimiento.fuentes()
