@@ -1,9 +1,10 @@
 # ADR-001 — El conocimiento vive en TOML versionado, no en constantes de Python
 
-- **Estado:** aceptado
+- **Estado:** aceptado; **firma del entrenador pendiente** (R-07)
 - **Fecha:** 2026-10-19
 - **Fase:** F0 (decisión); se implementa en F2/F3
 - **Decisores:** proyecto Entrenador (revisión del entrenador pendiente para las firmas)
+- **Firma:** pendiente del entrenador; no hay firma registrada todavía.
 
 ## Contexto
 

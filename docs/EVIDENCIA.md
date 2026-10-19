@@ -77,7 +77,7 @@ Anexo T: 10 secciones, 22 fuentes, 0 errores, 1 aviso.
 Las pruebas obligatorias se pegan **literalmente** al final de la entrega de la fase:
 
 ```bash
-cd /home/hermes/proyectos/entrenador/SwimTrainer
+cd <ruta-del-proyecto>/SwimTrainer
 docker compose up -d --build
 docker compose exec -T entrenador python pruebas/pruebas_basicas.py
 docker compose exec -T entrenador python -m entrenador.cli conocimiento --validar

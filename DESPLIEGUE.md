@@ -25,7 +25,7 @@ En esta maquina los datos personales estan en `../SwimTrainer-personal/`. La pri
 dejarlos en el proyecto, que es donde el contenedor los monta:
 
 ```bash
-cd /home/hermes/proyectos/entrenador/SwimTrainer
+cd <ruta-del-proyecto>/SwimTrainer
 mkdir -p data informes cuadro
 cp -a ../SwimTrainer-personal/data/.  data/
 cp -a ../SwimTrainer-personal/informes/. informes/
@@ -98,7 +98,7 @@ Caddy ya escucha en `:80` en dalmacia. La ruta se activa cuando existe
 de trabajo:
 
 ```bash
-sudo ln -sfn /home/hermes/proyectos/entrenador/SwimTrainer /srv/entrenador
+sudo ln -sfn <ruta-del-proyecto>/SwimTrainer /srv/entrenador
 ```
 
 En el `Caddyfile`, ademas del bloque que ya genera `dalmacia-f1-web.sh`:
@@ -140,7 +140,7 @@ Despues, el boton *Traer lo nuevo del Garmin* del panel usa ese token. Si caduca
 ## 6. Actualizar
 
 ```bash
-cd /home/hermes/proyectos/entrenador/SwimTrainer
+cd <ruta-del-proyecto>/SwimTrainer
 git pull
 docker compose up -d --build
 ```

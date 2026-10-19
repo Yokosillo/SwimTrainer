@@ -131,7 +131,7 @@ Estos principios no se negocian. Si una tarea los rompe, se para y se revisa.
 
 | Capa | Ficheros | Qué hace hoy | Problema |
 |---|---|---|---|
-| Documento | `informes/T_base_de_conocimiento.md` | 10 secciones, 22 fuentes definidas (numeración hasta 29; `[24]` huérfana), 21 criterios | Es documentación; no gobierna el motor |
+| Documento | `informes/T_base_de_conocimiento.md` | 10 secciones, 22 fuentes definidas (numeración hasta 29; `[24]` huérfana), 21 líneas `[criterio]` (22 cláusulas) | Es documentación; no gobierna el motor |
 | Parser | `entrenador/conocimiento.py` | Lee secciones, citas y firmas | Parser frágil; citas por sección; duplicado `T.9` |
 | Conocimiento hardcodeado | `entrenador/estimulos.py` | `CLASES`, `CONOCIMIENTO`, `MATERIAL`, `RECETAS` | Duplica el anexo; parámetros sin enlace |
 | Reglas hardcodeadas | `entrenador/reglas.py` | `REGLAS`, `REPARTO_OBJETIVO`, `MINIMOS_OBLIGATORIOS` | Porcentajes y mínimos sin trazabilidad fina |
@@ -162,7 +162,7 @@ Estos principios no se negocian. Si una tarea los rompe, se para y se revisa.
 | D-13 | Sin versión de conocimiento | No se guarda qué base produjo una recomendación | No se puede auditar un cambio | F2 |
 | D-14 | Fuente huérfana | `[24]` está en fuentes y no se cita | Ruido y posible error de mantenimiento | F1-02 |
 | D-15 | Sin parser de fuentes | El bloque `## Sources` no se valida | Citas rotas no se detectan | F1-02 |
-| D-16 | `sin_fuente()` engañoso | Devuelve `[]` con 21 criterios | El portal puede decir que todo tiene fuente | F1-03 |
+| D-16 | `sin_fuente()` engañoso | Devuelve `[]` con 21 líneas de criterio | El portal puede decir que todo tiene fuente | F1-03 |
 | D-17 | UI sobrecargada | “El entrenador dice” con 9 párrafos | El atleta no encuentra la acción | F7 |
 | D-18 | Sin estado del atleta | Métricas dispersas por módulos | La decisión no tiene una foto única | F4 |
 
@@ -772,7 +772,7 @@ segunda fuente de verdad.
 | F0-02 | Inventario de todo el conocimiento hardcodeado y su mapa a IDs | — | Tabla completa en este plan (anexo A) | Revisión manual |
 | F0-03 | Golden snapshots de `valoracion`, `plan`, `reglas`, `decision` | F0-01 | Salidas guardadas y comparables | Script `scripts/golden.py` |
 | F0-04 | Feature flag `MOTOR_CONOCIMIENTO=v1` | F0-01 | v1 sigue funcionando igual | Tests + arranque |
-| F0-05 | ADR-001 (formato TOML) y ADR-002 (LLM no núcleo) | — | ADRs firmados | Revisión |
+| F0-05 | ADR-001 (formato TOML) y ADR-002 (LLM no núcleo) | — | ADR aceptados; firma del entrenador pendiente | Revisión |
 | F0-06 | Protocolo de evidencia: cada tarea adjunta comando + salida | — | Plantilla en `informes/` o `docs/` | Revisión |
 
 **Criterio de salida:** no se ha cambiado comportamiento; todo está medido y hay vuelta atrás.
@@ -789,10 +789,10 @@ segunda fuente de verdad.
 |---|---|---|---|---|
 | F1-01 | Separar `T.9` en `T.9` (mantenimiento) y `T.10` (cierre) o eliminar el cierre | F0 | No hay IDs duplicados; `fuente_de("como_se_mantiene")` correcto | Test de secciones |
 | F1-02 | Parser del bloque `## Sources` con `FU-*`, URL, cita | F1-01 | Toda cita `[n]` resuelve; `[24]` detectada como huérfana | Test de fuentes |
-| F1-03 | Corregir `sin_fuente()` y contar 21 criterios | F1-01 | El portal no dice “todo con fuente” si hay criterios | Test de criterios |
+| F1-03 | Corregir `sin_fuente()` y contar los criterios (21 líneas marcadas → 22 cláusulas) | F1-01 | El portal no dice “todo con fuente” si hay criterios | Test de criterios |
 | F1-04 | `cli conocimiento --validar` con salida JSON y código de error | F1-02 | 0 errores en el documento actual | Ejecución |
 | F1-05 | Tests de duplicados, citas rotas, fuentes huérfanas, criterios | F1-02 | Tests verdes | Suite |
-| F1-06 | Lista de 21 criterios para firmar | F1-03 | Lista exportable y con estado | `cli conocimiento --criterios` |
+| F1-06 | Lista de criterios (22 cláusulas; 21 líneas marcadas) para firmar | F1-03 | Lista exportable y con estado | `cli conocimiento --criterios` |
 
 **Criterio de salida:** el documento actual es consistente y validable. No se ha migrado aún.
 
@@ -833,7 +833,7 @@ segunda fuente de verdad.
 | F3-04 | Separar plan escrito (dato del atleta) de conocimiento (reglas) | F3-03 | `plan.py` conserva su API; parámetros fuera | Golden |
 | F3-05 | Adaptador de compatibilidad | F3-01..04 | Las funciones actuales siguen funcionando | Suite |
 | F3-06 | Eliminar o marcar `DEPRECATED` las constantes viejas | F3-05 | 0 duplicados | Grep + test |
-| F3-07 | Firmar o marcar los 21 criterios y los parámetros | F1-06 | Cada `PA-*` tiene procedencia | Validación |
+| F3-07 | Firmar o marcar los criterios y los parámetros | F1-06 | Cada `PA-*` tiene procedencia | Validación |
 | F3-08 | Golden diff v1 vs v2 con la base real | F3-05 | Diferencias justificadas una a una | Informe |
 
 **Criterio de salida:** el motor lee del TOML; no hay conocimiento duplicado; v1 y v2 producen lo mismo salvo diferencias aprobadas.
@@ -1258,9 +1258,11 @@ Si no hay decisión, se aplican las recomendaciones por defecto y se anotan en e
 ### Anexo A — Mapa de conocimiento hardcodeado
 
 Inventario verificado el 2026-10-19 (F0-02) sobre `estimulos.py`, `reglas.py`, `planificador.py`,
-`plan.py`, `plan_vivo.py`, `evaluacion.py`, `decision.py` y `valoracion.py`. Una fila por constante
-de nivel de módulo. `—` = no es conocimiento de natación (enumeración, nombre o dato del atleta) y no
-se migra.
+`plan.py`, `plan_vivo.py`, `evaluacion.py`, `decision.py`, `valoracion.py`, `fuerza.py`,
+`descanso.py` y `parciales.py`. Una fila por constante **o grupo de constantes** (45 filas para 64
+constantes de módulo; algunas filas agrupan varias). `—` = no es conocimiento de natación
+(enumeración, nombre o dato del atleta) y no se migra. Los umbrales que no son conocimiento de
+entrenamiento se declaran fuera de alcance en el Anexo G.
 
 | Actual | Nuevo | Tarea | Estado |
 |---|---|---|---|
@@ -1303,6 +1305,12 @@ se migra.
 | `valoracion.DIAS_FIJOS` (42) | `PA-*` (ventanas) | F4-02 | pendiente |
 | `valoracion.PISCINA` | dato del atleta | F3-04 | pendiente |
 | `valoracion.INTENSAS` | `PA-*` / configuración de referencias | F3-02 | pendiente |
+| `fuerza.DOSIS_POR_DEFECTO` (12 semanas, 2/semana, 5 ejercicios, 12 reps) | `conocimiento/reglas.toml` (dosis preventiva T.7) | F3-02 | pendiente |
+| `fuerza.RPE_DURO` (8) | `PA-*` | F3-02 | pendiente |
+| `fuerza.PALABRAS_DOLOR` | `conocimiento/reglas.toml` (seguridad T.7: parar y derivar) | F3-02 | pendiente |
+| `fuerza.GRUPOS_QUE_CUENTAN` | `PA-*` (qué grupos cuentan como fuerza) | F3-02 | pendiente |
+| `descanso.SUENO_CORTO_H` (6,5), `SUENO_REGULAR` (70), `SUENO_CORTO_COMO` (40), `SENSACION_BAJA` (40), `FEEL_BAJO` (25) | `PA-*` (umbrales de recuperación) | F3-02/F4-03 | pendiente |
+| `parciales.RITMO_TOPE_400_S` (90) / `RITMO_TOPE_LARGO_S` (93) | `PA-*` (referencias de ritmo) | F3-02 | pendiente |
 
 Nota: además de estas constantes de módulo hay **números sueltos dentro de funciones** (porcentajes,
 tolerancias y bandas) que se recogen al migrar cada módulo en F3; no se listan uno a uno aquí porque no
@@ -1541,7 +1549,7 @@ Mientras dura la migración, las funciones actuales se mantienen como envoltorio
 | `conocimiento.seccion` | `cargar().seccion` | F3 |
 | `conocimiento.fuente_de` | enlaces `RG/AF/PA` | F3 |
 | `conocimiento.sin_fuente` | criterios sin firma | F1/F3 |
-| `conocimiento.afirmaciones_sin_fuente` | 21 criterios | F1 |
+| `conocimiento.afirmaciones_sin_fuente` | 22 cláusulas (21 líneas marcadas) | F1 |
 | `conocimiento.revision` / `marcar_revision` | igual | F3 |
 | `conocimiento.cuadro_revision` | igual + versión | F2 |
 | `estimulos.CLASES` / `RECETAS` | `ES-*` / `RE-*` | F3 |
@@ -1563,9 +1571,30 @@ Para acotar el riesgo, estas partes se consideran congeladas salvo que una tarea
 - `entrenador/importar.py` (importación incremental).
 - `entrenador/bici.py`, `entrenador/segmentos_gpx.py`, `entrenador/portal.py` (portal de bici).
 - `entrenador/competicion.py` (RFEN).
-- `entrenador/gimnasio.py` y `entrenador/fuerza.py` (solo se consumen datos; los cambios de conocimiento de fuerza son de F3-02).
+- `entrenador/gimnasio.py` (solo se consumen datos); `entrenador/fuerza.py` se toca solo para migrar su conocimiento de F3-02.
 - `entrenador/sueno.py` (solo se consume).
 - `docker-compose.yml`, `Dockerfile`, Caddy (solo se toca si una tarea lo pide).
+
+#### Umbrales de proceso fuera del alcance de F3
+
+No son conocimiento de entrenamiento (no prescriben carga): son reglas de reconstrucción,
+segmentación, formato o presentación. Se quedan en su módulo y **no se migran** a `conocimiento/` en
+F3; si alguna pasa a afectar una decisión, se abre tarea y se justifica.
+
+| Módulo | Constantes | Por qué no se migra |
+|---|---|---|
+| `series.py` | `DIST_MAX_SERIE_M`, `DESCANSO_MAX_S`, `MIN_REPS_SERIE`, `MIN_REPS_COMPARABLE` | reconstrucción de series desde los laps; `DIST_MAX_SERIE_M` es un tope de parser, no una regla de entrenamiento |
+| `series_dia.py` | `COBERTURA_MIN`, `MIN_SERIE_M` | unificar parte y reloj |
+| `analitica.py` | `MIN_BLOQUE_M`, `PASO_M`, `TIERS` | segmentación de la analítica |
+| `aprendizaje.py` / `concepto.py` | `MARGEN_POR_DEFECTO`, `MIN_REPS`, `DESCANSO_MISMO_BLOQUE_S`, `MIN_BLOQUES_RUIDO`, `MIN_REPS_MARGEN` | umbrales estadísticos de forma y ruido |
+| `parciales.py` | `MIN_PASOS_M`, `CADA_M` | desglose y presentación de pasos (los topes de ritmo sí están en el Anexo A) |
+| `partes.py` | `DESCANSO_MAX_S`, `PASO_M`, `MIN_CORTES`, `MATERIALES`, `INTENSIDADES`, `ESTILOS_*`, `COMPANIAS` | catálogo de formato y agrupación del parte |
+| `competicion.py` | `DIST_MINIMA`, `RITMO_RARO` | validación de marcas RFEN (módulo congelado) |
+| `bici.py`, `segmentos_gpx.py`, `portal.py` | `RADIO_M`, `VMAX_M_S`, `CELDA_M`, `PASO_TRAZA_M`, … | portal de bici (congelado) |
+| `lector_fit.py`, `lector_gpx.py`, `importar.py` | `DISCIPLINAS`, `EXTENSIONES`, `MIN_METROS`, … | lectura e importación (congelado) |
+| `gimnasio.py`, `apuntes.py`, `sueno.py` | `PLANTILLA`, `DIAS`, `TIPOS`, `CAMPOS` | catálogo y datos, no prescripción |
+| `panel.py`, `servidor.py`, `db.py` | `ANCHO_PX`, `PUERTO_POR_DEFECTO`, `ESQUEMA`, … | infraestructura |
+| `pruebas.py` | `TIPOS`, `MEDIDAS`, `SEGUNDOS_FIJOS` | catálogo de pruebas de medición, no carga |
 
 ---
 

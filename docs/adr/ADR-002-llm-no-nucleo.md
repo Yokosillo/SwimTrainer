@@ -1,9 +1,10 @@
 # ADR-002 — El LLM es una capa opcional de lenguaje, nunca el núcleo de decisión
 
-- **Estado:** aceptado
+- **Estado:** aceptado; **firma del entrenador pendiente** (R-07)
 - **Fecha:** 2026-10-19
 - **Fase:** F0 (decisión); se implementa, si se implementa, en F8
 - **Decisores:** proyecto Entrenador
+- **Firma:** pendiente del entrenador; no hay firma registrada todavía.
 
 ## Contexto
 
