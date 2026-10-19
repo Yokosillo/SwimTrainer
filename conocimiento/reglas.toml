@@ -1,9 +1,15 @@
+# Reglas de ejemplo/evidencia publicas. Las reglas derivadas del historial del atleta viven en
+# conocimiento/local/reglas.toml (privado) y sustituyen a esta si comparten id.
 [[regla]]
 id = "RG-002"
 version = 1
+legacy_id = "R2"
+orden = 3
 enunciado = "Si en la ventana de 14 dias hay menos de 400 m a ritmo de prueba, priorizar una sesion especifica de ritmo de prueba."
+fuente = "historial"
+se_comprueba = "el ritmo de las series de 100 y el 400 de control deben acusar el trabajo de ritmo de prueba"
 cuando = { fase = "especifico_400", metros_ritmo_prueba = "<400", ventana_dias = 14 }
-entonces = { prioridad = 1, receta = "RE-001", estimulo = "ES-001", minimo_m = 400 }
+entonces = { prioridad = 1, receta = "RE-003", estimulo = "ES-005", minimo_m = 400 }
 evidencia = ["AF-002"]
 parametros = ["PA-001", "PA-002"]
 contraindicaciones = ["dolor_hombro", "lesion_activa", "carga_alta"]
@@ -11,4 +17,7 @@ metrica_exito = { tipo = "ritmo_serie", criterio = "caida_ultima_rep < 3 s/100",
 revisar_en_dias = 21
 confianza = 0.6
 estado = "revisada"
-notas = "Equivalente a R2 del motor v1; el motor sigue en v1 (F2 no lo usa)."
+grado = "historial"
+seccion_t = ["T.1", "T.3"]
+sin_fuente = ["recuperacion"]
+notas = "Regla publica de ejemplo/evidencia; la version exacta del atleta vive en local."
