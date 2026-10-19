@@ -1757,7 +1757,17 @@ def pruebas_conocimiento_y_series_dia(ruta: str = "data/entrenador.db") -> None:
     comprobar("el anexo T se puede leer como dato (V1.0-01)", True)
     secs = conocimiento.secciones()
     comprobar("el anexo T tiene sus secciones",
-              {"T.1", "T.2", "T.3", "T.4", "T.5", "T.6", "T.7", "T.8", "T.9"} <= set(secs), str(sorted(secs)))
+              {"T.1", "T.2", "T.3", "T.4", "T.5", "T.6", "T.7", "T.8", "T.9", "T.10"} <= set(secs),
+              str(sorted(secs)))
+    comprobar("T.9 es 'Como se mantiene esto' y el cierre es T.10 (sin duplicados)",
+              secs["T.9"]["titulo"] == "Como se mantiene esto" and "Cierre del anexo" in secs["T.10"]["titulo"]
+              and conocimiento.duplicados() == [],
+              f"T.9={secs['T.9']['titulo']!r}, duplicados={conocimiento.duplicados()}")
+    comprobar("'como_se_mantiene' resuelve a T.9 y sale como criterio, sin fuentes del cierre",
+              conocimiento.fuente_de("como_se_mantiene")["secciones"] == ["T.9"]
+              and conocimiento.fuente_de("como_se_mantiene")["fuentes"] == []
+              and conocimiento.fuente_de("como_se_mantiene")["grado"] == "criterio",
+              str(conocimiento.fuente_de("como_se_mantiene")))
     comprobar("T.2 cita su fuente externa (Maglischo)", 1 in secs["T.2"]["fuentes"], str(secs["T.2"]["fuentes"]))
     comprobar("T.1 se apoya en fuentes externas y no es criterio",
               bool(secs["T.1"]["fuentes"]) and secs["T.1"]["criterio"] is False)
@@ -3075,6 +3085,86 @@ def pruebas_del_bucle_cerrado(ruta: str = "data/entrenador.db") -> None:
               res["recomendaciones"] >= r["cuantas"] and res["decididas"] >= 1, str(res))
     cc.close()
 
+def pruebas_conocimiento_fuentes() -> None:
+    """F1-01..F1-03: T.9/T.10 sin duplicados, bloque Sources, citas y criterios sin firma.
+
+    Los casos rotos se prueban sobre un anexo sintetico en un directorio temporal: no dependen de los
+    datos del atleta ni de que el anexo real cambie de contenido.
+    """
+    from entrenador import conocimiento
+
+    # --- documento canonico: integridad de secciones ---
+    secs = conocimiento.secciones()
+    comprobar("F1-01: no hay IDs de seccion duplicados en el anexo canonico",
+              conocimiento.duplicados() == [], str(conocimiento.duplicados()))
+    comprobar("F1-01: T.9 es mantenimiento y T.10 el cierre",
+              secs.get("T.9", {}).get("titulo") == "Como se mantiene esto"
+              and "Cierre del anexo" in (secs.get("T.10", {}).get("titulo") or ""),
+              f"T.9={secs.get('T.9', {}).get('titulo')!r} T.10={secs.get('T.10', {}).get('titulo')!r}")
+    f = conocimiento.fuente_de("como_se_mantiene")
+    comprobar("F1-01: fuente_de('como_se_mantiene') usa T.9 y no las fuentes del cierre",
+              f["secciones"] == ["T.9"] and f["fuentes"] == [] and f["grado"] == "criterio", str(f))
+
+    # --- F1-02: bloque Sources del anexo canonico ---
+    fuentes = conocimiento.fuentes()
+    comprobar("F1-02: el bloque Sources se parsea (22 fuentes)", len(fuentes) == 22, str(sorted(fuentes)))
+    comprobar("F1-02: cada fuente trae URL y cita literal",
+              all(x["url"].startswith("http") and x["citas"] for x in fuentes.values()),
+              str([n for n, x in fuentes.items() if not (x["url"].startswith("http") and x["citas"])]))
+    v = conocimiento.validar()
+    comprobar("F1-02: el anexo canonico no tiene citas rotas", v["ok"] and not v["errores"], str(v["errores"]))
+    comprobar("F1-02: [24] se detecta como fuente huerfana (aviso, no error)",
+              any(a["tipo"] == "fuente_huerfana" and a.get("fuente") == 24 for a in v["avisos"]),
+              str(v["avisos"]))
+
+    # --- F1-03: criterios sin firma ---
+    comprobar("F1-03: se cuentan 21 criterios sin firma", len(conocimiento.criterios()) == 21,
+              str(len(conocimiento.criterios())))
+    comprobar("F1-03: sin_fuente() ya no devuelve [] y no cuela las secciones de metodo",
+              bool(conocimiento.sin_fuente())
+              and all(x["id"] not in conocimiento.META for x in conocimiento.sin_fuente()),
+              str([x["id"] for x in conocimiento.sin_fuente()]))
+
+    # --- F1-01/F1-02/F1-05: casos rotos sobre un anexo sintetico ---
+    roto = """# Anexo de prueba
+
+## T.1 Uno
+Afirmacion con fuente [1] y otra rota [99]. `[criterio]`
+
+## T.1 Dos
+Esto es un duplicado que no debe pisar a T.1.
+
+## T.2 Dos
+Texto con [1].
+
+## Sources
+[1] https://example.org/uno — Fuente uno
+    > "cita literal uno"
+[2] https://example.org/dos — Fuente dos
+    > "cita literal dos"
+"""
+    with tempfile.TemporaryDirectory() as d:
+        ruta = os.path.join(d, "anexo.md")
+        with open(ruta, "w", encoding="utf-8") as fh:
+            fh.write(roto)
+        comprobar("F1-01: un ID duplicado se detecta y no sobrescribe (gana el primero)",
+                  bool(conocimiento.duplicados(ruta))
+                  and conocimiento.secciones(ruta)["T.1"]["titulo"] == "Uno",
+                  str(conocimiento.duplicados(ruta)))
+        vr = conocimiento.validar(ruta)
+        tipos = [e["tipo"] for e in vr["errores"]]
+        comprobar("F1-02: una cita [99] sin fuente es un error",
+                  "cita_rota" in tipos and not vr["ok"], str(vr["errores"]))
+        comprobar("F1-01: un ID duplicado es un error de validacion",
+                  "seccion_duplicada" in tipos, str(tipos))
+        comprobar("F1-02: una fuente sin citar es un aviso, no un error",
+                  any(a["tipo"] == "fuente_huerfana" and a.get("fuente") == 2 for a in vr["avisos"]),
+                  str(vr["avisos"]))
+        comprobar("F1-02: el parser conserva URL y cita literal",
+                  conocimiento.fuentes(ruta)[1]["url"] == "https://example.org/uno"
+                  and conocimiento.fuentes(ruta)[1]["citas"] == ["cita literal uno"])
+
+
 if __name__ == "__main__":
     pruebas_unitarias()
     pruebas_base_de_datos()
@@ -3090,6 +3180,7 @@ if __name__ == "__main__":
     pruebas_evaluacion_de_una_sesion()
     pruebas_selectores_del_parte()
     pruebas_conocimiento_y_series_dia()
+    pruebas_conocimiento_fuentes()
     pruebas_reparto_por_dia()
     pruebas_motor_en_el_discurso()
     pruebas_plan_vivo()
