@@ -53,7 +53,12 @@ def datos_panel(cn) -> dict:
     # El plan va con su version recalculada: la escrita es la referencia, y `vivo` es la que se rehace con cada
     # entrenamiento que entra (con lo que ha pasado de verdad en la semana anterior).
     salida = {"plan": dict(plan.datos(), vivo=plan_vivo.datos(cn)), "competicion": None,
-              "apuntes": apuntes.resumen(cn), "estado": None}
+              "apuntes": apuntes.resumen(cn), "estado": None, "resultados": None}
+    try:
+        from . import resultados as _resultados
+        salida["resultados"] = _resultados.resumen(cn)
+    except Exception as exc:
+        salida["resultados"] = {"error": f"no se pudo calcular el bucle de resultados: {exc}"}
     try:
         from . import estado as _estado
         salida["estado"] = _estado.calcular(cn).a_dict()

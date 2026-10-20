@@ -3064,6 +3064,40 @@ function pintarEstado() {
   caja.innerHTML = h;
 }
 
+/* F6: el bucle cerrado, en una tarjeta pequena. No calcula: pinta lo que trae DATOS.resultados. */
+function pintarResultados() {
+  const r = DATOS.resultados || {};
+  const caja = q("resultadosBucle");
+  if (!caja) return;
+  if (!r.recomendaciones) {
+    caja.innerHTML = "<header><h3>Resultados</h3><span class='pista'>sin propuestas</span></header>"
+      + "<div class='tarjeta-cuerpo'><div class='vacio'><strong>Sin bucle de resultados</strong>"
+      + esc(r.error || "Todavia no hay recomendaciones guardadas.") + "</div></div>";
+    return;
+  }
+  const e = r.enlaces || {};
+  const filas = (r.ultimos || []).slice(0, 5).map((x) => [
+    esc(String(x.id)), esc(x.titulo || ""),
+    esc((x.enlace || {}).estado || "sin_enlace"),
+    esc((x.decision || {}).tomada || "sin decidir"),
+    esc((x.verificacion || {}).veredicto || "sin evaluar"),
+  ]);
+  let h = "<header><h3>Resultados</h3><span class='pista'>"
+    + entero(r.recomendaciones) + " propuestas · " + entero(r.evaluadas) + " evaluadas</span></header>"
+    + "<div class='tarjeta-cuerpo'>"
+    + "<div class='chips' style='margin-bottom:10px'>"
+    + chip("enlazadas " + entero(e.enlazado || 0), "ok")
+    + chip("sin enlace " + entero(e.sin_enlace || 0), "") + chip("ambiguas " + entero(e.ambiguo || 0), "")
+    + chip("a favor " + entero(r.a_favor || 0), "ok") + chip("en contra " + entero(r.en_contra || 0), "no")
+    + chip("sin datos " + entero(r.sin_datos || 0), "") + chip("no concluyente " + entero(r.no_concluyente || 0), "")
+    + "</div>"
+    + tablaHTML([{ n: "#" }, { n: "Que se propuso" }, { n: "Enlace" }, { n: "Que se hizo" }, { n: "Que paso" }],
+                filas, { compacta: true })
+    + "<p class='mini-txt'>No se declara causalidad: si hay confounders o faltan datos, el veredicto es "
+    + "no concluyente o sin datos. Las reglas no cambian solas.</p></div>";
+  caja.innerHTML = h;
+}
+
 /* El boton del Garmin: el portal le pide al servidor local que baje de Garmin Connect lo que falte. El servidor
    usa el mismo codigo que `python scripts/garmin_conectar.py traer`. Por aqui no pasa ninguna credencial: la
    sesion (token OAuth) ya esta en el disco del PC, la dejo el atleta con conectar-garmin.bat. */
@@ -3386,6 +3420,7 @@ function arrancar() {
   pintarKpis();
   pintarValoracion();
   pintarEstado();
+  pintarResultados();
   pintarPreparacion();
   pintarVolumen();
   pintarResumenPruebas();

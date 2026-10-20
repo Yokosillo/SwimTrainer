@@ -578,6 +578,66 @@ def _decision(cn, args) -> int:
         print(f"{r['id']:<5} {r['fecha']:<11} {r['semana'] or '-':<7} {r.get('tomada') or 'sin decidir':<13} {r['titulo']}")
     return 0
 
+def _resultados(cn, args) -> int:
+    """CLI F6: enlazar, evaluar o listar el bucle recomendacion -> sesion -> resultado."""
+    import json
+    from . import resultados
+    if getattr(args, "enlazar", None):
+        try:
+            r = resultados.enlazar(cn, int(args.enlazar), getattr(args, "actividad", None))
+        except ValueError as exc:
+            print(f"No se puede enlazar: {exc}")
+            return 1
+        if getattr(args, "json", False):
+            print(json.dumps(r, ensure_ascii=False, indent=2, sort_keys=True))
+        else:
+            print(f"Recomendacion {r.get('recomendacion_id')}: {r.get('estado')} ({r.get('metodo')})")
+            if r.get("candidatos"):
+                print(f"  candidatos: {len(r['candidatos'])}; usa --actividad para elegir")
+        return 0
+    if getattr(args, "evaluar", False):
+        r = resultados.evaluar_todas(cn)
+        if getattr(args, "json", False):
+            print(json.dumps(r, ensure_ascii=False, indent=2, sort_keys=True))
+        else:
+            print(f"Evaluadas {r['evaluadas']} recomendaciones.")
+            for x in r["resultados"]:
+                print(f"  #{x.get('recomendacion_id')}: {x.get('veredicto')} "
+                      f"{x.get('delta') if x.get('delta') is not None else ''}")
+        return 0
+    if getattr(args, "detalle", None):
+        d = resultados.detalle(cn, int(args.detalle))
+        if not d:
+            print(f"No existe la recomendacion {args.detalle}.")
+            return 1
+        if getattr(args, "json", False):
+            print(json.dumps(d, ensure_ascii=False, indent=2, sort_keys=True))
+        else:
+            print(f"#{args.detalle} {d['recomendacion'].get('titulo')}")
+            print(f"  enlace: {d.get('enlace')}")
+            print(f"  decision: {d.get('decision')}")
+            for v in d.get("verificaciones") or []:
+                print(f"  {v.get('fecha')} {v.get('veredicto')}: {v.get('notas')}")
+        return 0
+    lista = resultados.listar(cn)
+    inf = resultados.informe(cn)
+    if getattr(args, "json", False):
+        print(json.dumps({"resumen": resultados.resumen(cn), "recomendaciones": lista, "informe": inf},
+                         ensure_ascii=False, indent=2, sort_keys=True))
+        return 0
+    print(f"{'#':<4} {'fecha':<11} {'enlace':<11} {'decision':<12} {'resultado':<13} titulo")
+    for r in lista:
+        print(f"{r['id']:<4} {str(r.get('fecha') or ''):<11} {str(r['enlace'].get('estado') or '-'):<11} "
+              f"{str((r.get('decision') or {}).get('tomada') or '-'):<12} "
+              f"{str((r.get('verificacion') or {}).get('veredicto') or '-'):<13} {r.get('titulo')}")
+    print("\nAprendizaje por regla:")
+    for r in inf["reglas"]:
+        if r["propuestas"]:
+            print(f"  {r['regla_id']}: propuestas={r['propuestas']} {r['decisiones']} "
+                  f"verificaciones={r['verificaciones']}")
+    return 0
+
+
 def _estado(cn, args) -> int:
     """Imprime o guarda la foto del estado del atleta (F4). No toca el motor ni las recomendaciones."""
     import json
@@ -739,6 +799,13 @@ def main(argv: list[str] | None = None) -> int:
     pmot.add_argument("--dual", action="store_true", help="compara v1 y v2 sin tocar la base")
     pmot.add_argument("--motor", choices=("v1", "v2", "dual"), default=None,
                       help="v2 por defecto en este comando; v1/dual para comparar")
+
+    pres = sub.add_parser("resultados", help="bucle de resultados: enlace, evaluacion y aprendizaje")
+    pres.add_argument("--evaluar", action="store_true", help="enlaza y evalua las recomendaciones")
+    pres.add_argument("--enlazar", type=int, default=None, metavar="ID", help="enlaza una recomendacion")
+    pres.add_argument("--actividad", type=int, default=None, help="actividad concreta para --enlazar")
+    pres.add_argument("--detalle", type=int, default=None, metavar="ID", help="detalle de una recomendacion")
+    pres.add_argument("--json", action="store_true", help="salida JSON")
 
     pest = sub.add_parser("estado", help="la foto del atleta en una fecha: metricas, n, dispersion y confianza")
     pest.add_argument("--fecha", default=None, help="fecha de la foto (YYYY-MM-DD; por defecto, hoy)")
@@ -1037,6 +1104,8 @@ def main(argv: list[str] | None = None) -> int:
         return _estado(cn, args)
     elif args.orden == "motor":
         return _motor(cn, args)
+    elif args.orden == "resultados":
+        return _resultados(cn, args)
     elif args.orden == "conocimiento":
         return _conocimiento(cn, args)
     elif args.orden == "reglas":

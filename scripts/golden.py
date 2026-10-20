@@ -125,6 +125,7 @@ def resumen_panel(ruta: str) -> dict:
     valoracion = datos.get("valoracion") or {}
     plan = datos.get("plan") or {}
     estado = datos.get("estado") or {}
+    resultados = datos.get("resultados") or {}
     return {
         "hash_datos": _sha256(_json_canonico(limpio)),
         "kpis": datos.get("kpis"),
@@ -144,6 +145,13 @@ def resumen_panel(ruta: str) -> dict:
         "estado": {"id": estado.get("estado_id"), "fecha": estado.get("fecha"),
                    "version": estado.get("version_conocimiento"),
                    "metricas": estado.get("metricas"), "sin_datos": estado.get("sin_datos")},
+        "resultados": {"recomendaciones": resultados.get("recomendaciones"),
+                       "enlaces": resultados.get("enlaces"),
+                       "evaluadas": resultados.get("evaluadas"),
+                       "a_favor": resultados.get("a_favor"),
+                       "en_contra": resultados.get("en_contra"),
+                       "sin_datos": resultados.get("sin_datos"),
+                       "no_concluyente": resultados.get("no_concluyente")},
     }
 
 
