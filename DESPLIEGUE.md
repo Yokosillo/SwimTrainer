@@ -115,6 +115,27 @@ MOTOR_CONOCIMIENTO=v1
 
 No cambia ningun comportamiento todavia: deja preparada la vuelta atras.
 
+## 3b. Capa LLM opcional (F8)
+
+La explicación conversacional está **apagada por defecto**. No decide ni calcula: solo reformula una
+recomendación ya calculada. Para activarla, rellena en `.env` (nunca en el navegador):
+
+```bash
+COACH_ENABLED=1
+COACH_BASE_URL=https://proveedor-compatible/v1
+COACH_MODEL=modelo
+COACH_API_KEY=...
+# opcionales
+COACH_TIMEOUT=20
+COACH_MAX_TOKENS=700
+```
+
+Sin `COACH_API_KEY`, sin URL/modelo o con `COACH_ENABLED=0`, el endpoint `/coach` responde 403 y el
+botón no aparece. Los datos enviados se limitan a la recomendación resumida, sus `AF-*`, `FU-*` y
+`PA-*`; no se envían FIT/GPX, la base, partes completas ni datos personales. Si el proveedor falla o la
+respuesta no valida, se usa la explicación determinista del motor. Ver
+`docs/adr/ADR-003-llm-capa-opcional.md`.
+
 ## 4. Caddy (`/entrenador/`)
 
 Caddy ya escucha en `:80` en dalmacia. La ruta se activa cuando existe

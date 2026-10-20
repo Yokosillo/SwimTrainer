@@ -53,6 +53,16 @@ El cuadro de mando (`cuadro/panel.html`) ya no repite la parte de bici: enlaza c
 - [ ] Motor de ritmos de referencia a partir de los tests - pendiente
 - [ ] Importacion desde Garmin Connect / Strava API en rutina - pendiente (el importador de carpeta ya funciona)
 
+## Capa LLM opcional (F8)
+
+La explicación conversacional está **apagada por defecto**. No decide, no calcula y no inventa: solo
+reformula una recomendación ya calculada. Para activarla, el operador rellena `COACH_ENABLED=1`,
+`COACH_BASE_URL`, `COACH_MODEL` y `COACH_API_KEY` en `.env`; la clave se queda en el servidor y nunca
+llega al navegador. Sin clave o con el flag en 0, el endpoint `/coach` responde 403 y el botón no
+aparece. Solo se envían la recomendación resumida y sus `AF-*`/`FU-*`/`PA-*`; no FIT/GPX, la base ni
+partes completas. Si el proveedor falla o la respuesta no valida, se usa la explicación determinista.
+Ver `docs/adr/ADR-003-llm-capa-opcional.md` y `docs/evidencias/F8.md`.
+
 ## Requisitos
 
 Python 3.12 con `fitdecode` y `gpxpy`, en el entorno virtual `.venv` del proyecto:
