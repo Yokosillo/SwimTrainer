@@ -3098,6 +3098,113 @@ function pintarResultados() {
   caja.innerHTML = h;
 }
 
+/* F7: prioridad/accion de la semana, cambio, explorador de conocimiento e historial. */
+function pintarPrioridad() {
+  const m = DATOS.motor || {};
+  const caja = q("prioridadAccion");
+  if (!caja) return;
+  if (!m.activo || !m.primera) {
+    caja.innerHTML = "<header><h3>Prioridad de la semana</h3><span class='pista'>v2 no activa</span></header>"
+      + "<div class='tarjeta-cuerpo'><div class='vacio'><strong>Propuesta v2 disponible</strong>"
+      + esc(m.aviso || m.error || "Activa MOTOR_RECOMENDACION=v2 para ver la prioridad. El plan v1 no cambia.")
+      + "</div></div>";
+    return;
+  }
+  const r = m.primera, o = m.elegida || {};
+  const opciones = (r.opciones || []).filter((x) => !x.recomendada && !x.descartada);
+  const detalles = (titulo, contenido) => "<details class='f7-detalle'><summary>" + esc(titulo)
+    + "</summary><div class='f7-detalle-cuerpo'>" + contenido + "</div></details>";
+  let h = "<header><h3>Prioridad de la semana</h3><span class='pista'>P" + esc(String(r.prioridad))
+    + " · " + esc(m.semana || "") + " · " + esc(m.estado_id || "") + "</span></header>"
+    + "<div class='tarjeta-cuerpo'>"
+    + "<p class='f7-prioridad'>" + esc(r.problema) + "</p>"
+    + "<p class='f7-accion'><strong>" + esc(o.sesion || "Mantener") + "</strong>"
+    + (o.dia ? " · " + esc(o.dia) : "") + (o.metros ? " · " + entero(o.metros) + " m" : "")
+    + (o.ritmo ? " · " + esc(o.ritmo) + "/100" : "") + "</p>"
+    + "<div class='chips'>" + chip("confianza " + esc(o.confianza || "-"), o.confianza >= .7 ? "ok" : "")
+    + chip("riesgo " + esc(o.riesgo_etiqueta || "-")) + chip("coste " + esc(o.coste_etiqueta || "-"))
+    + "</div>"
+    + detalles("Por que (dato, evidencia, criterio)",
+      "<p>" + esc(r.estado && r.estado.pct !== undefined ? "En la ventana hay " + r.estado.metros_actuales
+        + " m y el minimo es " + (r.estado.metros_minimos == null ? "—" : r.estado.metros_minimos) + " m."
+        : "Dato de la prioridad: " + (r.estado && r.estado.clase || "sin_datos")) + "</p>"
+      + "<p>Evidencia: " + esc((r.evidencia || []).join(", ") || "criterio") + "</p>"
+      + "<p>Parametros: " + esc((r.parametros || []).join(", ") || "—") + "</p>")
+    + detalles("Como se mide", "<p>" + esc((r.metrica_exito || {}).criterio || "—") + " · medir el "
+      + esc((r.metrica_exito || {}).medir_en || "—") + ". Revision: " + esc(r.revisar_en || "—") + ".</p>")
+    + detalles("Riesgo y alternativa", "<p>Riesgo: " + esc(o.riesgo_etiqueta || "—") + ".</p>"
+      + (opciones.length ? "<ul>" + opciones.map((x) => "<li>" + esc(x.sesion || "Mantener")
+        + (x.dia ? " (" + esc(x.dia) + ")" : "") + " · score " + esc(String(x.score)) + "</li>").join("") + "</ul>"
+        : "<p>No hay una alternativa con dia libre esta semana.</p>"))
+    + detalles("Contraindicaciones", "<p>" + esc((r.contraindicaciones || []).join(", ") || "ninguna") + "</p>")
+    + "</div>";
+  caja.innerHTML = h;
+}
+
+function pintarCambio() {
+  const c = DATOS.cambio || {};
+  const caja = q("cambioRecomendacion");
+  if (!caja) return;
+  if (!c.hay) {
+    caja.innerHTML = "<header><h3>Que ha cambiado</h3><span class='pista'>sin histórico</span></header>"
+      + "<div class='tarjeta-cuerpo'><p class='mini-txt'>No hay una recomendación anterior guardada con la que comparar.</p></div>";
+    return;
+  }
+  caja.innerHTML = "<header><h3>Que ha cambiado</h3><span class='pista'>"
+    + esc(c.cambio ? "cambia" : "sin cambios") + "</span></header><div class='tarjeta-cuerpo'>"
+    + "<p>" + esc(c.texto || "") + "</p>"
+    + "<div class='mini-txt'>Antes: " + esc((c.antes || {}).titulo || "—")
+    + " · ahora: " + esc((c.despues || {}).titulo || "—") + "</div></div>";
+}
+
+function pintarConocimiento() {
+  const caja = q("conocimientoLista");
+  if (!caja) return;
+  const fuentes = DATOS.conocimiento_fuentes || [], af = DATOS.conocimiento_afirmaciones || [];
+  const pa = DATOS.conocimiento_parametros || [], reglas = DATOS.conocimiento_reglas || [];
+  const tab = (cols, filas) => tablaHTML(cols.map((n) => ({ n })), filas, { compacta: true });
+  caja.innerHTML = "<p class='mini-txt'>Version " + esc(DATOS.conocimiento_version || "—")
+    + " · " + fuentes.length + " fuentes · " + af.length + " afirmaciones · " + pa.length
+    + " parametros · " + reglas.length + " reglas.</p>"
+    + "<details class='f7-detalle'><summary>Fuentes (" + fuentes.length + ")</summary>"
+    + tab(["ID", "Titulo", "Tipo"], fuentes.map((x) => [esc(x.id), esc(x.titulo), esc(x.tipo)]))
+    + "</details>"
+    + "<details class='f7-detalle'><summary>Afirmaciones (" + af.length + ")</summary>"
+    + tab(["ID", "Texto", "Estado", "Procedencia"],
+          af.map((x) => [esc(x.id), esc(x.texto), esc(x.estado), esc(x.procedencia)]))
+    + "</details>"
+    + "<details class='f7-detalle'><summary>Parametros (" + pa.length + ")</summary>"
+    + tab(["ID", "Nombre", "Valor", "Firma"],
+          pa.map((x) => [esc(x.id), esc(x.nombre), esc(String(x.valor) + " " + (x.unidad || "")),
+                         esc(x.firmado_por || "pendiente")]))
+    + "</details>"
+    + "<details class='f7-detalle'><summary>Reglas (" + reglas.length + ")</summary>"
+    + tab(["ID", "Enunciado", "Grado", "Firma"],
+          reglas.map((x) => [esc(x.id), esc(x.enunciado), esc(x.grado),
+                             esc(x.estado || "revisada")]))
+    + "</details>";
+}
+
+function pintarHistorialF7() {
+  const caja = q("historialRecomendaciones");
+  if (!caja) return;
+  const filas = DATOS.historial || [];
+  if (!filas.length) {
+    caja.innerHTML = "<header><h3>Historial de propuestas</h3><span class='pista'>vacio</span></header>"
+      + "<div class='tarjeta-cuerpo'><div class='vacio'><strong>Sin propuestas guardadas</strong>"
+      + "Cuando el motor guarde una propuesta, aqui aparecera con su decision y su resultado.</div></div>";
+    return;
+  }
+  caja.innerHTML = "<header><h3>Historial de propuestas</h3><span class='pista'>"
+    + filas.length + " propuestas</span></header><div class='tarjeta-cuerpo'>"
+    + tablaHTML([{ n: "#" }, { n: "Titulo" }, { n: "Enlace" }, { n: "Decision" }, { n: "Resultado" }],
+      filas.map((x) => [esc(String(x.id)), esc(x.titulo || ""),
+                        esc((x.enlace || {}).estado || "sin_enlace"),
+                        esc((x.decision || {}).tomada || "sin decidir"),
+                        esc((x.verificacion || {}).veredicto || "sin evaluar")]), { compacta: true })
+    + "</div>";
+}
+
 /* El boton del Garmin: el portal le pide al servidor local que baje de Garmin Connect lo que falte. El servidor
    usa el mismo codigo que `python scripts/garmin_conectar.py traer`. Por aqui no pasa ninguna credencial: la
    sesion (token OAuth) ya esta en el disco del PC, la dejo el atleta con conectar-garmin.bat. */
@@ -3421,6 +3528,10 @@ function arrancar() {
   pintarValoracion();
   pintarEstado();
   pintarResultados();
+  pintarPrioridad();
+  pintarCambio();
+  pintarConocimiento();
+  pintarHistorialF7();
   pintarPreparacion();
   pintarVolumen();
   pintarResumenPruebas();

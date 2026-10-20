@@ -40,6 +40,95 @@ def _cuando(iso: str) -> str:
         return str(iso)
 
 
+def _resumen_motor(cn) -> dict:
+    """Resumen v2 para la tarjeta F7. No se genera si el flag sigue en v1."""
+    try:
+        from . import motor
+        modo = motor.modo_motor()
+        if modo != "v2":
+            return {"activo": False, "disponible": True, "modo": modo,
+                    "aviso": ("La propuesta v2 esta disponible, pero no sustituye al plan v1: "
+                              "activa MOTOR_RECOMENDACION=v2 para verla.")}
+        d = motor.generar(cn)
+        if d.get("error"):
+            return {"activo": False, "disponible": True, "modo": modo, "error": d["error"]}
+        prioridades = []
+        for r in d.get("recomendaciones") or []:
+            prioridades.append({
+                "prioridad": r.get("prioridad"), "problema": r.get("problema"),
+                "estado": r.get("estado"), "evidencia": r.get("evidencia") or [],
+                "parametros": r.get("parametros") or [],
+                "contraindicaciones": r.get("contraindicaciones") or [],
+                "metrica_exito": r.get("metrica_exito"), "revisar_en": r.get("revisar_en"),
+                "explicacion": r.get("explicacion"), "confianza": r.get("confianza"),
+                "opciones": [{k: o.get(k) for k in ("id", "recomendada", "sesion", "dia", "metros",
+                                                    "ritmo", "efecto_esperado", "confianza", "riesgo_etiqueta",
+                                                    "coste_etiqueta", "score", "descartada", "motivo_descarte",
+                                                    "porque")}
+                             for o in r.get("opciones") or []],
+            })
+        primera = prioridades[0] if prioridades else None
+        elegida = None
+        if primera:
+            elegida = next((o for o in primera["opciones"] if o.get("recomendada")), None)
+        return {"activo": True, "disponible": True, "modo": modo, "fecha": d.get("fecha"),
+                "semana": d.get("semana"), "estado_id": d.get("estado_id"),
+                "knowledge_version": d.get("knowledge_version"),
+                "prioridades": prioridades, "primera": primera, "elegida": elegida,
+                "decision": ({"prioridad": primera["prioridad"], "opcion": elegida.get("id"),
+                              "score": elegida.get("score"), "titulo": primera["problema"]}
+                             if primera and elegida else None)}
+    except Exception as exc:
+        return {"activo": False, "disponible": True, "modo": "v2",
+                "error": f"no se pudo calcular la propuesta v2: {exc}"}
+
+
+def _conocimiento_panel() -> dict:
+    """Fuentes, afirmaciones, reglas y parámetros para el explorador F7. Solo conocimiento, no atleta."""
+    try:
+        from . import conocimiento_toml
+        c = conocimiento_toml.cargar()
+        return {
+            "version": c.version, "local": bool(c.local),
+            "fuentes": [{"id": f.id, "tipo": f.tipo, "titulo": f.titulo, "url": f.url,
+                         "cita": f.cita, "citas": list(f.citas), "grado": ""} for f in c.fuentes],
+            "afirmaciones": [{"id": a.id, "texto": a.texto, "estado": a.estado,
+                              "procedencia": a.procedencia, "criterio_firmado": a.criterio_firmado,
+                              "firmado_por": a.firmado_por, "firmado_en": a.firmado_en,
+                              "fuentes": [r.id for r in a.fuentes], "notas": a.notas}
+                             for a in c.afirmaciones],
+            "parametros": [{"id": p.id, "nombre": p.nombre, "valor": p.valor, "unidad": p.unidad,
+                            "procedencia": p.procedencia, "firmado_por": p.firmado_por,
+                            "nota": p.nota} for p in c.parametros],
+            "reglas": [{"id": r.id, "legacy_id": r.legacy_id, "enunciado": r.enunciado,
+                        "fuente": r.fuente, "grado": r.grado, "seccion_t": list(r.seccion_t),
+                        "evidencia": list(r.evidencia), "parametros": list(r.parametros),
+                        "estado": r.estado} for r in c.reglas],
+        }
+    except Exception as exc:
+        return {"error": f"no se pudo cargar el conocimiento: {exc}"}
+
+
+def _cambio(cn, motor_data: dict) -> dict:
+    """Compara la prioridad actual con la última recomendación v2 persistida; si no hay, no inventa."""
+    if not motor_data.get("activo") or not motor_data.get("primera"):
+        return {"hay": False, "texto": "sin histórico"}
+    fila = cn.execute("SELECT * FROM recomendacion WHERE origen = 'motor_v2' ORDER BY id DESC LIMIT 1").fetchone()
+    if not fila:
+        return {"hay": False, "texto": "sin histórico"}
+    antes = dict(fila)
+    ahora = motor_data["primera"]
+    cambio = (antes.get("titulo") or "") != (ahora.get("problema") or "")
+    return {"hay": True, "cambio": cambio,
+            "antes": {"titulo": antes.get("titulo"), "fecha": antes.get("fecha"),
+                      "elegida": antes.get("elegida"), "prioridad": antes.get("prioridad")},
+            "despues": {"titulo": ahora.get("problema"), "fecha": motor_data.get("fecha"),
+                        "elegida": (motor_data.get("elegida") or {}).get("id"),
+                        "prioridad": ahora.get("prioridad")},
+            "texto": ("Sin cambios en la prioridad" if not cambio else
+                      f"Antes: {antes.get('titulo')} · Ahora: {ahora.get('problema')}")}
+
+
 def datos_panel(cn) -> dict:
     """Lo que el cuadro de mando necesita y no sale de la analitica de entrenamiento:
 
@@ -53,7 +142,10 @@ def datos_panel(cn) -> dict:
     # El plan va con su version recalculada: la escrita es la referencia, y `vivo` es la que se rehace con cada
     # entrenamiento que entra (con lo que ha pasado de verdad en la semana anterior).
     salida = {"plan": dict(plan.datos(), vivo=plan_vivo.datos(cn)), "competicion": None,
-              "apuntes": apuntes.resumen(cn), "estado": None, "resultados": None}
+              "apuntes": apuntes.resumen(cn), "estado": None, "resultados": None,
+              "motor": None, "decision": None, "cambio": None, "historial": [],
+              "conocimiento_fuentes": [], "conocimiento_afirmaciones": [],
+              "conocimiento_parametros": [], "conocimiento_reglas": [], "conocimiento_version": ""}
     try:
         from . import resultados as _resultados
         salida["resultados"] = _resultados.resumen(cn)
@@ -66,6 +158,20 @@ def datos_panel(cn) -> dict:
         # El panel no puede quedarse en blanco porque el estado falle: se dice y se sigue.
         salida["estado"] = {"estado_id": "", "fecha": "", "secciones": [],
                             "error": f"no se pudo calcular el estado: {exc}"}
+    salida["motor"] = _resumen_motor(cn)
+    salida["decision"] = salida["motor"].get("decision")
+    salida["cambio"] = _cambio(cn, salida["motor"])
+    try:
+        from . import resultados as _resultados
+        salida["historial"] = _resultados.listar(cn, limite=20)
+    except Exception:
+        salida["historial"] = []
+    conocimiento = _conocimiento_panel()
+    salida["conocimiento_version"] = conocimiento.get("version", "")
+    salida["conocimiento_fuentes"] = conocimiento.get("fuentes", [])
+    salida["conocimiento_afirmaciones"] = conocimiento.get("afirmaciones", [])
+    salida["conocimiento_parametros"] = conocimiento.get("parametros", [])
+    salida["conocimiento_reglas"] = conocimiento.get("reglas", [])
     r = competicion.resumen(cn)
     if not r.get("total"):
         return salida
