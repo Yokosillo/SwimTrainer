@@ -179,7 +179,7 @@ if (menu_mal.length) fallos.push("el menu apunta a vistas que no existen: " + me
 if (secciones.length < 8) fallos.push("esperaba al menos 8 vistas y hay " + secciones.length);
 
 /* ---------- 7. que se haya pintado de verdad ---------- */
-const esperados = ["kpis", "estadoAtleta", "resultadosBucle", "prioridadAccion", "cambioRecomendacion", "conocimientoLista", "historialRecomendaciones", "preparacion", "volumenAnual", "volumenMensual", "calendario", "calMes", "calCabecera",
+const esperados = ["kpis", "estadoAtleta", "resultadosBucle", "prioridadAccion", "cambioRecomendacion", "conocimientoF7Lista", "historialRecomendaciones", "preparacion", "volumenAnual", "volumenMensual", "calendario", "calMes", "calCabecera",
   "calLeyenda", "calPista", "compKpis", "h400Tabla", "fueDosis", "fueCarga", "fueSeguro",
   "mejoresTabla", "cmpTabla", "fTabla", "objetivosPlan", "planSemanas", "entrenosTabla", "segmentosTabla",
   "gimKpis", "gsLista", "apImportados", "biciKpis", "biciSegmentos", "cuentaAtras", "selloDatos",
@@ -190,12 +190,55 @@ const vacios = esperados.filter((id) => {
 });
 if (vacios.length) fallos.push("se han quedado sin pintar: " + vacios.join(", "));
 
+/* F7-R-02: el explorador debe enseñar cita/URL, FU de AF y evidencia/PA de reglas. */
+if (!fallos.length) {
+  const textoCon = String(pintados.conocimientoF7Lista || "");
+  if (!/FU-/.test(textoCon) || !/PA-/.test(textoCon)
+      || !/https?:/.test(textoCon) || !/RG-/.test(textoCon)) {
+    fallos.push("el explorador no muestra cita/URL, FU o evidencia/parametros");
+  }
+}
+
+/* F7-R-01/R-02: fixture v2 de la tarjeta, sin depender de la base real. */
+if (!fallos.length) {
+  const fixture = {
+    activo: true, disponible: true, modo: "v2", fecha: "2026-10-20", semana: "S2",
+    estado_id: "EA-fixture", primera: {
+      prioridad: 1, problema: "falta ritmo de prueba",
+      estado: { clase: "ritmo_prueba", pct: 10, metros_actuales: 0, metros_minimos: 400 },
+      evidencia: ["AF-002"], parametros: ["PA-101"], contraindicaciones: [],
+      metrica_exito: { criterio: "mantener el ritmo", medir_en: "2026-10-23" },
+      revisar_en: "2026-10-27",
+      opciones: [
+        { id: "A", recomendada: true, sesion: "8x100 con 25-30 s", dia: "jueves", metros: 1700,
+          ritmo: "1:16", confianza: 0.7, riesgo_etiqueta: "medio", coste_etiqueta: "medio",
+          score: 1.5, descartada: false, porque: "es el estimulo especifico" },
+        { id: "B", recomendada: false, sesion: "6x200", dia: "domingo", metros: 2000,
+          ritmo: "1:20", confianza: 0.5, riesgo_etiqueta: "bajo", coste_etiqueta: "medio",
+          score: 0.5, descartada: false }
+      ]
+    },
+    elegida: { id: "A", sesion: "8x100 con 25-30 s", dia: "jueves", metros: 1700, ritmo: "1:16",
+               confianza: 0.7, riesgo_etiqueta: "medio", coste_etiqueta: "medio" }
+  };
+  try {
+    vm.runInContext("DATOS.motor = " + JSON.stringify(fixture) + "; pintarPrioridad();", sandbox);
+    const texto = String(pintados.prioridadAccion || "");
+    if (!/falta ritmo de prueba/.test(texto) || !/8x100/.test(texto)
+        || !/data-conocimiento/.test(texto)) {
+      fallos.push("el fixture v2 no pinta prioridad/accion/enlaces de conocimiento");
+    }
+  } catch (e) {
+    fallos.push("el fixture v2 revienta: " + e.message);
+  }
+}
+
 /* F7: la tarjeta de prioridad y el explorador tienen que ser accesibles sin raton. */
 if (!fallos.length) {
   if (!/id="prioridadAccion"[^>]*tabindex="0"/.test(html) || !/aria-live="polite"/.test(html)) {
     fallos.push("la prioridad no tiene foco/aria-live");
   }
-  if (!/id="conocimientoExplorador"[^>]*aria-controls="conocimientoLista"/.test(html)
+  if (!/id="conocimientoExplorador"[^>]*aria-controls="conocimientoF7Lista"/.test(html)
       || !/<summary>Explorar conocimiento/.test(html)) {
     fallos.push("el explorador de conocimiento no es un details con summary accesible");
   }

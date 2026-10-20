@@ -4608,9 +4608,39 @@ def pruebas_interfaz_f7() -> None:
             comprobar("F7-04: con historico compara antes/despues",
                       d3["cambio"]["hay"] is True
                       and d3["cambio"]["antes"]["titulo"] == "Prioridad anterior"
-                      and "ahora" in d3["cambio"]["texto"].lower())
+                      and "título" in d3["cambio"]["texto"].lower()
+                      and "Prioridad anterior" in d3["cambio"]["texto"])
             comprobar("F7-05: el historial lista la propuesta guardada",
                       any(x.get("titulo") == "Prioridad anterior" for x in d3["historial"]))
+            comprobar("F7-R-02: explorador con cita/URL, FU de AF y evidencia/parametros de regla",
+                      any(f.get("url") and f.get("cita") for f in d3["conocimiento_fuentes"])
+                      and any(a.get("id") == "AF-001" and a.get("fuentes")
+                              for a in d3["conocimiento_afirmaciones"])
+                      and any(r.get("id") == "RG-002" and r.get("evidencia") and r.get("parametros")
+                              for r in d3["conocimiento_reglas"]))
+
+            # Mismo titulo, distinta opcion: no puede decir "Sin cambios".
+            titulo = d2["motor"]["primera"]["problema"]
+            cn.execute("""INSERT INTO recomendacion (fecha, ambito, semana, titulo, cuerpo, origen, creada_en,
+                          prioridad, elegida) VALUES (?,?,?,?,?,?,?,?,?)""",
+                       ("2026-10-19", "semana", "S2", titulo, "", "motor_v2",
+                        "2026-10-19T00:00:00", 1, "B"))
+            cn.commit()
+            d4 = panel.datos_panel(cn)
+            comprobar("F7-R-01: mismo titulo, distinta opcion -> cambio",
+                      d4["cambio"]["cambio"] is True and "opción" in d4["cambio"]["texto"].lower()
+                      and "B" in d4["cambio"]["texto"], str(d4["cambio"]))
+
+            # Mismo titulo/opcion, distinta prioridad.
+            cn.execute("""INSERT INTO recomendacion (fecha, ambito, semana, titulo, cuerpo, origen, creada_en,
+                          prioridad, elegida) VALUES (?,?,?,?,?,?,?,?,?)""",
+                       ("2026-10-19", "semana", "S2", titulo, "", "motor_v2",
+                        "2026-10-19T00:00:00", 2, d2["motor"]["elegida"]["id"]))
+            cn.commit()
+            d5 = panel.datos_panel(cn)
+            comprobar("F7-R-01: mismo titulo/opcion, distinta prioridad -> cambio",
+                      d5["cambio"]["cambio"] is True and "prioridad" in d5["cambio"]["texto"].lower()
+                      and "P2" in d5["cambio"]["texto"], str(d5["cambio"]))
         finally:
             if viejo is None:
                 _os.environ.pop("MOTOR_RECOMENDACION", None)
