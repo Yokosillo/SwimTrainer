@@ -988,6 +988,13 @@ Evidencia en `docs/evidencias/F7.md`.
 
 **Criterio de salida:** el LLM es opcional, seguro y demostrablemente mejor (o se apaga).
 
+**Implementación F8 (2026-10-20):** `entrenador/coach_llm.py` (proveedor abstracto, compatible OpenAI por
+`urllib`, proveedor falso), contexto RAG mínimo de AF/FU/PA, contrato JSON validado y fallback determinista.
+`POST /coach` en el servidor local (403 si está apagado) y botón “Explicar” solo con `COACH_ENABLED=1`;
+la clave nunca llega al navegador. `COACH_ENABLED=0` por defecto; el panel y el golden `f7` no cambian.
+Evidencia, ADR y arnés de evaluación en `docs/evidencias/F8.md`, `docs/adr/ADR-003-llm-capa-opcional.md`
+y `scripts/coach_eval.py`.
+
 ---
 
 #### F9 — Despliegue y cierre

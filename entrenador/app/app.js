@@ -3139,8 +3139,33 @@ function pintarPrioridad() {
         + (x.dia ? " (" + esc(x.dia) + ")" : "") + " · score " + esc(String(x.score)) + "</li>").join("") + "</ul>"
         : "<p>No hay una alternativa con dia libre esta semana.</p>"))
     + detalles("Contraindicaciones", "<p>" + esc((r.contraindicaciones || []).join(", ") || "ninguna") + "</p>")
+    + ((DATOS.coach && DATOS.coach.enabled)
+      ? "<div class='f7-coach mt'><button class='boton mini' type='button' id='coachBoton'>"
+        + "Explicar esta recomendacion</button><div id='coachRespuesta' class='mini-txt mt' "
+        + "aria-live='polite'></div></div>" : "")
     + "</div>";
   caja.innerHTML = h;
+}
+
+function montarCoach() {
+  const b = document.getElementById("coachBoton");
+  if (!b || !(DATOS.coach && DATOS.coach.enabled)) return;
+  b.addEventListener("click", () => {
+    const m = DATOS.motor || {}, r = m.primera || {}, caja = document.getElementById("coachRespuesta");
+    if (!caja) return;
+    caja.textContent = "Pensando...";
+    if (typeof fetch !== "function") { caja.textContent = r.explicacion || "No hay explicacion."; return; }
+    fetch(urlApi("coach"), { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recomendacion: r, pregunta: "" }) })
+      .then((resp) => resp.json().then((d) => ({ ok: resp.ok, d })))
+      .then(({ ok, d }) => {
+        if (!ok || !d || d.ok === false || !d.explicacion) throw new Error("sin explicacion");
+        caja.innerHTML = "<p>" + esc(d.explicacion) + "</p><p class='gris mini-txt'>"
+          + (d.fuente === "llm" ? "explicacion del coach (validada)" : "explicacion determinista")
+          + (d.citas && d.citas.length ? " · citas: " + esc(d.citas.join(", ")) : "") + "</p>";
+      })
+      .catch(() => { caja.textContent = r.explicacion || "No se pudo explicar; se usa el texto del motor."; });
+  });
 }
 
 function pintarCambio() {
@@ -3562,6 +3587,7 @@ function arrancar() {
   pintarEstado();
   pintarResultados();
   pintarPrioridad();
+  montarCoach();
   pintarCambio();
   pintarConocimiento();
   montarConocimiento();

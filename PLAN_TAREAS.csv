@@ -60,13 +60,13 @@ F7-03,F7,Interfaz,Explorador de conocimiento (AF/FU/revisión),F2,Se puede audit
 F7-04,F7,Interfaz,“Qué ha cambiado desde la última vez”,F5,Explica diferencias,JS,hecha
 F7-05,F7,Interfaz,Historial de recomendaciones y resultados,F6,Visible,JS,hecha
 F7-06,F7,Interfaz,Tests Node y accesibilidad básica,F7-01..05,Sin errores,`comprobar_portal.js`,hecha
-F8-01,F8,LLM opcional,"ADR de proveedor, privacidad y coste",F7,Firmado,Revisión,pendiente
-F8-02,F8,LLM opcional,`coach_llm.py` con proveedor abstracto,F8-01,Sin clave en navegador,Test,pendiente
-F8-03,F8,LLM opcional,RAG sobre `AF`/`FU`,F2,Recupera citas correctas,Test,pendiente
-F8-04,F8,LLM opcional,Contrato JSON y validadores,F8-03,Rechaza cifras/citas inválidas,Test,pendiente
-F8-05,F8,LLM opcional,UI “explicar”/“preguntar”,F8-04,Fallback determinista,JS,pendiente
-F8-06,F8,LLM opcional,Evaluación baseline vs LLM,F8-05,Métricas y coste,Informe,pendiente
-F8-07,F8,LLM opcional,Tests de privacidad y alucinación,F8-04,0 datos crudos; 0 cifras inventadas,Suite,pendiente
+F8-01,F8,LLM opcional,"ADR de proveedor, privacidad y coste",F7,Firmado,Revisión,hecha
+F8-02,F8,LLM opcional,`coach_llm.py` con proveedor abstracto,F8-01,Sin clave en navegador,Test,hecha
+F8-03,F8,LLM opcional,RAG sobre `AF`/`FU`,F2,Recupera citas correctas,Test,hecha
+F8-04,F8,LLM opcional,Contrato JSON y validadores,F8-03,Rechaza cifras/citas inválidas,Test,hecha
+F8-05,F8,LLM opcional,UI “explicar”/“preguntar”,F8-04,Fallback determinista,JS,hecha
+F8-06,F8,LLM opcional,Evaluación baseline vs LLM,F8-05,Métricas y coste,Informe,hecha
+F8-07,F8,LLM opcional,Tests de privacidad y alucinación,F8-04,0 datos crudos; 0 cifras inventadas,Suite,hecha
 F9-01,F9,Despliegue y cierre,Dual-run 2 semanas,F5/F6,v1 y v2 comparables,Informe,pendiente
 F9-02,F9,Despliegue y cierre,Métricas de éxito,F9-01,Umbrales cumplidos,Panel,pendiente
 F9-03,F9,Despliegue y cierre,Activar v2 por defecto,F9-02,Rollback probado,Ensayo,pendiente

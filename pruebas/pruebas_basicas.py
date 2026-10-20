@@ -4648,6 +4648,132 @@ def pruebas_interfaz_f7() -> None:
                 _os.environ["MOTOR_RECOMENDACION"] = viejo
 
 
+def pruebas_coach_f8() -> None:
+    """F8: capa LLM apagada por defecto, proveedor falso, validacion, fallback y endpoint."""
+    print("\nF8. Capa LLM opcional")
+    import contextlib
+    import io
+    import threading
+    import urllib.error
+    import urllib.request
+    from entrenador import coach_llm, db, panel, servidor
+
+    rec = {
+        "prioridad": 1, "problema": "falta ritmo de prueba",
+        "estado": {"clase": "ritmo_prueba", "confianza": 0.7, "metros_actuales": 0,
+                   "metros_minimos": 400, "pct": 0, "grado": "historial", "seccion_T": ["T.1"]},
+        "evidencia": ["AF-002"], "parametros": ["PA-101"], "contraindicaciones": [],
+        "metrica_exito": {"tipo": "ritmo_100", "criterio": "mantener el ritmo", "medir_en": "2026-10-23"},
+        "revisar_en": "2026-10-27", "explicacion": "Que veo: falta ritmo. Que propongo: 8x100.",
+        "opciones": [{"id": "A", "recomendada": True, "sesion": "8x100 con 25-30 s", "dia": "jueves",
+                      "metros": 1700, "ritmo": "1:16", "confianza": 0.7, "riesgo_etiqueta": "medio",
+                      "coste_etiqueta": "medio", "score": 1.5, "porque": "es especifico"}],
+    }
+    valida = {"explicacion": "La prioridad es el ritmo de prueba.", "citas": ["AF-002"],
+              "cifras": [], "avisos": [], "confianza": "media"}
+    with tempfile.TemporaryDirectory() as d:
+        ruta = os.path.join(d, "coach.db")
+        cn = db.conectar(ruta)
+        # Estado por defecto: apagado y sin datos en el panel.
+        viejo = {k: os.environ.get(k) for k in ("COACH_ENABLED", "COACH_BASE_URL", "COACH_MODEL", "COACH_API_KEY")}
+        for k in viejo:
+            os.environ.pop(k, None)
+        try:
+            comprobar("F8-02: COACH_ENABLED=0 por defecto y no construye proveedor",
+                      coach_llm.activo_entorno() is False and coach_llm.construir_desde_entorno() is None)
+            dp = panel.datos_panel(cn)
+            comprobar("F8-05: con coach apagado el panel no lleva flag ni boton",
+                      "coach" not in dp)
+
+            ctx = coach_llm.contexto(cn, rec)
+            comprobar("F8-03: el contexto trae AF citadas, FU y PA",
+                      any(a["id"] == "AF-002" for a in ctx["afirmaciones"])
+                      and any(f["id"].startswith("FU-") for f in ctx["fuentes"])
+                      and any(p["id"] == "PA-101" for p in ctx["parametros"]))
+            comprobar("F8-03: el contexto no incluye FIT/GPX ni actividad_id",
+                      "FIT" not in ctx["texto"] and "GPX" not in ctx["texto"]
+                      and "actividad_id" not in ctx["texto"])
+
+            fake = coach_llm.ProveedorFalso(json.dumps(valida, ensure_ascii=False))
+            r = coach_llm.explicar(cn, rec, proveedor=fake, activo=True)
+            comprobar("F8-04: respuesta valida del proveedor falso",
+                      r["fuente"] == "llm" and r["explicacion"] == valida["explicacion"]
+                      and r["citas"] == ["AF-002"] and not r["validacion"], str(r))
+            comprobar("F8-03: el payload enviado no lleva datos crudos",
+                      fake.llamadas and "actividad_id" not in fake.llamadas[0][1]
+                      and "FIT" not in fake.llamadas[0][1] and "GPX" not in fake.llamadas[0][1])
+
+            for etiqueta, respuesta in (
+                ("cita rota", dict(valida, citas=["AF-999"])),
+                ("cifra inventada", dict(valida, cifras=[{"valor": 999, "unidad": "s", "origen": "PA-101"}],
+                                         explicacion="La mejora es 999 segundos.")),
+                ("consejo medico", dict(valida, explicacion="Toma un medicamento para el dolor.")),
+                ("promesa", dict(valida, explicacion="Vas a bajar la marca seguro.")),
+            ):
+                rr = coach_llm.explicar(cn, rec, proveedor=coach_llm.ProveedorFalso(
+                    json.dumps(respuesta, ensure_ascii=False)), activo=True)
+                comprobar(f"F8-04: {etiqueta} -> fallback determinista",
+                          rr["fuente"] == "determinista" and bool(rr["validacion"]), str(rr.get("validacion")))
+
+            apagado = coach_llm.ProveedorFalso(json.dumps(valida, ensure_ascii=False))
+            rr = coach_llm.explicar(cn, rec, proveedor=apagado, activo=False)
+            comprobar("F8-02: apagado no llama al proveedor",
+                      rr["fuente"] == "determinista" and not apagado.llamadas)
+            error = coach_llm.ProveedorFalso(error=RuntimeError("sin red"))
+            rr = coach_llm.explicar(cn, rec, proveedor=error, activo=True)
+            comprobar("F8-04: error del proveedor -> fallback", rr["fuente"] == "determinista")
+
+            # Endpoint /coach con proveedor falso y sin red.
+            base = servidor._Base(ruta, ".", regenerar=False,
+                                  coach=coach_llm.ProveedorFalso(json.dumps(valida, ensure_ascii=False)))
+            httpd = servidor.ThreadingHTTPServer(("127.0.0.1", 0), servidor._handler(base))
+            hilo = threading.Thread(target=httpd.serve_forever, daemon=True)
+            hilo.start()
+            try:
+                puerto = httpd.server_address[1]
+                pet = urllib.request.Request(f"http://127.0.0.1:{puerto}/coach",
+                                             data=json.dumps({"recomendacion": rec}).encode(),
+                                             headers={"Content-Type": "application/json"}, method="POST")
+                with urllib.request.urlopen(pet, timeout=20) as resp:
+                    salida = json.loads(resp.read().decode())
+                comprobar("F8-05: endpoint /coach con proveedor falso",
+                          resp.status == 200 and salida.get("fuente") == "llm", str(salida))
+            finally:
+                httpd.shutdown(); httpd.server_close()
+
+            # Endpoint apagado: 403.
+            base_off = servidor._Base(ruta, ".", regenerar=False)
+            httpd2 = servidor.ThreadingHTTPServer(("127.0.0.1", 0), servidor._handler(base_off))
+            threading.Thread(target=httpd2.serve_forever, daemon=True).start()
+            try:
+                puerto2 = httpd2.server_address[1]
+                pet2 = urllib.request.Request(f"http://127.0.0.1:{puerto2}/coach",
+                                              data=b"{}", headers={"Content-Type": "application/json"}, method="POST")
+                try:
+                    urllib.request.urlopen(pet2, timeout=20)
+                    estado = 200
+                except urllib.error.HTTPError as exc:
+                    estado = exc.code
+                comprobar("F8-05: /coach apagado responde 403", estado == 403, str(estado))
+            finally:
+                httpd2.shutdown(); httpd2.server_close()
+
+            os.environ["COACH_ENABLED"] = "1"
+            os.environ["COACH_BASE_URL"] = "http://127.0.0.1:1/v1"
+            os.environ["COACH_MODEL"] = "fake"
+            os.environ["COACH_API_KEY"] = "clave-de-prueba"
+            comprobar("F8-02: con flag/clave/config construye proveedor",
+                      coach_llm.activo_entorno() is True
+                      and isinstance(coach_llm.construir_desde_entorno(), coach_llm.ProveedorOpenAICompatible))
+        finally:
+            for k, v in viejo.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+        cn.close()
+
+
 if __name__ == "__main__":
     pruebas_unitarias()
     pruebas_base_de_datos()
@@ -4671,6 +4797,7 @@ if __name__ == "__main__":
     pruebas_motor_f5()
     pruebas_resultados_f6()
     pruebas_interfaz_f7()
+    pruebas_coach_f8()
     pruebas_reparto_por_dia()
     pruebas_motor_en_el_discurso()
     pruebas_plan_vivo()

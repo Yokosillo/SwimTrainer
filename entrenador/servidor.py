@@ -56,11 +56,12 @@ class _Base:
     `traer` se puede inyectar (lo hacen las pruebas) para probar el boton del Garmin sin tocar la red.
     """
 
-    def __init__(self, ruta_bd: str, carpeta: str, regenerar: bool = True, traer=None):
+    def __init__(self, ruta_bd: str, carpeta: str, regenerar: bool = True, traer=None, coach=None):
         self.ruta_bd = ruta_bd
         self.carpeta = carpeta
         self.regenerar = regenerar
         self.traer = traer
+        self.coach = coach
         self.local = threading.local()
 
     def cn(self):
@@ -144,6 +145,21 @@ class _Base:
         v = valoracion.sesion(cn, int(actividad_id), datos)
         return {"ok": True, "evaluacion": v,
                 "aviso": None if v else f"no encuentro la sesion {actividad_id}"}
+
+    def explicar_coach(self, datos: dict | None = None) -> dict:
+        """Capa LLM opcional: solo reformula una recomendación; nunca decide ni calcula."""
+        from . import coach_llm
+        datos = datos or {}
+        proveedor = self.coach
+        if proveedor is None:
+            proveedor = coach_llm.construir_desde_entorno()
+        if proveedor is None:
+            return {"ok": False, "codigo": 403,
+                    "error": "capa LLM apagada o sin configurar (COACH_ENABLED/COACH_API_KEY)"}
+        rec = datos.get("recomendacion")
+        if not isinstance(rec, dict):
+            raise ValueError("falta la recomendacion para explicar")
+        return coach_llm.explicar(self.cn(), rec, datos.get("pregunta"), proveedor=proveedor, activo=True)
 
     def traer_del_garmin(self, opciones: dict | None = None) -> dict:
         """Trae de Garmin Connect lo que falte y lo mete en la base: lo que hace el boton del portal.
@@ -321,6 +337,9 @@ def _handler(base: _Base):
             if ruta == "/plan/generar":
                 self._proponer_semana()
                 return
+            if ruta == "/coach":
+                self._coach()
+                return
             if ruta != "/partes":
                 self._json(404, {"ok": False, "error": "no hay nada en " + self.path})
                 return
@@ -458,6 +477,32 @@ def _handler(base: _Base):
             v = r.get("evaluacion") or {}
             print(f"  evaluacion: {v.get('fecha', '?')} {v.get('titulo', '')} "
                   f"({len(v.get('parrafos') or [])} parrafos)", flush=True)
+            self._json(200, r)
+
+        def _coach(self):
+            """Explicar una recomendación con la capa LLM opcional; apagada por defecto."""
+            from . import coach_llm
+            proveedor = base.coach
+            if proveedor is None and not coach_llm.activo_entorno():
+                self._json(403, {"ok": False,
+                                 "error": "capa LLM apagada o sin configurar (COACH_ENABLED=0)"})
+                return
+            datos = self._cuerpo("no entiendo la peticion al coach")
+            if datos is None:
+                return
+            try:
+                r = base.explicar_coach(datos)
+            except ValueError as exc:
+                self._json(400, {"ok": False, "error": str(exc)})
+                return
+            except Exception as exc:
+                print(f"  no se pudo explicar con el coach: {exc}", flush=True)
+                self._json(500, {"ok": False, "error": str(exc)})
+                return
+            if not r.get("ok"):
+                self._json(int(r.get("codigo") or 403), r)
+                return
+            print(f"  coach: {r.get('fuente')} · {len(r.get('citas') or [])} citas", flush=True)
             self._json(200, r)
 
         def _traer_garmin(self):

@@ -167,7 +167,7 @@ if (!fallos.length) {
 /* ---------- 5. ids que el JS necesita ---------- */
 const ids_js = new Set(Array.from(js.matchAll(/(?:getElementById|pintar|q)\("([A-Za-z0-9_]+)"/g)).map((x) => x[1]));
 /* Los de la fila de anadir del gimnasio: se pintan al vuelo con la tabla, no estan en el HTML fijo. */
-const IDS_AL_VUELO = new Set(["gimNuevoSel", "gimNuevoNombre", "gimAnadir"]);
+const IDS_AL_VUELO = new Set(["gimNuevoSel", "gimNuevoNombre", "gimAnadir", "coachBoton", "coachRespuesta"]);
 const faltan = Array.from(ids_js).filter((i) => !ids_html.has(i) && !IDS_AL_VUELO.has(i));
 if (faltan.length) fallos.push("ids que el JS busca y no estan en el HTML: " + faltan.join(", "));
 
@@ -199,11 +199,17 @@ if (!fallos.length) {
   }
 }
 
+/* F8: con COACH_ENABLED=0 no aparece el boton; con el fixture encendido si. */
+if (!fallos.length) {
+  const textoV1 = String(pintados.prioridadAccion || "");
+  if (/coachBoton/.test(textoV1)) fallos.push("el boton del coach aparece con la capa apagada");
+}
+
 /* F7-R-01/R-02: fixture v2 de la tarjeta, sin depender de la base real. */
 if (!fallos.length) {
   const fixture = {
     activo: true, disponible: true, modo: "v2", fecha: "2026-10-20", semana: "S2",
-    estado_id: "EA-fixture", primera: {
+    estado_id: "EA-fixture", coach: { enabled: false }, primera: {
       prioridad: 1, problema: "falta ritmo de prueba",
       estado: { clase: "ritmo_prueba", pct: 10, metros_actuales: 0, metros_minimos: 400 },
       evidencia: ["AF-002"], parametros: ["PA-101"], contraindicaciones: [],
@@ -227,6 +233,11 @@ if (!fallos.length) {
     if (!/falta ritmo de prueba/.test(texto) || !/8x100/.test(texto)
         || !/data-conocimiento/.test(texto)) {
       fallos.push("el fixture v2 no pinta prioridad/accion/enlaces de conocimiento");
+    }
+    fixture.coach = { enabled: true };
+    vm.runInContext("DATOS.coach = { enabled: true }; pintarPrioridad();", sandbox);
+    if (!/coachBoton/.test(String(pintados.prioridadAccion || ""))) {
+      fallos.push("el fixture v2 con coach encendido no pinta el boton Explicar");
     }
   } catch (e) {
     fallos.push("el fixture v2 revienta: " + e.message);

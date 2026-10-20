@@ -173,6 +173,13 @@ def datos_panel(cn) -> dict:
         salida["estado"] = {"estado_id": "", "fecha": "", "secciones": [],
                             "error": f"no se pudo calcular el estado: {exc}"}
     salida["motor"] = _resumen_motor(cn)
+    try:
+        from . import coach_llm
+        if coach_llm.activo_entorno():
+            # Solo se anade cuando esta encendida: con COACH_ENABLED=0 el JSON no cambia y el golden F7 sigue.
+            salida["coach"] = {"enabled": True}
+    except Exception:
+        pass
     salida["decision"] = salida["motor"].get("decision")
     salida["cambio"] = _cambio(cn, salida["motor"])
     try:
