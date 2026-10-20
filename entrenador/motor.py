@@ -172,15 +172,33 @@ def _objetivo_100() -> float:
         return 75.0
 
 
+def _pasos_receta(clave: str) -> list[dict]:
+    """Pasos estructurados de la receta (TOML publico + local), con sus metros."""
+    try:
+        from . import conocimiento_toml
+        for r in conocimiento_toml.cargar().recetas:
+            if r.clave == clave and r.pasos:
+                return [{"orden": p.orden, "texto": p.texto, "tipo": p.tipo,
+                         "metros": float(p.metros or 0), "descanso_s": p.descanso_s,
+                         "ritmo_100": p.ritmo_100} for p in r.pasos]
+    except Exception:
+        pass
+    return []
+
+
 def _receta(clave: str, objetivo: float) -> dict:
     if clave not in estimulos.RECETAS:
         return {}
     libre = estimulos.receta_libre(clave, objetivo)
+    r = estimulos.RECETAS[clave]
     return {"clave": clave, "nombre": libre.get("nombre") or clave,
-            "sesion": libre.get("sesion") or estimulos.RECETAS[clave].get("sesion") or "",
+            "sesion": libre.get("sesion") or r.get("sesion") or "",
             "metros": int(libre.get("metros") or 0),
+            "reps": int(r.get("reps") or 1), "dist_m": int(r.get("dist_m") or 0),
+            "descanso_s": float(r.get("descanso_s") or 0),
             "ritmo": _rango_ritmo(libre.get("ritmo_desde"), libre.get("ritmo_hasta")),
-            "porque": libre.get("porque") or estimulos.RECETAS[clave].get("porque") or "",
+            "porque": libre.get("porque") or r.get("porque") or "",
+            "pasos": _pasos_receta(clave),
             "recuperacion": float(estimulos.CLASES.get(clave, {}).get("recuperacion") or 24.0)}
 
 
@@ -199,27 +217,58 @@ def _minima(clave: str) -> str:
 
 
 def receta_minima(clave: str, objetivo: float) -> dict:
-    """Versión reducida de la MISMA receta: mismos estímulo y clave, menos dosis.
+    """Versión reducida de la MISMA receta, con pasos y metros coherentes.
 
-    No se cambia a otra clase (un 8x50 de velocidad no es el mínimo de un continuo): se reduce la
-    serie principal de la receta base y se declara `variante="minima"`.
+    Conserva calentamiento y suelta; reduce la parte principal (la de más metros). Si la parte principal
+    tenía repeticiones, reduce reps a la mitad (mínimo 1) y mantiene el descanso cuando quedan >=2 reps;
+    si queda 1, el descanso entre reps es 0 y se declara. `metros` es siempre la suma de los pasos.
     """
     base = _receta(clave, objetivo)
     if not base:
         return {}
+    pasos = [dict(p) for p in (base.get("pasos") or [])]
+    if not pasos:
+        # Sin pasos estructurados no se puede prometer una sesion coherente: se reduce el texto base.
+        metros = max(600, int(round(int(base.get("metros") or 600) * 0.55)))
+        return {**base, "sesion": f"{base['nombre']} (minima): {metros} m",
+                "metros": metros, "reps": 1, "dist_m": metros, "descanso_s": 0,
+                "pasos": [{"orden": 1, "texto": f"{metros} m", "tipo": "continuo", "metros": metros}],
+                "variante": "minima", "receta_base": base.get("clave") or clave,
+                "nota": "sin pasos estructurados: se conserva el estimulo y se recorta el volumen"}
+    # La parte principal es la serie/continuo, no el calentamiento: en velocidad el calentamiento
+    # puede tener mas metros que la serie y no es lo que se recorta.
+    candidatos = [i for i, p in enumerate(pasos) if (p.get("tipo") or "") in ("serie", "continuo")]
+    idx = max(candidatos or range(len(pasos)), key=lambda i: float(pasos[i].get("metros") or 0))
     r = estimulos.RECETAS.get(base.get("clave") or clave) or {}
     reps = int(r.get("reps") or 1)
-    metros = int(base.get("metros") or 0)
     dist = int(r.get("dist_m") or 0)
-    if reps > 1:
+    descanso = float(r.get("descanso_s") or 0)
+    principal = float(pasos[idx].get("metros") or 0)
+    if reps > 1 and dist > 0:
         reps_min = max(1, reps // 2)
-        metros_min = max(600, int(round(metros * 0.60)))
-        detalle = f"{reps_min}x{dist} m (mitad de la serie principal de {base['nombre']})"
+        metros_principal = reps_min * dist
+        descanso_min = descanso if reps_min > 1 else 0.0
+        texto_principal = (f"{reps_min}x{dist} m" +
+                           (f" con {descanso_min:g} s" if reps_min > 1 and descanso_min else ""))
+        nota_descanso = ("se mantiene el descanso de la receta" if reps_min > 1 and descanso_min
+                         else "sin descanso entre repeticiones: queda 1")
+        pasos[idx] = {**pasos[idx], "texto": texto_principal, "metros": float(metros_principal),
+                      "tipo": "serie", "descanso_s": descanso_min}
+        reps_out, dist_out, descanso_out = reps_min, dist, descanso_min
     else:
-        metros_min = max(600, int(round(metros * 0.55)))
-        detalle = f"{metros_min} m continuos (version reducida de {base['nombre']})"
-    return {**base, "sesion": f"{base['nombre']} (minima): {detalle}",
-            "metros": metros_min, "variante": "minima", "receta_base": base.get("clave") or clave}
+        metros_principal = max(600, int(round(principal * 0.50 / 50.0) * 50))
+        pasos[idx] = {**pasos[idx], "texto": f"{metros_principal} m continuos",
+                      "metros": float(metros_principal), "tipo": "continuo", "descanso_s": 0}
+        reps_out, dist_out, descanso_out = 1, metros_principal, 0.0
+        nota_descanso = "sin descanso entre repeticiones: es un continuo"
+    # Preservar calentamiento/suelta (los demas pasos) y recalcular el total con la suma exacta.
+    texto = " | ".join(str(p.get("texto") or "").strip() for p in pasos if str(p.get("texto") or "").strip())
+    total = int(round(sum(float(p.get("metros") or 0) for p in pasos)))
+    sesion = ("minima: " + texto) if texto else f"{base['nombre']} (minima)"
+    return {**base, "sesion": sesion,
+            "metros": total, "reps": reps_out, "dist_m": dist_out, "descanso_s": descanso_out,
+            "pasos": pasos, "variante": "minima", "receta_base": base.get("clave") or clave,
+            "nota": nota_descanso}
 
 
 def _opcion(opcion_id: str, receta: dict, dia: str | None, tipo: str, *,
@@ -235,6 +284,8 @@ def _opcion(opcion_id: str, receta: dict, dia: str | None, tipo: str, *,
         "id": opcion_id, "recomendada": False, "tipo": tipo,
         "sesion": receta.get("sesion") or "", "dia": dia,
         "metros": int(receta.get("metros") or 0), "ritmo": receta.get("ritmo") or "",
+        "reps": int(receta.get("reps") or 1), "dist_m": int(receta.get("dist_m") or 0),
+        "descanso_s": float(receta.get("descanso_s") or 0), "pasos": receta.get("pasos") or [],
         "efecto": efecto, "efecto_esperado": efecto_label,
         "confianza": round(float(confianza), 2), "riesgo": riesgo, "riesgo_etiqueta": riesgo_label,
         "coste": coste, "coste_etiqueta": coste_label,
@@ -673,6 +724,10 @@ def validar_recomendacion(r: dict) -> list[str]:
         for k in ("id", "sesion", "porque"):
             if not str(o.get(k) or "").strip():
                 errores.append(f"opcion {o.get('id')}: {k} no puede estar vacio")
+        if not isinstance(o.get("descartada"), bool):
+            errores.append(f"opcion {o.get('id')}: descartada debe ser booleano")
+        if o.get("descartada") and not str(o.get("motivo_descarte") or "").strip():
+            errores.append(f"opcion {o.get('id')}: descartada sin motivo_descarte")
         if not isinstance(o.get("metros"), (int, float)) or o.get("metros") < 0:
             errores.append(f"opcion {o.get('id')}: metros invalido")
         if not isinstance(o.get("confianza"), (int, float)) or not 0 <= o["confianza"] <= 1:
@@ -737,6 +792,21 @@ def guardar(cn: sqlite3.Connection, salida: dict) -> list[int]:
             cn.execute("INSERT INTO recomendacion_dato (recomendacion_id, fuente, ref, valor, nota) VALUES (?,?,?,?,?)",
                        (rid, _texto(d.get("fuente")), _texto(d.get("ref")),
                         None if d.get("valor") is None else str(d.get("valor")), _texto(d.get("nota"))))
+        try:
+            from . import conocimiento_toml
+            conocimiento = conocimiento_toml.cargar()
+            parametros = {p.id: p for p in conocimiento.parametros}
+        except Exception:
+            parametros = {}
+        for pa in r.get("parametros") or []:
+            p = parametros.get(str(pa))
+            cn.execute("INSERT INTO recomendacion_dato (recomendacion_id, fuente, ref, valor, nota) VALUES (?,?,?,?,?)",
+                       (rid, "parametro", str(pa),
+                        None if p is None else str(p.valor),
+                        (p.nombre + (f" ({p.unidad})" if p.unidad else "")) if p else "parametro no encontrado"))
+        for ev in r.get("evidencia") or []:
+            cn.execute("INSERT INTO recomendacion_dato (recomendacion_id, fuente, ref, valor, nota) VALUES (?,?,?,?,?)",
+                       (rid, "evidencia", str(ev), "—", "sostiene la recomendacion"))
         for o in r["opciones"]:
             cn.execute(
                 """INSERT OR REPLACE INTO recomendacion_opcion

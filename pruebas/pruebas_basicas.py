@@ -4120,6 +4120,14 @@ def pruebas_motor_f5() -> None:
         comprobar("F5-R-01: la minima es una version reducida de la misma receta",
                   all(o["receta"] == o["receta_base"] and "minima" in o["sesion"] for o in minimas),
                   str([(o["receta"], o["receta_base"], o["sesion"][:30]) for o in minimas]))
+        comprobar("F5-R-07: metros de la minima = suma de pasos y reps/dist coherentes",
+                  all(sum(float(x.get("metros") or 0) for x in o["pasos"]) == o["metros"]
+                      and any(float(x.get("metros") or 0) == o["reps"] * o["dist_m"]
+                              for x in o["pasos"] if x.get("tipo") in ("serie", "continuo"))
+                      and (o["reps"] > 1 or o["descanso_s"] == 0)
+                      for o in minimas),
+                  str([(o["receta"], o["metros"], o["reps"], o["dist_m"], o["descanso_s"],
+                        [x.get("metros") for x in o["pasos"]]) for o in minimas]))
         comprobar("F5-04: score = efecto*confianza - riesgo - coste (con pesos)",
                   all(abs(o["score"] - round((o["efecto"] * salida["pesos"]["efecto"])
                                              * (o["confianza"] * salida["pesos"]["confianza"])
@@ -4140,6 +4148,11 @@ def pruebas_motor_f5() -> None:
         malo["opciones"][0]["porque"] = ""
         comprobar("F5-R-02: rechaza campos obligatorios vacios",
                   bool(motor.validar_recomendacion(malo)))
+        sin_motivo = _copy.deepcopy(salida["recomendaciones"][0])
+        descartada = next(o for o in sin_motivo["opciones"] if o["descartada"])
+        descartada["motivo_descarte"] = ""
+        comprobar("F5-R-08: una descartada sin motivo no pasa el esquema",
+                  any("motivo_descarte" in e for e in motor.validar_recomendacion(sin_motivo)))
         malo2 = _copy.deepcopy(salida["recomendaciones"][0])
         for o in malo2["opciones"]:
             o["recomendada"] = False
@@ -4217,6 +4230,11 @@ def pruebas_motor_f5() -> None:
         comprobar("F5-R-03: guarda reglas/evidencia con su papel",
                   cn.execute("SELECT COUNT(*) FROM recomendacion_regla").fetchone()[0] > 0
                   and cn.execute("SELECT COUNT(*) FROM recomendacion_regla WHERE papel IN ('motiva','limita','avisa','evidencia')").fetchone()[0] > 0)
+        parametros_guardados = [dict(r) for r in cn.execute(
+            "SELECT ref, valor, nota FROM recomendacion_dato WHERE fuente = 'parametro' ORDER BY id")]
+        comprobar("F5-R-09: los PA-* se guardan y se pueden recuperar",
+                  bool(parametros_guardados) and all(x["ref"].startswith("PA-") for x in parametros_guardados),
+                  str(parametros_guardados[:5]))
         comprobar("F5-06: la verificacion queda preparada para F6",
                   {"resultado", "delta", "confianza", "aprendizaje"}
                   <= {r[1] for r in cn.execute("PRAGMA table_info(verificacion)")})
