@@ -469,6 +469,24 @@ CREATE TABLE IF NOT EXISTS recomendacion_dato (
 );
 CREATE INDEX IF NOT EXISTS idx_recdato_rec ON recomendacion_dato(recomendacion_id);
 
+-- F6: enlace entre una recomendación y la sesión/parte/apunte que la ejecutó. Se guarda también el
+-- estado (`enlazado`, `sin_enlace`, `ambiguo`) y los candidatos para no elegir a ciegas.
+CREATE TABLE IF NOT EXISTS recomendacion_enlace (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    recomendacion_id INTEGER NOT NULL UNIQUE REFERENCES recomendacion(id) ON DELETE CASCADE,
+    fecha            TEXT,
+    actividad_id     INTEGER REFERENCES actividad(id) ON DELETE SET NULL,
+    parte_id         INTEGER REFERENCES parte(id) ON DELETE SET NULL,
+    apunte_id        INTEGER REFERENCES apunte(id) ON DELETE SET NULL,
+    metodo           TEXT,           -- manual | fecha_unica | parte | sin_enlace | ambiguo
+    estado           TEXT,           -- enlazado | sin_enlace | ambiguo
+    confianza        TEXT,           -- alta | media | baja
+    candidatos_json  TEXT,
+    creado_en        TEXT NOT NULL,
+    actualizado_en   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_recenl_rec ON recomendacion_enlace(recomendacion_id);
+
 -- Las reglas que la motivan, la limitan o avisan. El grado y la seccion del anexo T NO se copian aqui: se
 -- resuelven al leer, con `conocimiento`, para que no se queden viejos cuando el anexo cambie.
 CREATE TABLE IF NOT EXISTS recomendacion_regla (
@@ -675,7 +693,8 @@ MIGRACIONES = {
                       "elegida": "TEXT", "metrica_exito_json": "TEXT", "revisar_en": "TEXT",
                       "confianza": "REAL"},
     # F6 preparada: veredicto y aprendizaje; F5 no la rellena.
-    "verificacion": {"resultado": "TEXT", "delta": "REAL", "confianza": "TEXT", "aprendizaje": "TEXT"},
+    "verificacion": {"resultado": "TEXT", "delta": "REAL", "confianza": "TEXT", "aprendizaje": "TEXT",
+                     "confounders_json": "TEXT"},
 }
 
 # Indices sobre columnas que llegan por migracion (no existian en las bases viejas al crear la tabla): hay que
