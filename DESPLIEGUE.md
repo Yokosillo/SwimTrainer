@@ -128,10 +128,12 @@ COACH_API_KEY=...
 # opcionales
 COACH_TIMEOUT=20
 COACH_MAX_TOKENS=700
+COACH_MAX_LLAMADAS_MINUTO=5
 ```
 
 Sin `COACH_API_KEY`, sin URL/modelo o con `COACH_ENABLED=0`, el endpoint `/coach` responde 403 y el
-botón no aparece. Los datos enviados se limitan a la recomendación resumida, sus `AF-*`, `FU-*` y
+botón no aparece. El límite `COACH_MAX_LLAMADAS_MINUTO` (5 por defecto) es local y en proceso; no
+expongas `/coach` sin autenticación/proxy. Los datos enviados se limitan a la recomendación resumida, sus `AF-*`, `FU-*` y
 `PA-*`; no se envían FIT/GPX, la base, partes completas ni datos personales. Si el proveedor falla o la
 respuesta no valida, se usa la explicación determinista del motor. Ver
 `docs/adr/ADR-003-llm-capa-opcional.md`.

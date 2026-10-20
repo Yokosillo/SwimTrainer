@@ -171,7 +171,7 @@ def _seleccionar_af(c: conocimiento_toml.Conocimiento, payload: dict) -> list:
 
 def contexto(cn, rec: dict, pregunta: str | None = None) -> dict:
     """Contexto determinista y acotado: recomendación + AF citadas/seleccionadas + FU + PA."""
-    c = conocimiento_toml.cargar()
+    c = conocimiento_toml.cargar(incluir_local=False)
     payload = payload_minimo(rec)
     afirmaciones = _seleccionar_af(c, payload)
     fuentes = {}
@@ -244,6 +244,23 @@ def _json_de(texto: str) -> dict:
     return d
 
 
+def _validar_texto(texto: str, ctx: dict, etiqueta: str, err: list[str]) -> None:
+    if not isinstance(texto, str):
+        err.append(f"{etiqueta} no es texto")
+        return
+    numeros = {_normaliza_num(n) for n in (ctx.get("numeros") or [])}
+    for n in NUM.findall(texto):
+        nn = n.replace(",", ".")
+        if re.fullmatch(r"(19|20)\d\d", nn):
+            continue
+        if nn not in numeros:
+            err.append(f"{etiqueta}: numero no presente en el contexto: {n}")
+    if PROHIBIDO_MEDICO.search(texto):
+        err.append(f"{etiqueta}: consejo medico")
+    if PROHIBIDO_PROMESA.search(texto):
+        err.append(f"{etiqueta}: promesa de marca")
+
+
 def validar_respuesta(d: dict, ctx: dict) -> list[str]:
     """Valida contrato, citas, cifras y límites de seguridad. Lista vacía = válida."""
     err = []
@@ -280,21 +297,19 @@ def validar_respuesta(d: dict, ctx: dict) -> list[str]:
             err.append(f"cifra inventada: {c.get('valor')}")
         if str(c.get("origen")) not in set(ctx.get("origenes") or []):
             err.append(f"origen de cifra inexistente: {c.get('origen')}")
-    if not isinstance(d.get("avisos"), list):
+    avisos = d.get("avisos")
+    if not isinstance(avisos, list):
         err.append("avisos no es lista")
+        avisos = []
     if d.get("confianza") not in CONFIANZAS:
         err.append("confianza invalida")
     if isinstance(exp, str):
-        for n in NUM.findall(exp):
-            nn = n.replace(",", ".")
-            if re.fullmatch(r"(19|20)\d\d", nn):
-                continue
-            if nn not in numeros:
-                err.append(f"numero no presente en el contexto: {n}")
-        if PROHIBIDO_MEDICO.search(exp):
-            err.append("consejo medico")
-        if PROHIBIDO_PROMESA.search(exp):
-            err.append("promesa de marca")
+        _validar_texto(exp, ctx, "explicacion", err)
+    for i, aviso in enumerate(avisos):
+        _validar_texto(aviso, ctx, f"aviso {i}", err)
+    for i, c in enumerate(cifras):
+        if isinstance(c, dict) and c.get("unidad"):
+            _validar_texto(str(c["unidad"]), ctx, f"unidad cifra {i}", err)
     return err
 
 

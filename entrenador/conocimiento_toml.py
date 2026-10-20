@@ -564,8 +564,12 @@ def firmar(ruta: str = RUTA_CONOCIMIENTO, id_: str | None = None, quien: str = "
     return {"id": id_, **firmas[id_]}
 
 
-def cargar(ruta: str = RUTA_CONOCIMIENTO) -> Conocimiento:
+def cargar(ruta: str = RUTA_CONOCIMIENTO, incluir_local: bool = True) -> Conocimiento:
     """Lee `conocimiento/*.toml` y, si existe, `conocimiento/local/*.toml` (overlay privado).
+
+    `incluir_local=False` carga solo el conocimiento publico. Lo usa la capa LLM para no enviar
+    afirmaciones locales al proveedor. El resto de consumidores mantiene el comportamiento de siempre.
+    
 
     No escribe nada y no toca la base de datos. La local sustituye por id/clave a la publica; lo que
     solo esta en la local se anade. Si no hay local, el conocimiento publico sigue siendo valido y el
@@ -576,17 +580,17 @@ def cargar(ruta: str = RUTA_CONOCIMIENTO) -> Conocimiento:
     base = Path(ruta)
     errores_carga: list[dict] = []
     publico: dict[str, dict] = {nombre: _leer_toml(base, nombre, errores_carga) for nombre in FICHEROS}
-    local: dict[str, dict] = {nombre: _leer_toml(base, f"local/{nombre}", errores_carga)
-                              for nombre in FICHEROS}
-    local_presente = any((base / "local" / nombre).is_file() for nombre in FICHEROS)
-    firmas = _leer_firmas(local)
+    local: dict[str, dict] = ({nombre: _leer_toml(base, f"local/{nombre}", errores_carga)
+                               for nombre in FICHEROS} if incluir_local else {})
+    local_presente = incluir_local and any((base / "local" / nombre).is_file() for nombre in FICHEROS)
+    firmas = _leer_firmas(local) if incluir_local else {}
     canonico = _json_canonico({"publico": publico, "local": local})
     hash_ = _sha256_texto(canonico)
     hay = (any(bool(v) for v in publico.values()) or any(bool(v) for v in local.values())) and not errores_carga
     ficheros = tuple(sorted(
         [(nombre, _sha256_fichero(base / nombre)) for nombre in FICHEROS if (base / nombre).is_file()]
         + [(f"local/{nombre}", _sha256_fichero(base / "local" / nombre))
-           for nombre in FICHEROS if (base / "local" / nombre).is_file()]))
+           for nombre in FICHEROS if incluir_local and (base / "local" / nombre).is_file()]))
 
     def lista(crudos: dict, fichero: str, clave: str):
         return [x for x in (crudos.get(fichero, {}).get(clave) or []) if isinstance(x, dict)]

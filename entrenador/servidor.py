@@ -18,6 +18,7 @@ import io
 import json
 import os
 import threading
+import time
 import webbrowser
 from datetime import date, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -62,6 +63,8 @@ class _Base:
         self.regenerar = regenerar
         self.traer = traer
         self.coach = coach
+        self.coach_llamadas: list[float] = []
+        self.coach_lock = threading.Lock()
         self.local = threading.local()
 
     def cn(self):
@@ -146,19 +149,85 @@ class _Base:
         return {"ok": True, "evaluacion": v,
                 "aviso": None if v else f"no encuentro la sesion {actividad_id}"}
 
+    def _recomendacion_coach(self, datos: dict) -> dict:
+        """Carga la recomendación del servidor; nunca confía en textos libres del cliente."""
+        from . import motor
+        datos = datos or {}
+        cn = self.cn()
+        rid = datos.get("recomendacion_id")
+        if rid:
+            f = cn.execute("SELECT * FROM recomendacion WHERE id = ?", (int(rid),)).fetchone()
+            if not f:
+                raise ValueError(f"no existe la recomendacion {rid}")
+            r = dict(f)
+            opciones = []
+            for o in cn.execute("SELECT sesion_json FROM recomendacion_opcion WHERE recomendacion_id = ? "
+                                "ORDER BY recomendada DESC, id", (int(rid),)):
+                try:
+                    opciones.append(json.loads(o["sesion_json"] or "{}"))
+                except (TypeError, ValueError):
+                    pass
+            evidencia = [x["regla_id"] for x in cn.execute(
+                "SELECT regla_id FROM recomendacion_regla WHERE recomendacion_id = ?", (int(rid),))
+                if str(x["regla_id"]).startswith("AF-")]
+            params = [x["ref"] for x in cn.execute(
+                "SELECT ref FROM recomendacion_dato WHERE recomendacion_id = ? AND fuente = 'parametro'",
+                (int(rid),)) if x["ref"]]
+            try:
+                metrica = json.loads(r.get("metrica_exito_json") or "{}")
+            except (TypeError, ValueError):
+                metrica = {}
+            return {"prioridad": r.get("prioridad") or 1, "problema": r.get("titulo") or "",
+                    "estado": {"clase": r.get("elegida") or "recomendacion", "confianza": r.get("confianza")},
+                    "evidencia": evidencia, "parametros": params, "contraindicaciones": [],
+                    "metrica_exito": metrica, "revisar_en": r.get("revisar_en"),
+                    "explicacion": r.get("cuerpo") or "", "opciones": opciones}
+        # Preview: se compara con la salida actual del motor y se usa ESA, no el texto enviado.
+        rec_cliente = datos.get("recomendacion") if isinstance(datos.get("recomendacion"), dict) else {}
+        salida = motor.generar(cn, semana=datos.get("semana") or None)
+        candidatas = salida.get("recomendaciones") or []
+        if rec_cliente:
+            prioridad = int(rec_cliente.get("prioridad") or 0)
+            problema = str(rec_cliente.get("problema") or "").strip()
+            rec = next((x for x in candidatas if int(x.get("prioridad") or 0) == prioridad
+                        and (not problema or str(x.get("problema") or "").strip() == problema)), None)
+            if rec is None:
+                raise ValueError("la recomendacion enviada no coincide con la salida actual del motor")
+            return rec
+        if datos.get("semana"):
+            rec = next((x for x in candidatas if str(x.get("semana") or "") == str(datos["semana"])), None)
+            if rec is None:
+                raise ValueError("no hay una recomendacion para esa semana")
+            return rec
+        raise ValueError("falta recomendacion_id, recomendacion o semana")
+
+    def permitir_coach(self) -> bool:
+        """Rate-limit local en proceso: N llamadas por minuto (default 5). No es una cuota global."""
+        try:
+            limite = max(1, int(os.environ.get("COACH_MAX_LLAMADAS_MINUTO") or 5))
+        except ValueError:
+            limite = 5
+        ahora = time.monotonic()
+        with self.coach_lock:
+            self.coach_llamadas = [t for t in self.coach_llamadas if ahora - t < 60]
+            if len(self.coach_llamadas) >= limite:
+                return False
+            self.coach_llamadas.append(ahora)
+        return True
+
     def explicar_coach(self, datos: dict | None = None) -> dict:
-        """Capa LLM opcional: solo reformula una recomendación; nunca decide ni calcula."""
+        """Capa LLM opcional: solo reformula una recomendación del servidor; nunca decide ni calcula."""
         from . import coach_llm
         datos = datos or {}
+        if not isinstance(datos, dict):
+            raise ValueError("el cuerpo del coach debe ser un objeto JSON")
         proveedor = self.coach
         if proveedor is None:
             proveedor = coach_llm.construir_desde_entorno()
         if proveedor is None:
             return {"ok": False, "codigo": 403,
                     "error": "capa LLM apagada o sin configurar (COACH_ENABLED/COACH_API_KEY)"}
-        rec = datos.get("recomendacion")
-        if not isinstance(rec, dict):
-            raise ValueError("falta la recomendacion para explicar")
+        rec = self._recomendacion_coach(datos)
         return coach_llm.explicar(self.cn(), rec, datos.get("pregunta"), proveedor=proveedor, activo=True)
 
     def traer_del_garmin(self, opciones: dict | None = None) -> dict:
@@ -486,6 +555,9 @@ def _handler(base: _Base):
             if proveedor is None and not coach_llm.activo_entorno():
                 self._json(403, {"ok": False,
                                  "error": "capa LLM apagada o sin configurar (COACH_ENABLED=0)"})
+                return
+            if not base.permitir_coach():
+                self._json(429, {"ok": False, "error": "demasiadas llamadas al coach; espera un minuto"})
                 return
             datos = self._cuerpo("no entiendo la peticion al coach")
             if datos is None:
