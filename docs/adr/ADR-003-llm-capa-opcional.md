@@ -20,10 +20,13 @@ No decide, no puntúa, no calcula y no crea sesiones. Si falla, se usa la explic
 
 ### Datos que se envían
 
-- La recomendación resumida: prioridad, problema, estado mínimo, opción recomendada, evidencia,
-  parámetros y métrica.
-- Afirmaciones `AF-*` citadas (o seleccionadas por palabras clave) y sus fuentes `FU-*`, con citas.
-- Parámetros `PA-*` usados por la recomendación.
+- La recomendación resumida: prioridad, estado mínimo, metadatos de la opción recomendada (id, día,
+  metros, ritmo, confianza, riesgo/coste y score), evidencia y parámetros **públicos**.
+- Afirmaciones `AF-*` citadas (o seleccionadas por palabras clave) y sus fuentes `FU-*`, con citas;
+  solo las que existen en `conocimiento/` público.
+- Parámetros `PA-*` públicos usados por la recomendación.
+- No se envían `problema`, `opcion.sesion`, `opcion.porque`, `metrica_exito.criterio` ni
+  `explicacion_determinista`: pueden contener textos del overlay privado.
 
 ### Datos que NO se envían
 
@@ -31,7 +34,9 @@ No decide, no puntúa, no calcula y no crea sesiones. Si falla, se usa la explic
   credenciales de Garmin/Strava/OpenCode ni `conocimiento/local`.
 - No se envían vectores ni documentos completos: solo el contexto acotado de la recomendación.
 - El contexto se construye con **conocimiento público**, nunca con `conocimiento/local` ni con textos
-  libres del cliente. El endpoint carga la recomendación del servidor (por id o por la salida v2 actual).
+  libres del cliente. El endpoint carga la recomendación del servidor (por id o por la salida v2 actual)
+  y filtra `AF/FU/PA` contra el conocimiento público antes de serializar el contexto o llamar al
+  proveedor. Los IDs y textos que solo existen en `conocimiento/local/` no salen del servidor.
 
 ### Retención y coste
 

@@ -34,17 +34,19 @@ from datetime import datetime
 RUTA_ANEXO = os.path.join("informes", "T_base_de_conocimiento.md")
 
 # Version del motor de conocimiento. Se lee del entorno en ESTE unico sitio: el resto del codigo pregunta
-# por `motor_version()` y nunca por la variable. Hoy solo existe `v1` (el motor actual); `v2` se activara
-# en F5. La bandera no cambia ningun comportamiento todavia (F0-04): deja preparada la vuelta atras.
-MOTOR_POR_DEFECTO = "v1"
+# por `motor_version()` y nunca por la variable. F9 activa `v2` (TOML) por defecto; `v1` sigue disponible
+# para el rollback y `dual` para comparar. Un valor desconocido cae a `v2`: la bandera no puede dejar el
+# sistema sin motor.
+MOTOR_POR_DEFECTO = "v2"
 MOTORES = ("v1", "v2", "dual")
 
 
 def motor_version() -> str:
     """La version del motor de conocimiento activa (`MOTOR_CONOCIMIENTO=v1|v2|dual`).
 
-    Un valor desconocido o vacio cae a `v1`: la bandera no puede dejar el sistema sin motor. Es el unico
-    punto donde se lee la variable de entorno (INV-08 del plan).
+    F9 deja `v2` por defecto. Un valor desconocido o vacio cae a `v2`: la bandera no puede dejar el
+    sistema sin motor. `v1` sigue disponible para rollback. Es el unico punto donde se lee la variable
+    de entorno (INV-08 del plan).
     """
     valor = (os.environ.get("MOTOR_CONOCIMIENTO") or "").strip().lower()
     return valor if valor in MOTORES else MOTOR_POR_DEFECTO

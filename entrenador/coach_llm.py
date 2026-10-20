@@ -115,10 +115,10 @@ def construir_desde_entorno() -> Proveedor | None:
 
 # --------------------------------------------------------------------------- contexto mínimo
 
-def payload_minimo(rec: dict) -> dict:
-    """Resumen de la recomendación; nunca incluye FIT/GPX/partes completas ni la base."""
+def _partes(rec: dict) -> tuple[dict, dict]:
+    """Extrae la recomendación y la opción elegida del formato del motor."""
     if not isinstance(rec, dict):
-        return {}
+        return {}, {}
     if isinstance(rec.get("primera"), dict):
         r = rec["primera"]
         elegida = rec.get("elegida") or {}
@@ -128,6 +128,12 @@ def payload_minimo(rec: dict) -> dict:
     else:
         r = rec
         elegida = next((o for o in r.get("opciones") or [] if o.get("recomendada")), {})
+    return r, elegida
+
+
+def _resumen(rec: dict) -> dict:
+    """Resumen interno (puede contener textos locales); no se serializa ni se envía al proveedor."""
+    r, elegida = _partes(rec)
     return {
         "prioridad": r.get("prioridad"), "problema": r.get("problema"),
         "estado": {k: (r.get("estado") or {}).get(k) for k in
@@ -140,6 +146,45 @@ def payload_minimo(rec: dict) -> dict:
         "explicacion_determinista": r.get("explicacion") or "",
         "opcion": {k: elegida.get(k) for k in ("id", "sesion", "dia", "metros", "ritmo", "confianza",
                                                "riesgo_etiqueta", "coste_etiqueta", "score", "porque")},
+    }
+
+
+_CODIGO = re.compile(r"^[a-z][a-z0-9_]{0,40}$")
+
+
+def payload_minimo(rec: dict, conocimiento=None) -> dict:
+    """Resumen público de la recomendación; nunca incluye FIT/GPX/partes ni conocimiento local.
+
+    Sin `conocimiento` no se incluye ninguna referencia AF/FU/PA: no hay forma de comprobar que sea
+    pública. Con `conocimiento` se filtran las referencias y se omiten los textos que puede haber
+    generado el overlay local (`problema`, `sesion`, `porque`, `explicacion`).
+    """
+    raw = _resumen(rec)
+    evidencias: list[str] = []
+    parametros: list[str] = []
+    if conocimiento is not None:
+        publicas = {a.id for a in conocimiento.afirmaciones} | {f.id for f in conocimiento.fuentes}
+        publicos = {p.id for p in conocimiento.parametros}
+        evidencias = [x for x in raw["evidencia"] if isinstance(x, str) and x in publicas]
+        parametros = [x for x in raw["parametros"] if isinstance(x, str) and x in publicos]
+    contra = [x for x in raw["contraindicaciones"]
+              if isinstance(x, str) and _CODIGO.match(x)]
+    metrica = raw.get("metrica_exito") or {}
+    tipo_metrica = metrica.get("tipo")
+    return {
+        "prioridad": raw["prioridad"],
+        "estado": raw["estado"],
+        "evidencia": evidencias,
+        "parametros": parametros,
+        "contraindicaciones": contra,
+        "metrica_exito": {
+            "tipo": tipo_metrica if isinstance(tipo_metrica, str) and _CODIGO.match(tipo_metrica) else "",
+            "medir_en": metrica.get("medir_en"),
+        },
+        "revisar_en": raw["revisar_en"],
+        "opcion": {k: raw["opcion"].get(k) for k in
+                   ("id", "dia", "metros", "ritmo", "confianza", "riesgo_etiqueta",
+                    "coste_etiqueta", "score")},
     }
 
 
@@ -157,26 +202,31 @@ def _seleccionar_af(c: conocimiento_toml.Conocimiento, payload: dict) -> list:
         if x in af and x not in [a.id for a in elegidas]:
             elegidas.append(af[x])
     if not elegidas:
+        # Solo se usan clase/estado públicos; nunca `problema`, `sesion` ni `porque`, que pueden
+        # venir del overlay local.
         palabras = {w for w in re.findall(r"[A-Za-zÁÉÍÓÚáéíóúñ]{5,}", " ".join([
-            str(payload.get("problema") or ""), str((payload.get("estado") or {}).get("clase") or ""),
-            str((payload.get("opcion") or {}).get("sesion") or ""),
+            str((payload.get("estado") or {}).get("clase") or ""),
+            str((payload.get("opcion") or {}).get("id") or ""),
         ])).lower()}
         for a in c.afirmaciones:
             if any(w in (a.texto or "").lower() for w in palabras):
                 elegidas.append(a)
             if len(elegidas) >= 5:
                 break
+    if not elegidas:
+        # Conocimiento público mínimo: mejor una cita pública genérica que dejar el contexto sin
+        # ninguna afirmación y romper el contrato de citas.
+        elegidas = list(c.afirmaciones[:3])
     return elegidas[:6]
 
 
 def contexto(cn, rec: dict, pregunta: str | None = None) -> dict:
     """Contexto determinista y acotado: recomendación + AF citadas/seleccionadas + FU + PA."""
     c = conocimiento_toml.cargar(incluir_local=False)
-    payload = payload_minimo(rec)
+    payload = payload_minimo(rec, c)
     afirmaciones = _seleccionar_af(c, payload)
     fuentes = {}
     fu_ids = []
-    af_map = {a.id: a for a in c.afirmaciones}
     for a in afirmaciones:
         for ref in a.fuentes:
             if ref.id in {f.id for f in c.fuentes}:
@@ -316,7 +366,7 @@ def validar_respuesta(d: dict, ctx: dict) -> list[str]:
 def fallback(rec: dict, ctx: dict | None = None, errores: list[str] | None = None,
              motivo: str = "sin proveedor") -> dict:
     """Explicación determinista: la del motor, con sus citas/cifras; nunca inventa."""
-    p = payload_minimo(rec)
+    p = _resumen(rec)
     exp = p.get("explicacion_determinista") or (
         f"Que veo: {p.get('problema') or 'sin prioridad'}. "
         f"Que propongo: {(p.get('opcion') or {}).get('sesion') or 'mantener'}. "

@@ -1011,6 +1011,14 @@ y `scripts/coach_eval.py`.
 | F9-04 | Documentación | Todas | README, DESPLIEGUE, conocimiento | Revisión |
 | F9-05 | Postmortem y backlog | F9-03 | Riesgos residuales | Documento |
 
+**Implementación F9 (2026-10-20):** `MOTOR_CONOCIMIENTO=v2` y `MOTOR_RECOMENDACION=v2` por defecto;
+`v1` sigue disponible para rollback y `dual` para comparar. `scripts/dual_run.py` ejecutó una ventana
+histórica de 14 días (2026-10-06 a 2026-10-19) con 0 regresiones y 0 errores; informe privado en
+`data/derived/f9/`. Golden `f9` 5/5, suite 866 OK, panel regenerado con v2 y rollback probado en
+subproceso. Documentación en `README.md`, `DESPLIEGUE.md`, `docs/adr/ADR-004-activacion-v2-rollback.md`,
+`docs/evidencias/F9.md` y `docs/postmortem-f9.md`. Residuales: la ventana es histórica (no dos semanas
+en vivo), firmas 0/40 y reglas verificadas 0/9; no se falsean métricas. `COACH_ENABLED=0`.
+
 **Criterio de salida:** v2 es el motor por defecto; v1 se puede recuperar; el conocimiento es la fuente de verdad.
 
 ---

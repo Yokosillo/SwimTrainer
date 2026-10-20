@@ -101,19 +101,24 @@ montarlos como volumen de solo lectura. Sin `plan_local.py` la app arranca igual
 (`plan.SEMANAS == []`) y el panel no muestra plan; sin `perfil_local.py` el panel no lleva nombre; sin
 `conocimiento/local/` el motor v2 usa solo el conocimiento publico y avisa.
 
-### Version del motor de conocimiento
+### Version de los motores
 
-La bandera `MOTOR_CONOCIMIENTO` elige que motor de conocimiento usa la aplicacion. Hoy el unico
-implementado es `v1` (el actual); `v2` llegara con el motor nuevo (F5) y se activara entonces. El
-valor por defecto es `v1` y un valor desconocido cae a `v1`: la bandera no puede dejar el sistema
+La bandera `MOTOR_CONOCIMIENTO` elige que motor de conocimiento usa la aplicacion. Desde F9 el valor
+por defecto es `v2` (TOML); `v1` recupera las constantes historicas para rollback y `dual` compara
+ambos sin cambiar el resultado. Un valor desconocido cae a `v2`: la bandera no puede dejar el sistema
 sin motor. Se lee en un unico sitio (`conocimiento.motor_version()`).
+
+`MOTOR_RECOMENDACION` elige el motor de recomendaciones: `v2` (por defecto desde F9), `v1` (rollback)
+o `dual` (compara sin escribir). El panel muestra la tarjeta de v2 solo cuando esta activo.
 
 ```bash
 # en .env
-MOTOR_CONOCIMIENTO=v1
+MOTOR_CONOCIMIENTO=v2
+MOTOR_RECOMENDACION=v2
 ```
 
-No cambia ningun comportamiento todavia: deja preparada la vuelta atras.
+Rollback: poner ambas en `v1`, reconstruir la imagen con el commit anterior si hace falta y reiniciar.
+Las tablas nuevas son aditivas y v1 las ignora; no hay que restaurar la base salvo corrupcion.
 
 ## 3b. Capa LLM opcional (F8)
 

@@ -185,8 +185,20 @@ existe o está vacío, **falla cerrado** (`sin_conocimiento`). En el anexo Markd
 duplicado o una fuente duplicada es error; una fuente huérfana o sin cita literal es aviso. El código
 de salida es 0 solo si ambos validan. El conocimiento publico vive en `conocimiento/`; el overlay
 privado (reglas, criterios y textos del atleta) en `conocimiento/local/`, que no se versiona.
-`MOTOR_CONOCIMIENTO=v1` es el valor por defecto; `v2` usa el TOML y `dual` compara ambos y deja
-`data/derived/conocimiento/dual_*.json`.
+`MOTOR_CONOCIMIENTO=v2` es el valor por defecto desde F9: el motor lee el TOML. `v1` recupera las
+constantes históricas (rollback) y `dual` compara ambos y deja
+`data/derived/conocimiento/dual_*.json`. `MOTOR_RECOMENDACION=v2` también es el valor por defecto;
+`v1` recupera el flujo anterior y `dual` compara sin escribir. Para el rollback completo se ponen las
+dos en `v1` y se reinicia; ver `DESPLIEGUE.md` y `docs/adr/ADR-004-activacion-v2-rollback.md`.
+
+El informe de dual-run de F9 se genera sin tocar la base:
+
+```bash
+python scripts/dual_run.py --inicio 2026-10-06 --fin 2026-10-19
+```
+
+Deja el resumen en `data/derived/f9/` (ignorado por git) con conteos, clasificación y métricas
+técnicas. `docs/evidencias/F9.md` recoge la ejecución y los residuales.
 
 `--criterios` lista las cláusulas marcadas `[criterio]`, con su estado: `firmada` (solo si firma
 `entrenador` o `atleta`), `revisada_por_asistente` (sigue pendiente) o `pendiente`. El anexo tiene 21

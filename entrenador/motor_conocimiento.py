@@ -7,7 +7,8 @@ El motor v1 sigue leyendo `estimulos.CLASES`, `reglas.REGLAS`, etc. Cuando
 (publico + local). Con `dual`, se calculan las dos y se compara; se ejecuta v1 y se deja un
 informe en `data/derived/conocimiento/dual_<modulo>.json`.
 
-Nada de esto se ejecuta con `MOTOR_CONOCIMIENTO=v1` (el valor por defecto): v1 no cambia.
+F9 activa `MOTOR_CONOCIMIENTO=v2` por defecto; con `v1` (rollback) nada de esto se ejecuta y las
+constantes historicas siguen mandando.
 """
 
 from __future__ import annotations

@@ -3815,7 +3815,8 @@ def pruebas_motor_conocimiento_f3() -> None:
               == golden._normalizar_salida("Plan recalculado el 2026-10-20 (x)")
               and golden._normalizar_salida("Quedan 26 dias")
               == golden._normalizar_salida("Quedan 27 dias"))
-    carpeta_golden = ("data/derived/golden/f7" if os.path.isdir("data/derived/golden/f7")
+    carpeta_golden = ("data/derived/golden/f9" if os.path.isdir("data/derived/golden/f9")
+                      else "data/derived/golden/f7" if os.path.isdir("data/derived/golden/f7")
                       else "data/derived/golden/f6" if os.path.isdir("data/derived/golden/f6")
                       else "data/derived/golden/f4")
     if os.path.isdir(carpeta_golden):
@@ -3832,7 +3833,7 @@ def pruebas_motor_conocimiento_f3() -> None:
             proc = subprocess.run([sys.executable, "scripts/golden.py", "--comparar",
                                    "--dir", carpeta_golden],
                                   cwd=os.getcwd(), capture_output=True, text=True)
-            comprobar(f"F4/F6/F7: golden {os.path.basename(carpeta_golden)} 5/5 con la fecha de hoy",
+            comprobar(f"F4/F6/F7/F9: golden {os.path.basename(carpeta_golden)} 5/5 con la fecha de hoy",
                       proc.returncode == 0, (proc.stdout or proc.stderr)[-300:])
 
     with tempfile.TemporaryDirectory() as d:
@@ -4118,6 +4119,17 @@ def pruebas_motor_f5() -> None:
         comprobar("F5-02: exactamente una opcion recomendada por prioridad",
                   all(sum(1 for o in r["opciones"] if o.get("recomendada")) == 1
                       for r in salida["recomendaciones"]))
+        # F9-02: sin dia libre, mantener no puede ser la unica opcion viva.
+        sin_dia = motor.generar(
+            cn, "2026-10-20", deficits=deficits[:1], estado_obj=e,
+            tests=("lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo"))
+        ops_sin_dia = sin_dia["recomendaciones"][0]["opciones"]
+        comprobar("F9-02: sin dia libre hay una alternativa viable ademas de mantener",
+                  len(ops_sin_dia) == 4
+                  and all(any(not o.get("recomendada") and not o.get("descartada")
+                              for o in r["opciones"]) for r in sin_dia["recomendaciones"])
+                  and next(o for o in ops_sin_dia if o.get("recomendada"))["tipo"] == "mantener",
+                  str([(o["id"], o["tipo"], o["descartada"]) for o in ops_sin_dia]))
         minimas = [o for r in salida["recomendaciones"] for o in r["opciones"] if o["tipo"] == "minima"]
         comprobar("F5-R-01: la minima es una version reducida de la misma receta",
                   all(o["receta"] == o["receta_base"] and "minima" in o["sesion"] for o in minimas),
@@ -4258,7 +4270,10 @@ def pruebas_motor_f5() -> None:
         # Flag: v1 por defecto; el comando explicito usa v2.
         viejo = _os.environ.pop("MOTOR_RECOMENDACION", None)
         try:
-            comprobar("F5-07: MOTOR_RECOMENDACION por defecto es v1", motor.modo_motor() == "v1")
+            comprobar("F5-07/F9-03: MOTOR_RECOMENDACION por defecto es v2 (F9)",
+                      motor.modo_motor() == "v2")
+            _os.environ["MOTOR_RECOMENDACION"] = "v1"
+            comprobar("F5-07/F9-03: el flag permite rollback a v1", motor.modo_motor() == "v1")
             _os.environ["MOTOR_RECOMENDACION"] = "v2"
             comprobar("F5-07: el flag acepta v2", motor.modo_motor() == "v2")
         finally:
@@ -4565,7 +4580,8 @@ def pruebas_interfaz_f7() -> None:
 
     with tempfile.TemporaryDirectory() as d:
         cn = db.conectar(os.path.join(d, "interfaz.db"))
-        viejo = _os.environ.pop("MOTOR_RECOMENDACION", None)
+        viejo = _os.environ.get("MOTOR_RECOMENDACION")
+        _os.environ["MOTOR_RECOMENDACION"] = "v1"
         try:
             d1 = panel.datos_panel(cn)
             comprobar("F7-01: con v1 la tarjeta avisa de que v2 esta disponible",
@@ -4585,9 +4601,9 @@ def pruebas_interfaz_f7() -> None:
                       d1["cambio"]["hay"] is False and d1["cambio"]["texto"] == "sin histórico")
             comprobar("F7-05: historial vacio claro", d1["historial"] == [])
 
-            _os.environ["MOTOR_RECOMENDACION"] = "v2"
+            _os.environ.pop("MOTOR_RECOMENDACION", None)
             d2 = panel.datos_panel(cn)
-            comprobar("F7-01: con v2 se pinta la primera prioridad",
+            comprobar("F7-01/F9-03: con v2 (default) se pinta la primera prioridad",
                       d2["motor"]["activo"] is True and bool(d2["motor"]["primera"])
                       and d2["motor"]["primera"]["prioridad"] == 1,
                       str((d2["motor"].get("primera") or {}).get("problema")))
@@ -4700,6 +4716,35 @@ def pruebas_coach_f8() -> None:
                       "AF-209" not in ids_ctx and not any(x.startswith("AF-2") for x in ids_ctx),
                       str(sorted(ids_ctx)))
 
+            # F8-R-06: ni IDs ni textos del overlay local pueden llegar al contexto ni al proveedor.
+            rec_local = dict(rec, evidencia=["AF-209", "AF-001"], parametros=["PA-104", "PA-001"],
+                             explicacion="EXPLICACION LOCAL AF-209 PA-104",
+                             problema="PROBLEMA LOCAL AF-209",
+                             contraindicaciones=["dolor_lesion", "texto local"],
+                             opciones=[dict(rec["opciones"][0], sesion="SESION LOCAL",
+                                            porque="PORQUE LOCAL AF-209")])
+            ctx_local = coach_llm.contexto(cn, rec_local)
+            texto_local = json.dumps(ctx_local, ensure_ascii=False)
+            fugas = ("AF-209", "PA-104", "PROBLEMA LOCAL", "EXPLICACION LOCAL",
+                     "SESION LOCAL", "PORQUE LOCAL", "texto local")
+            comprobar("F8-R-06: contexto sin IDs/textos locales",
+                      not any(x in texto_local for x in fugas), texto_local[:200])
+            pm = coach_llm.payload_minimo(rec_local)
+            comprobar("F8-R-06: payload_minimo sin conocimiento no publica IDs locales",
+                      "AF-209" not in json.dumps(pm, ensure_ascii=False)
+                      and "PA-104" not in json.dumps(pm, ensure_ascii=False)
+                      and "explicacion_determinista" not in pm,
+                      str(pm)[:200])
+            fake_local = coach_llm.ProveedorFalso(json.dumps(
+                {"explicacion": "La prioridad se explica con el contexto publico.",
+                 "citas": ["AF-001"], "cifras": [], "avisos": [], "confianza": "media"},
+                ensure_ascii=False))
+            coach_llm.explicar(cn, rec_local, proveedor=fake_local, activo=True)
+            payload_local = fake_local.llamadas[0][1] if fake_local.llamadas else ""
+            comprobar("F8-R-06: payload al proveedor sin IDs/textos locales",
+                      bool(payload_local) and not any(x in payload_local for x in fugas),
+                      payload_local[:200])
+
             fake = coach_llm.ProveedorFalso(json.dumps(valida, ensure_ascii=False))
             r = coach_llm.explicar(cn, rec, proveedor=fake, activo=True)
             comprobar("F8-04: respuesta valida del proveedor falso",
@@ -4768,6 +4813,37 @@ def pruebas_coach_f8() -> None:
                 comprobar("F8-R-02: preview forjada no mete 999 en el contexto",
                           resp_f.status == 200 and "999" not in fake_http.llamadas[-1][1]
                           and salida_f.get("explicacion"), str(salida_f)[:120])
+
+                # E2E con recomendacion_id: se carga de la base y se sanea el payload.
+                rec_id = dict(actual)
+                rec_id["evidencia"] = ["AF-209", "AF-001"]
+                rec_id["parametros"] = ["PA-104", "PA-001"]
+                rec_id["explicacion"] = "EXPLICACION LOCAL AF-209 PA-104"
+                rec_id["problema"] = "PROBLEMA LOCAL AF-209"
+                ids_guardados = motor.guardar(cn, {"recomendaciones": [rec_id]})
+                rid_guardado = ids_guardados[0]
+                # El proveedor responde citando la primera AF pública del contexto real.
+                def respuesta_id(_sistema, usuario, _fake=fake_http):
+                    ctx_id = json.loads(usuario).get("contexto") or {}
+                    cita = next((a["id"] for a in ctx_id.get("afirmaciones") or []
+                                 if str(a.get("id", "")).startswith("AF-")), "")
+                    return json.dumps({"explicacion": "Explicacion con contexto publico.",
+                                       "citas": [cita], "cifras": [], "avisos": [],
+                                       "confianza": "media"}, ensure_ascii=False)
+                fake_http.respuesta = respuesta_id
+                pet_id = urllib.request.Request(
+                    f"http://127.0.0.1:{puerto}/coach",
+                    data=json.dumps({"recomendacion_id": rid_guardado}).encode(),
+                    headers={"Content-Type": "application/json"}, method="POST")
+                with urllib.request.urlopen(pet_id, timeout=20) as resp_id:
+                    salida_id = json.loads(resp_id.read().decode())
+                payload_id = fake_http.llamadas[-1][1]
+                comprobar("F8-R-06: /coach con recomendacion_id no filtra IDs/textos locales",
+                          resp_id.status == 200 and salida_id.get("fuente") == "llm"
+                          and "AF-209" not in payload_id and "PA-104" not in payload_id
+                          and "EXPLICACION LOCAL" not in payload_id
+                          and "PROBLEMA LOCAL" not in payload_id,
+                          str(salida_id)[:160])
                 # JSON no objeto -> 400.
                 estados = []
                 for cuerpo in ("[]", '"texto"', "123"):
@@ -4838,6 +4914,47 @@ def pruebas_coach_f8() -> None:
         cn.close()
 
 
+def pruebas_f9() -> None:
+    """F9: v2 por defecto y rollback real a v1."""
+    print("\nF9. Activacion de v2 y rollback")
+    import subprocess
+    import sys
+    from entrenador import conocimiento, db, motor, panel
+
+    viejo = {k: os.environ.get(k) for k in ("MOTOR_CONOCIMIENTO", "MOTOR_RECOMENDACION")}
+    try:
+        for k in viejo:
+            os.environ.pop(k, None)
+        comprobar("F9-03: MOTOR_CONOCIMIENTO v2 por defecto",
+                  conocimiento.motor_version() == "v2")
+        comprobar("F9-03: MOTOR_RECOMENDACION v2 por defecto", motor.modo_motor() == "v2")
+        with tempfile.TemporaryDirectory() as d:
+            cn = db.conectar(os.path.join(d, "f9.db"))
+            dp = panel.datos_panel(cn)
+            comprobar("F9-02/F9-03: el panel usa v2 sin variable de entorno",
+                      dp["motor"]["activo"] is True and bool(dp["motor"]["primera"]),
+                      str(dp["motor"]))
+            cn.close()
+
+        codigo = (
+            "from entrenador import conocimiento, motor; "
+            "print(conocimiento.motor_version(), motor.modo_motor())")
+        entorno = dict(os.environ)
+        entorno["MOTOR_CONOCIMIENTO"] = "v1"
+        entorno["MOTOR_RECOMENDACION"] = "v1"
+        r = subprocess.run([sys.executable, "-c", codigo], cwd=os.getcwd(), env=entorno,
+                           capture_output=True, text=True, encoding="utf-8")
+        comprobar("F9-03: rollback real a v1 por entorno",
+                  r.returncode == 0 and r.stdout.strip() == "v1 v1",
+                  (r.stdout + r.stderr)[:160])
+    finally:
+        for k, v in viejo.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+
 if __name__ == "__main__":
     pruebas_unitarias()
     pruebas_base_de_datos()
@@ -4862,6 +4979,7 @@ if __name__ == "__main__":
     pruebas_resultados_f6()
     pruebas_interfaz_f7()
     pruebas_coach_f8()
+    pruebas_f9()
     pruebas_reparto_por_dia()
     pruebas_motor_en_el_discurso()
     pruebas_plan_vivo()

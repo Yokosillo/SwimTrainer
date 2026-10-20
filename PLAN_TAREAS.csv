@@ -67,8 +67,8 @@ F8-04,F8,LLM opcional,Contrato JSON y validadores,F8-03,Rechaza cifras/citas inv
 F8-05,F8,LLM opcional,UI “explicar”/“preguntar”,F8-04,Fallback determinista,JS,hecha
 F8-06,F8,LLM opcional,Evaluación baseline vs LLM,F8-05,Métricas y coste,Informe,hecha
 F8-07,F8,LLM opcional,Tests de privacidad y alucinación,F8-04,0 datos crudos; 0 cifras inventadas,Suite,hecha
-F9-01,F9,Despliegue y cierre,Dual-run 2 semanas,F5/F6,v1 y v2 comparables,Informe,pendiente
-F9-02,F9,Despliegue y cierre,Métricas de éxito,F9-01,Umbrales cumplidos,Panel,pendiente
-F9-03,F9,Despliegue y cierre,Activar v2 por defecto,F9-02,Rollback probado,Ensayo,pendiente
-F9-04,F9,Despliegue y cierre,Documentación,Todas,"README, DESPLIEGUE, conocimiento",Revisión,pendiente
-F9-05,F9,Despliegue y cierre,Postmortem y backlog,F9-03,Riesgos residuales,Documento,pendiente
+F9-01,F9,Despliegue y cierre,Dual-run 2 semanas,F5/F6,v1 y v2 comparables,Informe,hecha
+F9-02,F9,Despliegue y cierre,Métricas de éxito,F9-01,Umbrales cumplidos,Panel,hecha
+F9-03,F9,Despliegue y cierre,Activar v2 por defecto,F9-02,Rollback probado,Ensayo,hecha
+F9-04,F9,Despliegue y cierre,Documentación,Todas,"README, DESPLIEGUE, conocimiento",Revisión,hecha
+F9-05,F9,Despliegue y cierre,Postmortem y backlog,F9-03,Riesgos residuales,Documento,hecha

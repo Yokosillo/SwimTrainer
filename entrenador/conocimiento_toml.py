@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 """La base de conocimiento estructurada (TOML): cargar, validar, versionar y sincronizar.
 
-F2 prepara la fuente de verdad nueva sin cambiar el motor: el anexo Markdown y las constantes de
-`estimulos`/`reglas` siguen mandando (MOTOR_CONOCIMIENTO=v1). Aqui viven:
+F2 prepara la fuente de verdad nueva. F9 activa el TOML por defecto (MOTOR_CONOCIMIENTO=v2); el
+anexo Markdown y las constantes de `estimulos`/`reglas` quedan para el rollback (v1). Aqui viven:
 
   1. `cargar(ruta)` - lee `conocimiento/*.toml` con `tomllib` y devuelve dataclasses inmutables.
      No escribe nada.
@@ -569,7 +569,7 @@ def cargar(ruta: str = RUTA_CONOCIMIENTO, incluir_local: bool = True) -> Conocim
 
     `incluir_local=False` carga solo el conocimiento publico. Lo usa la capa LLM para no enviar
     afirmaciones locales al proveedor. El resto de consumidores mantiene el comportamiento de siempre.
-    
+
 
     No escribe nada y no toca la base de datos. La local sustituye por id/clave a la publica; lo que
     solo esta en la local se anade. Si no hay local, el conocimiento publico sigue siendo valido y el

@@ -15,7 +15,8 @@ Fórmula de puntuación (los pesos se pueden cambiar en `conocimiento/local/moto
 Empate: menor riesgo; si sigue, menor coste; si sigue, id de opción.
 
 Seguridad: dolor/lesión declarada no genera sesión, solo parar/derivar. Sin datos: `sin_datos`, sin
-inventar una sesión. El motor v1 no se toca: `MOTOR_RECOMENDACION` vale `v1` por defecto.
+inventar una sesión. F9 activa `MOTOR_RECOMENDACION=v2` por defecto; `v1` sigue disponible para
+rollback y `dual` solo compara sin escribir.
 """
 
 from __future__ import annotations
@@ -372,6 +373,14 @@ def _opciones_prioridad(deficit: dict, fecha: str, tests, ocupados, cargados, ob
                 "metros": 0, "ritmo": "", "porque": "no anade carga y no rompe ninguna restriccion"}
     opciones.append(_opcion("D", mantener, None, "mantener", efecto=1.0, confianza=0.9,
                             riesgo=0.2, coste=0.1, porque=mantener["porque"], pesos=pesos))
+    # Si no queda ningun dia libre, A/B/C se descartan y "mantener" seria la unica opcion viva. Para
+    # que la recomendacion siga teniendo una alternativa real (y no solo descartes), se sustituye la
+    # minima (que tampoco se puede colocar) por una descarga sin sesion, tambien sin dia.
+    if not any(not o.get("descartada") for o in opciones if o.get("tipo") != "mantener"):
+        descarga = {"clave": "descarga", "sesion": "Descarga: bajar el volumen sin anadir calidad",
+                    "metros": 0, "ritmo": "", "porque": "si no hay dia para la sesion, al menos no cargar"}
+        opciones[2] = _opcion("C", descarga, None, "descarga", efecto=1.0, confianza=0.55,
+                              riesgo=0.2, coste=0.1, porque=descarga["porque"], pesos=pesos)
     _elegir(opciones)
     restricciones = []
     if tests:
@@ -835,6 +844,6 @@ def guardar(cn: sqlite3.Connection, salida: dict) -> list[int]:
 
 
 def modo_motor() -> str:
-    """Flag de recomendación. Por defecto v1; el panel y el flujo actual no cambian."""
+    """Flag de recomendación. F9 activa v2 por defecto; v1 queda para rollback."""
     valor = (os.environ.get("MOTOR_RECOMENDACION") or "").strip().lower()
-    return valor if valor in ("v1", "v2", "dual") else "v1"
+    return valor if valor in ("v1", "v2", "dual") else "v2"

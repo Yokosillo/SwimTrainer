@@ -561,8 +561,9 @@ def clases_sin_fuente() -> list[str]:
 
 
 # --------------------------------------------------------------------------- adaptador F3
-# Con MOTOR_CONOCIMIENTO=v1 (por defecto) no se ejecuta nada: las constantes de arriba mandan.
-# Con v2 se sustituyen por el TOML (publico + local); con dual se comparan y se deja el informe.
+# Con MOTOR_CONOCIMIENTO=v2 (por defecto desde F9) se sustituyen por el TOML (publico + local).
+# Con v1 (rollback) no se ejecuta nada y mandan las constantes de arriba; con dual se comparan y se
+# deja el informe.
 def _aplicar_motor_conocimiento() -> None:
     from . import motor_conocimiento
     from .conocimiento import motor_version
