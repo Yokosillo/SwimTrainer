@@ -4415,9 +4415,14 @@ def pruebas_resultados_f6() -> None:
         motor.guardar(cn, s3)
         rid3 = s3["recomendaciones"][0]["id"]
         decision.decidir(cn, rid3, "aceptada")
+        # Parte enlazado pero sin series: no se usan partes de otras sesiones.
+        cn.execute("""INSERT INTO parte (id, clave, fecha, actividad_id, piscina_m, metros, minutos,
+                      sensacion, notas, compania, fuente, importado_en)
+                      VALUES (4,'p4',?,3,25.0,1700.0,30.0,7.0,'','solo','test','2026-10-20T00:00:00')""", (fecha,))
+        cn.commit()
         resultados.enlazar(cn, rid3, actividad_id=3)
         v3 = resultados.evaluar(cn, rid3)
-        comprobar("F6-03: sesion sin parte -> sin_datos", v3["veredicto"] == "sin_datos", str(v3))
+        comprobar("F6-03: parte sin series -> sin_datos", v3["veredicto"] == "sin_datos", str(v3))
 
         # Cambiada/ignorada no se evaluan como si se hubiera seguido.
         s4 = motor.generar(cn, "2026-10-20", deficits=deficits_sesion, estado_obj=e)
@@ -4449,6 +4454,38 @@ def pruebas_resultados_f6() -> None:
         comprobar("F6-03: confounder -> no_concluyente",
                   v6["veredicto"] == "no_concluyente"
                   and any(c["tipo"] == "material" for c in v6["confounders"]), str(v6))
+
+        # La metrica_exito_json manda: sin_datos no se evalúa con el catálogo.
+        s7 = motor.generar(cn, "2026-10-20", deficits=deficits_sesion, estado_obj=e)
+        motor.guardar(cn, s7)
+        rid7 = s7["recomendaciones"][0]["id"]
+        cn.execute("UPDATE recomendacion SET metrica_exito_json = ? WHERE id = ?",
+                   (json.dumps({"tipo": "sin_datos", "criterio": "no hay metrica acordada"}), rid7))
+        decision.decidir(cn, rid7, "aceptada")
+        resultados.enlazar(cn, rid7, actividad_id=1)
+        v7 = resultados.evaluar(cn, rid7)
+        comprobar("F6-R-08: metrica_exito_json=sin_datos no evalua con el catalogo",
+                  v7["veredicto"] == "sin_datos"
+                  and all(x["veredicto"] == "sin_datos" for x in v7["verificaciones"]), str(v7))
+
+        # v1 con actividad_id y sin fecha_objetivo: se enlaza por la actividad.
+        cur = cn.execute("""INSERT INTO recomendacion
+                            (fecha, ambito, semana, actividad_id, titulo, cuerpo, origen, creada_en,
+                             metrica_exito_json, revisar_en, confianza)
+                            VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                         ("2026-10-01", "sesion", None, 1, "v1 manual", "", "motor", "2026-10-01T00:00:00",
+                          json.dumps({"tipo": "ritmo_100", "criterio": "ritmo de la sesion"}), "2026-10-08", 0.5))
+        ridv = int(cur.lastrowid)
+        cn.execute("INSERT INTO recomendacion_regla (recomendacion_id, regla_id, papel) VALUES (?,?,?)",
+                   (ridv, "R1", "motiva"))
+        decision.decidir(cn, ridv, "aceptada")
+        cn.commit()
+        enlv = resultados.enlazar(cn, ridv)
+        comprobar("F6-R-09: v1 con actividad_id y sin fecha_objetivo enlaza",
+                  enlv["estado"] == "enlazado" and enlv["actividad_id"] == 1
+                  and enlv["fecha"] == fecha, str(enlv))
+        vv = resultados.evaluar(cn, ridv)
+        comprobar("F6-R-09: y se puede evaluar", vv["veredicto"] in ("a_favor", "no_concluyente"), str(vv))
         comprobar("F6-02: catalogo R2 y metrica de sesion",
                   resultados.catalogo("R2")["tipo"] == "oficial_400"
                   and resultados.catalogo("R2")["piscina_m"] == 25

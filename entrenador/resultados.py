@@ -175,11 +175,11 @@ def enlazar(cn: sqlite3.Connection, rid: int, actividad_id: int | None = None) -
             raise ValueError(f"no existe la actividad {actividad_id}")
         if a["disciplina"] != "natacion":
             raise ValueError(f"la actividad {actividad_id} no es de natacion ({a['disciplina']})")
-        objetivo = fecha_objetivo(cn, rid)
         fecha_act = (a["inicio_local"] or "")[:10]
-        if not objetivo:
-            raise ValueError("la recomendacion no tiene fecha objetivo: no se puede validar el enlace")
-        if fecha_act != objetivo:
+        objetivo = fecha_objetivo(cn, rid)
+        # Una recomendacion v1 puede traer solo `actividad_id` y no semana/dia: manda la fecha de la
+        # actividad enlazada. Si hay fecha objetivo, la actividad tiene que ser de ese dia.
+        if objetivo and fecha_act != objetivo:
             raise ValueError(f"la actividad {actividad_id} es del {fecha_act}, no del dia de la recomendacion ({objetivo})")
         return _guardar_enlace(cn, rid, fecha_act, metodo="manual", estado="enlazado",
                                actividad_id=int(a["id"]), parte_id=_parte_de_actividad(cn, a["id"]),
@@ -214,36 +214,46 @@ def reglas_de(cn: sqlite3.Connection, rid: int) -> list[str]:
         if str(x["regla_id"]).startswith("R")]
 
 
-def metrica_de(cn: sqlite3.Connection, rid: int) -> dict | None:
-    """Traduce `metrica_exito_json` o la regla a una consulta real."""
+def _metrica_json(cn: sqlite3.Connection, rid: int) -> dict:
     r = _rec(cn, rid)
     if not r:
-        return None
-    ids_reglas = reglas_de(cn, rid)
-    if "R2" in ids_reglas:
-        base = dict(CATALOGO["R2"])
-        try:
-            m = json.loads(r.get("metrica_exito_json") or "{}")
-            base["descripcion"] = _texto(m.get("criterio")) or base["descripcion"]
-        except (TypeError, ValueError):
-            pass
-        return base
+        return {}
     crudo = r.get("metrica_exito_json")
     try:
-        m = json.loads(crudo or "{}") if isinstance(crudo, str) else (crudo or {})
+        return json.loads(crudo or "{}") if isinstance(crudo, str) else (crudo or {})
     except (TypeError, ValueError):
-        m = {}
+        return {}
+
+
+def metrica_para(cn: sqlite3.Connection, rid: int, regla_id: str) -> dict | None:
+    """Métrica de una regla concreta: R2 manda al 400 oficial; el resto respeta la declaración.
+
+    Si la recomendación declara `sin_datos`, no se evalúa con el catálogo. Si no declara nada, se usa el
+    catálogo de la regla.
+    """
+    m = _metrica_json(cn, rid)
     tipo = _texto(m.get("tipo")).lower()
+    if tipo == "sin_datos":
+        return {"tipo": "sin_datos", "tabla": "", "campo": "", "ventana": 0, "mejor": "menor",
+                "umbral": 0, "descripcion": _texto(m.get("criterio")) or "la recomendacion declara sin_datos"}
+    if regla_id == "R2":
+        # R2 se mide siempre con el 400 oficial de 25 m, aunque la recomendación traiga un criterio
+        # de sesión genérico.
+        return dict(CATALOGO["R2"])
     if tipo in ("oficial_400", "ritmo_100", "ritmo_sesion"):
         base = dict(CATALOGO["R2" if tipo == "oficial_400" else "R1"])
         base["descripcion"] = _texto(m.get("criterio")) or base["descripcion"]
         return base
-    if tipo in ("sin_datos", "seguridad", "datos", "adherencia"):
-        return {"tipo": "sin_datos", "tabla": "", "campo": "", "ventana": 0, "mejor": "menor",
-                "umbral": 0, "descripcion": _texto(m.get("criterio")) or "sin metrica de rendimiento"}
-    for rid_regla in ids_reglas:
-        if rid_regla in CATALOGO:
-            return dict(CATALOGO[rid_regla])
+    return catalogo(regla_id)
+
+
+def metrica_de(cn: sqlite3.Connection, rid: int) -> dict | None:
+    """Métrica principal de la recomendación (R2 si está, si no la primera regla)."""
+    ids = reglas_de(cn, rid)
+    if "R2" in ids:
+        return metrica_para(cn, rid, "R2")
+    if ids:
+        return metrica_para(cn, rid, ids[0])
     return None
 
 
@@ -366,10 +376,14 @@ def _evaluar_regla(cn: sqlite3.Connection, rid: int, regla_id: str, met: dict | 
     if not met or met.get("tipo") == "sin_datos":
         motivo = (met or {}).get("descripcion") or "la regla no declara una metrica evaluable"
         return _sin_datos(cn, rid, regla_id, fecha, motivo)
-    if met.get("tipo") == "ritmo_sesion" and enl.get("actividad_id") \
-            and not _parte_de_actividad(cn, enl.get("actividad_id")):
-        return _sin_datos(cn, rid, regla_id, fecha,
-                          "la sesion enlazada no tiene parte: no se puede medir el estimulo")
+    if met.get("tipo") == "ritmo_sesion" and enl.get("actividad_id"):
+        pid = _parte_de_actividad(cn, enl.get("actividad_id"))
+        if not pid:
+            return _sin_datos(cn, rid, regla_id, fecha,
+                              "la sesion enlazada no tiene parte: no se puede medir el estimulo")
+        if not cn.execute("SELECT COUNT(*) FROM parte_serie WHERE parte_id = ?", (pid,)).fetchone()[0]:
+            return _sin_datos(cn, rid, regla_id, fecha,
+                              "el parte enlazado no tiene series: no se puede medir el estimulo")
     (a1, a2), (b1, b2) = _ventanas(fecha, int(met.get("ventana") or 28))
     antes, n_a, _ = _valor_ventana(cn, met["tipo"], a1, a2, met.get("piscina_m"))
     despues, n_b, _ = _valor_ventana(cn, met["tipo"], b1, b2, met.get("piscina_m"))
@@ -446,7 +460,7 @@ def evaluar(cn: sqlite3.Connection, rid: int) -> dict:
         return _resumen_evaluacion(rid, vs)
     vs = []
     for rid_regla in reglas_ids:
-        met = catalogo(rid_regla)
+        met = metrica_para(cn, rid, rid_regla)
         vs.append(_evaluar_regla(cn, rid, rid_regla, met, enl, fecha))
     return _resumen_evaluacion(rid, vs)
 
@@ -466,8 +480,14 @@ def evaluar_todas(cn: sqlite3.Connection) -> dict:
 # --------------------------------------------------------------------------- informe / panel
 
 def _verif(cn: sqlite3.Connection, rid: int) -> dict | None:
-    # La primera fila es la regla principal (R2/R1); las demas son limitantes/avisos.
-    f = cn.execute("SELECT * FROM verificacion WHERE recomendacion_id = ? ORDER BY id ASC LIMIT 1", (rid,)).fetchone()
+    # La primaria es R2 si existe; si no, la primera regla de la recomendacion.
+    ids = reglas_de(cn, rid)
+    primaria = "R2" if "R2" in ids else (ids[0] if ids else None)
+    f = (cn.execute("SELECT * FROM verificacion WHERE recomendacion_id = ? AND regla_id = ? "
+                    "ORDER BY id DESC LIMIT 1", (rid, primaria)).fetchone() if primaria else None)
+    if not f:
+        f = cn.execute("SELECT * FROM verificacion WHERE recomendacion_id = ? ORDER BY id ASC LIMIT 1",
+                       (rid,)).fetchone()
     if not f:
         return None
     d = dict(f)
@@ -518,7 +538,8 @@ def resumen(cn: sqlite3.Connection) -> dict:
             "aceptadas": sum(1 for r in recs if (r.get("decision") or {}).get("tomada") == "aceptada"),
             "cambiadas": sum(1 for r in recs if (r.get("decision") or {}).get("tomada") == "cambiada"),
             "ignoradas": sum(1 for r in recs if (r.get("decision") or {}).get("tomada") == "ignorada"),
-            "evaluadas": len(ver),
+            "evaluadas": len({v.get("recomendacion_id") for v in ver}),
+            "verificaciones": len(ver),
             "a_favor": sum(1 for v in ver if v.get("veredicto") == "a_favor"),
             "en_contra": sum(1 for v in ver if v.get("veredicto") == "en_contra"),
             "sin_datos": sum(1 for v in ver if v.get("veredicto") == "sin_datos"),
