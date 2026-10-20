@@ -903,6 +903,16 @@ tarjeta del panel lo muestran. Golden nuevo `f4` (5/5); `f1` queda como referenc
 | F5-08 | Seguridad y derivación | F5-03 | Dolor/lesión ⇒ parar | Test |
 | F5-09 | Tests de prioridad, mínimo eficaz y alternativas | F5-02..05 | Cobertura de casos | Suite |
 
+**Implementación (2026-10-20):** `entrenador/motor.py` genera 1-3 prioridades y 2-4 opciones por
+prioridad a partir de los déficits, las recetas y el estado. Las restricciones duras descartan opciones
+con motivo visible; el score es `(efecto*peso)*(confianza*peso) - riesgo*peso - coste*peso` (pesos
+default 1 y opcionales en `conocimiento/local/motor.toml`); el empate va a menor riesgo. La explicación
+es una plantilla determinista. `recomendacion_opcion` guarda todas las opciones y `recomendacion` gana
+`knowledge_version`, `estado_id`, `prioridad`, `elegida`, `metrica_exito_json`, `revisar_en` y
+`confianza`. `MOTOR_RECOMENDACION` sigue en v1 por defecto; `cli motor` usa v2 explícito y
+`motor --dual` genera v1+v2 sin tocar la base. El panel no cambia. Evidencia y residuales en
+`docs/evidencias/F5.md`.
+
 **Criterio de salida:** v2 genera una decisión completa y explicable; v1 sigue disponible por flag.
 
 ---

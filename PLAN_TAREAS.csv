@@ -38,15 +38,15 @@ F4-05,F4,Estado del atleta,Incertidumbre y confianza,F4-02,Cada métrica lleva n
 F4-06,F4,Estado del atleta,Snapshot y `estado_id`,F4-01,Hash estable,Test,hecha
 F4-07,F4,Estado del atleta,`cli estado` y tarjeta de panel,F4-06,Visible y legible,Manual + JS,hecha
 F4-08,F4,Estado del atleta,Tests con datos sintéticos y copia real,F4-02..06,Escenarios de borde cubiertos,Suite,hecha
-F5-01,F5,Motor de decisión v2,Esquema JSON de recomendación y validación,F4,Rechaza recomendaciones incompletas,Test de esquema,pendiente
-F5-02,F5,Motor de decisión v2,Generación de candidatas,F5-01,2-4 opciones por prioridad,Test,pendiente
-F5-03,F5,Motor de decisión v2,Restricciones duras,F5-02,"Calendario, recuperación, dolor, material",Test,pendiente
-F5-04,F5,Motor de decisión v2,Puntuación y desempate,F5-03,Score auditable; pesos configurables,Test,pendiente
-F5-05,F5,Motor de decisión v2,Explicación determinista,F5-04,Sin cifras nuevas,Test,pendiente
-F5-06,F5,Motor de decisión v2,Tablas y guardado de opciones/versiones,F5-01,Todo queda registrado,Test DB,pendiente
-F5-07,F5,Motor de decisión v2,`dual-run` v1/v2,F5-06,Se pueden comparar sin mostrar v2,Script,pendiente
-F5-08,F5,Motor de decisión v2,Seguridad y derivación,F5-03,Dolor/lesión ⇒ parar,Test,pendiente
-F5-09,F5,Motor de decisión v2,"Tests de prioridad, mínimo eficaz y alternativas",F5-02..05,Cobertura de casos,Suite,pendiente
+F5-01,F5,Motor de decisión v2,Esquema JSON de recomendación y validación,F4,Rechaza recomendaciones incompletas,Test de esquema,hecha
+F5-02,F5,Motor de decisión v2,Generación de candidatas,F5-01,2-4 opciones por prioridad,Test,hecha
+F5-03,F5,Motor de decisión v2,Restricciones duras,F5-02,"Calendario, recuperación, dolor, material",Test,hecha
+F5-04,F5,Motor de decisión v2,Puntuación y desempate,F5-03,Score auditable; pesos configurables,Test,hecha
+F5-05,F5,Motor de decisión v2,Explicación determinista,F5-04,Sin cifras nuevas,Test,hecha
+F5-06,F5,Motor de decisión v2,Tablas y guardado de opciones/versiones,F5-01,Todo queda registrado,Test DB,hecha
+F5-07,F5,Motor de decisión v2,`dual-run` v1/v2,F5-06,Se pueden comparar sin mostrar v2,Script,hecha
+F5-08,F5,Motor de decisión v2,Seguridad y derivación,F5-03,Dolor/lesión ⇒ parar,Test,hecha
+F5-09,F5,Motor de decisión v2,"Tests de prioridad, mínimo eficaz y alternativas",F5-02..05,Cobertura de casos,Suite,hecha
 F6-01,F6,Bucle de resultados,Enlace recomendación → sesión/parte/apunte,F5,Integridad referencial,Test,pendiente
 F6-02,F6,Bucle de resultados,Catálogo de métricas por regla,F5,Cada regla tiene métrica o `sin_datos`,Validación,pendiente
 F6-03,F6,Bucle de resultados,Evaluación antes/después con confounders,F6-01,Informa de limitaciones,Test,pendiente

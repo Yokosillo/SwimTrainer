@@ -4079,6 +4079,156 @@ def pruebas_estado_f4() -> None:
                   str((dp.get("estado") or {}).get("estado_id")))
 
 
+def pruebas_motor_f5() -> None:
+    """F5: prioridades, opciones, restricciones, scoring, seguridad, persistencia y dual."""
+    print("\nF5. Motor de decision v2")
+    import os as _os
+    from dataclasses import replace
+    from entrenador import db, estado, motor
+    from entrenador.estado import Metrica, SeccionEstado
+
+    deficits = [
+        {"id": "ritmo_prueba", "titulo": "falta ritmo de prueba", "receta": "ritmo_prueba",
+         "porque": "hay 0 m y el minimo son 400 m", "metros_actuales": 0.0, "metros_minimos": 400.0,
+         "pct": 0.0, "grado": "historial", "seccion_T": ["T.1"]},
+        {"id": "series_largas", "titulo": "faltan series largas", "receta": "series_largas",
+         "porque": "hay pocos metros de series largas", "metros_actuales": 200.0, "metros_minimos": 800.0,
+         "pct": 5.0, "grado": "metodo", "seccion_T": ["T.2"]},
+        {"id": "series_medias", "titulo": "faltan series medias", "receta": "series_medias",
+         "porque": "es lo que separa las buenas semanas", "metros_actuales": 400.0, "metros_minimos": 600.0,
+         "pct": 10.0, "grado": "historial", "seccion_T": []},
+        {"id": "continuo_sostenido", "titulo": "falta fondo sostenido", "receta": "continuo",
+         "porque": "el bloque continuo es corto", "metros_actuales": 0.0, "metros_minimos": 1200.0,
+         "pct": 0.0, "grado": "historial", "seccion_T": ["T.2"]},
+    ]
+
+    with tempfile.TemporaryDirectory() as d:
+        cn = db.conectar(os.path.join(d, "motor.db"))
+        e = estado.calcular(cn, "2026-10-20")
+        salida = motor.generar(cn, "2026-10-20", deficits=deficits, estado_obj=e)
+        comprobar("F5-02: 1-3 prioridades y 2-4 opciones por prioridad",
+                  1 <= len(salida["recomendaciones"]) <= 3
+                  and all(2 <= len(r["opciones"]) <= 4 for r in salida["recomendaciones"]),
+                  str([(r["prioridad"], len(r["opciones"])) for r in salida["recomendaciones"]]))
+        comprobar("F5-01: la salida v2 valida el esquema", not motor.validar_salida(salida),
+                  str(motor.validar_salida(salida)))
+        comprobar("F5-02: exactamente una opcion recomendada por prioridad",
+                  all(sum(1 for o in r["opciones"] if o.get("recomendada")) == 1
+                      for r in salida["recomendaciones"]))
+        comprobar("F5-04: score = efecto*confianza - riesgo - coste (con pesos)",
+                  all(abs(o["score"] - round((o["efecto"] * salida["pesos"]["efecto"])
+                                             * (o["confianza"] * salida["pesos"]["confianza"])
+                                             - o["riesgo"] * salida["pesos"]["riesgo"]
+                                             - o["coste"] * salida["pesos"]["coste"], 3)) < 1e-9
+                      for r in salida["recomendaciones"] for o in r["opciones"]))
+        comprobar("F5-04: ninguna recomendada esta descartada",
+                  all(not next(o for o in r["opciones"] if o["recomendada"])["descartada"]
+                      for r in salida["recomendaciones"]))
+        comprobar("F5-05: explicacion determinista y sin cifras inventadas",
+                  all("999" not in r["explicacion"] and "Que veo:" in r["explicacion"]
+                      and "Revision:" in r["explicacion"] for r in salida["recomendaciones"]))
+
+        # Desempate: mismo score, menor riesgo.
+        a = motor._opcion("A", motor._receta("series_medias", 75.0), "martes", "recomendada",
+                          efecto=2, confianza=.5, riesgo=2, coste=1, porque="a")
+        b = motor._opcion("B", motor._receta("series_largas", 75.0), "jueves", "alternativa",
+                          efecto=2, confianza=.5, riesgo=1, coste=1, porque="b")
+        a["score"] = b["score"] = 1.0
+        elegida = motor._elegir([a, b])
+        comprobar("F5-04: desempate por menor riesgo", elegida["id"] == "B",
+                  f"{a['score']} {b['score']} -> {elegida['id']}")
+
+        # Restricciones de calendario y explicacion visible.
+        restringida = motor.generar(cn, "2026-10-20", deficits=deficits, estado_obj=e,
+                                    tests=("jueves",), ocupados=("martes",))
+        comprobar("F5-03: las pruebas y los dias ocupados son restricciones duras",
+                  all(o["dia"] not in ("jueves", "martes")
+                      for r in restringida["recomendaciones"] for o in r["opciones"] if not o["descartada"])
+                  and all(any(x["tipo"] == "prueba" for x in r["restricciones"])
+                          for r in restringida["recomendaciones"]),
+                  str([r["restricciones"] for r in restringida["recomendaciones"]][:1]))
+        comprobar("F5-03: las opciones descartadas dicen por que",
+                  all(not o["descartada"] or o["motivo_descarte"]
+                      for r in restringida["recomendaciones"] for o in r["opciones"]))
+        restr2 = motor.generar(cn, "2026-10-20", deficits=deficits, estado_obj=e,
+                               material_disponible=[], piscina=33)
+        tipos = set(restr2["restricciones"])
+        comprobar("F5-03: material y piscina no estandar quedan declarados",
+                  {"material", "piscina"} <= tipos and restr2["piscina"] == 33,
+                  str(restr2["restricciones"]))
+
+        # Seguridad: dolor declarado -> derivar, sin sesion.
+        e_dolor = replace(e, secciones=e.secciones + (SeccionEstado(
+            "dolor", "Dolor",
+            (Metrica("dolor_lesion", "Dolor", "si", "", 1, None, "alta", ("gimnasio_sesion",), (), "ok", {}),)),))
+        dolor = motor.generar(cn, "2026-10-20", deficits=deficits, estado_obj=e_dolor)
+        r_dolor = dolor["recomendaciones"][0]
+        comprobar("F5-08: dolor -> derivar sin prescribir sesion",
+                  r_dolor["estado"]["clase"] == "dolor_lesion"
+                  and "dolor_lesion" in r_dolor["contraindicaciones"]
+                  and all(o["metros"] == 0 and "Parar" in o["sesion"] or "No prescribir" in o["sesion"]
+                          for o in r_dolor["opciones"]),
+                  str(r_dolor["opciones"]))
+        comprobar("F5-08: dolor avisa de parar/consultar",
+                  "profesional" in r_dolor["explicacion"].lower() and "dolor" in r_dolor["explicacion"].lower())
+
+        # Sin datos: no se inventa una sesion.
+        sin = motor.generar(cn, "2026-10-20", deficits=[], sin_datos=True, estado_obj=e)
+        comprobar("F5-08: sin datos -> sin_datos y opciones sin sesion",
+                  sin["recomendaciones"][0]["estado"]["clase"] == "sin_datos"
+                  and all(o["metros"] == 0 for o in sin["recomendaciones"][0]["opciones"])
+                  and "sin datos" in sin["recomendaciones"][0]["explicacion"].lower())
+
+        # Persistencia solo en base temporal.
+        motor.guardar(cn, salida)
+        fila = cn.execute("SELECT knowledge_version, estado_id, prioridad, elegida, revisar_en, confianza "
+                          "FROM recomendacion ORDER BY id DESC LIMIT 1").fetchone()
+        comprobar("F5-06: guarda version, estado, prioridad, elegida, metrica y revision",
+                  fila is not None and fila["knowledge_version"] == salida["knowledge_version"]
+                  and fila["estado_id"] == salida["estado_id"] and fila["elegida"]
+                  and fila["revisar_en"] and fila["confianza"] is not None)
+        comprobar("F5-06: guarda todas las opciones, no solo la elegida",
+                  cn.execute("SELECT COUNT(*) FROM recomendacion_opcion").fetchone()[0]
+                  == sum(len(r["opciones"]) for r in salida["recomendaciones"]))
+        comprobar("F5-06: la verificacion queda preparada para F6",
+                  {"resultado", "delta", "confianza", "aprendizaje"}
+                  <= {r[1] for r in cn.execute("PRAGMA table_info(verificacion)")})
+
+        # Dual: genera v1+v2 y no escribe en la base.
+        antes = cn.execute("SELECT COUNT(*) FROM recomendacion").fetchone()[0]
+        dual = motor.dual(cn, "2026-10-20", deficits=deficits, estado_obj=e,
+                          carpeta=os.path.join(d, "reco"))
+        despues = cn.execute("SELECT COUNT(*) FROM recomendacion").fetchone()[0]
+        comprobar("F5-07: dual genera v1+v2 y no toca la base",
+                  antes == despues and dual["v1"]["motor"] == "v1" and dual["v2"]["motor"] == "v2"
+                  and os.path.isfile(dual["ruta"]), f"{antes}->{despues} {dual.get('ruta')}")
+        comprobar("F5-07: dual deja diferencias auditables",
+                  "v1_sesiones" in dual["diferencias"] and "v2_opciones" in dual["diferencias"])
+
+        # Flag: v1 por defecto; el comando explicito usa v2.
+        viejo = _os.environ.pop("MOTOR_RECOMENDACION", None)
+        try:
+            comprobar("F5-07: MOTOR_RECOMENDACION por defecto es v1", motor.modo_motor() == "v1")
+            _os.environ["MOTOR_RECOMENDACION"] = "v2"
+            comprobar("F5-07: el flag acepta v2", motor.modo_motor() == "v2")
+        finally:
+            if viejo is None:
+                _os.environ.pop("MOTOR_RECOMENDACION", None)
+            else:
+                _os.environ["MOTOR_RECOMENDACION"] = viejo
+
+        comprobar("F5-07: ejecutar respeta v1/v2 sin escribir",
+                  motor.ejecutar(cn, "v1", fecha="2026-10-20", deficits=deficits,
+                                 estado_obj=e)["motor"] == "v1"
+                  and motor.ejecutar(cn, "v2", fecha="2026-10-20", deficits=deficits,
+                                     estado_obj=e)["motor"] == "v2")
+
+        # Esquema invalido.
+        mal = dict(salida)
+        mal["recomendaciones"] = [{**salida["recomendaciones"][0], "opciones": []}]
+        comprobar("F5-01: rechaza una recomendacion sin opciones", bool(motor.validar_salida(mal)))
+
+
 if __name__ == "__main__":
     pruebas_unitarias()
     pruebas_base_de_datos()
@@ -4099,6 +4249,7 @@ if __name__ == "__main__":
     pruebas_conocimiento_toml()
     pruebas_motor_conocimiento_f3()
     pruebas_estado_f4()
+    pruebas_motor_f5()
     pruebas_reparto_por_dia()
     pruebas_motor_en_el_discurso()
     pruebas_plan_vivo()
