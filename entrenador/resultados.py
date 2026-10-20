@@ -233,6 +233,10 @@ def metrica_para(cn: sqlite3.Connection, rid: int, regla_id: str) -> dict | None
     """
     m = _metrica_json(cn, rid)
     tipo = _texto(m.get("tipo")).lower()
+    # R5/R6/R7/R8 son restricciones/avisos: su catálogo manda siempre; la métrica global de la
+    # recomendación no las convierte en una métrica de rendimiento.
+    if regla_id in ("R5", "R6", "R7", "R8"):
+        return catalogo(regla_id)
     # Estas declaraciones NO son métricas de rendimiento: no se pueden convertir al catálogo.
     if tipo in ("sin_datos", "seguridad", "datos", "adherencia"):
         return {"tipo": "sin_datos", "tabla": "", "campo": "", "ventana": 0, "mejor": "menor",

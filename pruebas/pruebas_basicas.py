@@ -4368,6 +4368,31 @@ def pruebas_resultados_f6() -> None:
         resultados.evaluar(cn, rid1)
         comprobar("F6-03: evaluar es idempotente",
                   cn.execute("SELECT COUNT(*) FROM verificacion WHERE recomendacion_id = ?", (rid1,)).fetchone()[0] == n_ver)
+        # R6/R7/R8 son restricciones/avisos: la metrica global no las convierte en rendimiento.
+        cn.execute("INSERT OR IGNORE INTO recomendacion_regla (recomendacion_id, regla_id, papel) VALUES (?,?,?)",
+                   (rid1, "R8", "avisa"))
+        cn.commit()
+        v1b = resultados.evaluar(cn, rid1)
+        por_regla = {x["regla_id"]: x["veredicto"] for x in v1b["verificaciones"]}
+        comprobar("F6-R-11: R2 a_favor y R6/R7/R8 sin_datos",
+                  por_regla.get("R2") == "a_favor"
+                  and all(por_regla.get(r) == "sin_datos" for r in ("R6", "R7", "R8")),
+                  str(por_regla))
+        sr = motor.generar(cn, "2026-10-20", deficits=deficits_sesion, estado_obj=e)
+        motor.guardar(cn, sr)
+        ridr = sr["recomendaciones"][0]["id"]
+        for regla_extra in ("R7", "R8"):
+            cn.execute("INSERT OR IGNORE INTO recomendacion_regla (recomendacion_id, regla_id, papel) VALUES (?,?,?)",
+                       (ridr, regla_extra, "avisa"))
+        decision.decidir(cn, ridr, "aceptada")
+        resultados.enlazar(cn, ridr, actividad_id=1)
+        vr = resultados.evaluar(cn, ridr)
+        por_regla_r1 = {x["regla_id"]: x["veredicto"] for x in vr["verificaciones"]}
+        comprobar("F6-R-11: R1 evalua y R6/R7/R8 sin_datos",
+                  por_regla_r1.get("R1") in ("a_favor", "no_concluyente")
+                  and all(por_regla_r1.get(r) == "sin_datos" for r in ("R6", "R7", "R8")),
+                  str(por_regla_r1))
+
         # Enlace manual incorrecto: disciplina y fecha.
         actividad(4, fecha, disciplina="ciclismo")
         actividad(5, (date.fromisoformat(fecha) - timedelta(days=1)).isoformat())
