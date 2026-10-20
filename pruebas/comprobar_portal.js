@@ -27,7 +27,7 @@ if (fallos.length) { console.log(fallos.join("\n")); process.exit(1); }
 /* ---------- 2. los datos incrustados se tienen que poder leer ---------- */
 try {
   const d = JSON.parse(datos);
-  const falta = ["kpis", "plan", "competicion", "volumen", "calendario", "sesiones_recientes", "bici", "estado", "resultados"].filter((k) => !(k in d));
+  const falta = ["kpis", "plan", "competicion", "volumen", "calendario", "sesiones_recientes", "bici", "estado", "resultados", "motor", "decision", "conocimiento_fuentes", "conocimiento_afirmaciones", "conocimiento_parametros", "conocimiento_reglas", "cambio", "historial"].filter((k) => !(k in d));
   if (falta.length) fallos.push("a los datos les falta: " + falta.join(", "));
   console.log("datos: " + Object.keys(d).join(", "));
   console.log("marcas: " + ((d.competicion && d.competicion.marcas) || []).length
@@ -179,7 +179,7 @@ if (menu_mal.length) fallos.push("el menu apunta a vistas que no existen: " + me
 if (secciones.length < 8) fallos.push("esperaba al menos 8 vistas y hay " + secciones.length);
 
 /* ---------- 7. que se haya pintado de verdad ---------- */
-const esperados = ["kpis", "estadoAtleta", "resultadosBucle", "preparacion", "volumenAnual", "volumenMensual", "calendario", "calMes", "calCabecera",
+const esperados = ["kpis", "estadoAtleta", "resultadosBucle", "prioridadAccion", "cambioRecomendacion", "conocimientoLista", "historialRecomendaciones", "preparacion", "volumenAnual", "volumenMensual", "calendario", "calMes", "calCabecera",
   "calLeyenda", "calPista", "compKpis", "h400Tabla", "fueDosis", "fueCarga", "fueSeguro",
   "mejoresTabla", "cmpTabla", "fTabla", "objetivosPlan", "planSemanas", "entrenosTabla", "segmentosTabla",
   "gimKpis", "gsLista", "apImportados", "biciKpis", "biciSegmentos", "cuentaAtras", "selloDatos",
@@ -189,6 +189,20 @@ const vacios = esperados.filter((id) => {
   return pintado === undefined || String(pintado).trim() === "";
 });
 if (vacios.length) fallos.push("se han quedado sin pintar: " + vacios.join(", "));
+
+/* F7: la tarjeta de prioridad y el explorador tienen que ser accesibles sin raton. */
+if (!fallos.length) {
+  if (!/id="prioridadAccion"[^>]*tabindex="0"/.test(html) || !/aria-live="polite"/.test(html)) {
+    fallos.push("la prioridad no tiene foco/aria-live");
+  }
+  if (!/id="conocimientoExplorador"[^>]*aria-controls="conocimientoLista"/.test(html)
+      || !/<summary>Explorar conocimiento/.test(html)) {
+    fallos.push("el explorador de conocimiento no es un details con summary accesible");
+  }
+  if (typeof sandbox.pintarPrioridad !== "function" || typeof sandbox.pintarConocimiento !== "function") {
+    fallos.push("faltan las funciones F7 de pintado");
+  }
+}
 
 /* el calendario de piscina: un mes de verdad, con los dias que no se nado marcados aparte */
 if (!fallos.length) {

@@ -3815,7 +3815,8 @@ def pruebas_motor_conocimiento_f3() -> None:
               == golden._normalizar_salida("Plan recalculado el 2026-10-20 (x)")
               and golden._normalizar_salida("Quedan 26 dias")
               == golden._normalizar_salida("Quedan 27 dias"))
-    carpeta_golden = ("data/derived/golden/f6" if os.path.isdir("data/derived/golden/f6")
+    carpeta_golden = ("data/derived/golden/f7" if os.path.isdir("data/derived/golden/f7")
+                      else "data/derived/golden/f6" if os.path.isdir("data/derived/golden/f6")
                       else "data/derived/golden/f4")
     if os.path.isdir(carpeta_golden):
         # El golden de F4 es una foto con fecha: solo se compara si es la de hoy. El de F1 es pre-F4 y
@@ -3831,7 +3832,7 @@ def pruebas_motor_conocimiento_f3() -> None:
             proc = subprocess.run([sys.executable, "scripts/golden.py", "--comparar",
                                    "--dir", carpeta_golden],
                                   cwd=os.getcwd(), capture_output=True, text=True)
-            comprobar(f"F4/F6: golden {os.path.basename(carpeta_golden)} 5/5 con la fecha de hoy",
+            comprobar(f"F4/F6/F7: golden {os.path.basename(carpeta_golden)} 5/5 con la fecha de hoy",
                       proc.returncode == 0, (proc.stdout or proc.stderr)[-300:])
 
     with tempfile.TemporaryDirectory() as d:
@@ -4556,6 +4557,67 @@ def pruebas_resultados_f6() -> None:
                   buf.getvalue()[:120])
 
 
+def pruebas_interfaz_f7() -> None:
+    """F7: prioridad v2, aviso v1, desplegables, conocimiento, cambio e historial."""
+    print("\nF7. Interfaz de decision y conocimiento")
+    import os as _os
+    from entrenador import db, panel
+
+    with tempfile.TemporaryDirectory() as d:
+        cn = db.conectar(os.path.join(d, "interfaz.db"))
+        viejo = _os.environ.pop("MOTOR_RECOMENDACION", None)
+        try:
+            d1 = panel.datos_panel(cn)
+            comprobar("F7-01: con v1 la tarjeta avisa de que v2 esta disponible",
+                      d1["motor"]["activo"] is False and "v2" in (d1["motor"].get("aviso") or ""),
+                      str(d1["motor"]))
+            comprobar("F7-01: v1 no sustituye el plan y no hay decision v2",
+                      d1["decision"] is None and d1["plan"].get("semanas"))
+            comprobar("F7-03: el JSON lleva fuentes, afirmaciones, parametros y reglas",
+                      len(d1["conocimiento_fuentes"]) == 22
+                      and len(d1["conocimiento_afirmaciones"]) >= 30
+                      and len(d1["conocimiento_parametros"]) >= 18
+                      and len(d1["conocimiento_reglas"]) == 9
+                      and d1["conocimiento_version"].startswith("KV-"),
+                      str({k: len(d1[k]) for k in ("conocimiento_fuentes", "conocimiento_afirmaciones",
+                                                    "conocimiento_parametros", "conocimiento_reglas")}))
+            comprobar("F7-04: sin historico no se inventa cambio",
+                      d1["cambio"]["hay"] is False and d1["cambio"]["texto"] == "sin histórico")
+            comprobar("F7-05: historial vacio claro", d1["historial"] == [])
+
+            _os.environ["MOTOR_RECOMENDACION"] = "v2"
+            d2 = panel.datos_panel(cn)
+            comprobar("F7-01: con v2 se pinta la primera prioridad",
+                      d2["motor"]["activo"] is True and bool(d2["motor"]["primera"])
+                      and d2["motor"]["primera"]["prioridad"] == 1,
+                      str((d2["motor"].get("primera") or {}).get("problema")))
+            comprobar("F7-02: la prioridad trae accion, metrica, riesgo y revision",
+                      bool(d2["motor"]["elegida"]) and bool(d2["motor"]["primera"].get("metrica_exito"))
+                      and bool(d2["motor"]["primera"].get("revisar_en")))
+            comprobar("F7-04: con v2 sin historico sigue diciendo sin histórico",
+                      d2["cambio"]["hay"] is False)
+
+            # Historico sintetico: una recomendacion v2 anterior.
+            cn.execute("""INSERT INTO recomendacion (fecha, ambito, semana, titulo, cuerpo, origen, creada_en,
+                          prioridad, elegida)
+                          VALUES (?,?,?,?,?,?,?,?,?)""",
+                       ("2026-10-19", "semana", "S2", "Prioridad anterior", "", "motor_v2",
+                        "2026-10-19T00:00:00", 1, "B"))
+            cn.commit()
+            d3 = panel.datos_panel(cn)
+            comprobar("F7-04: con historico compara antes/despues",
+                      d3["cambio"]["hay"] is True
+                      and d3["cambio"]["antes"]["titulo"] == "Prioridad anterior"
+                      and "ahora" in d3["cambio"]["texto"].lower())
+            comprobar("F7-05: el historial lista la propuesta guardada",
+                      any(x.get("titulo") == "Prioridad anterior" for x in d3["historial"]))
+        finally:
+            if viejo is None:
+                _os.environ.pop("MOTOR_RECOMENDACION", None)
+            else:
+                _os.environ["MOTOR_RECOMENDACION"] = viejo
+
+
 if __name__ == "__main__":
     pruebas_unitarias()
     pruebas_base_de_datos()
@@ -4578,6 +4640,7 @@ if __name__ == "__main__":
     pruebas_estado_f4()
     pruebas_motor_f5()
     pruebas_resultados_f6()
+    pruebas_interfaz_f7()
     pruebas_reparto_por_dia()
     pruebas_motor_en_el_discurso()
     pruebas_plan_vivo()

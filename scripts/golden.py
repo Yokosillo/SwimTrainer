@@ -126,6 +126,9 @@ def resumen_panel(ruta: str) -> dict:
     plan = datos.get("plan") or {}
     estado = datos.get("estado") or {}
     resultados = datos.get("resultados") or {}
+    motor = datos.get("motor") or {}
+    cambio = datos.get("cambio") or {}
+    historial = datos.get("historial") or []
     return {
         "hash_datos": _sha256(_json_canonico(limpio)),
         "kpis": datos.get("kpis"),
@@ -152,6 +155,17 @@ def resumen_panel(ruta: str) -> dict:
                        "en_contra": resultados.get("en_contra"),
                        "sin_datos": resultados.get("sin_datos"),
                        "no_concluyente": resultados.get("no_concluyente")},
+        "motor": {"activo": motor.get("activo"), "modo": motor.get("modo"),
+                  "primera": (motor.get("primera") or {}).get("problema"),
+                  "elegida": (motor.get("elegida") or {}).get("id"),
+                  "opciones": len((motor.get("primera") or {}).get("opciones") or [])},
+        "conocimiento": {"version": datos.get("conocimiento_version"),
+                         "fuentes": len(datos.get("conocimiento_fuentes") or []),
+                         "afirmaciones": len(datos.get("conocimiento_afirmaciones") or []),
+                         "parametros": len(datos.get("conocimiento_parametros") or []),
+                         "reglas": len(datos.get("conocimiento_reglas") or [])},
+        "cambio": {"hay": cambio.get("hay"), "texto": cambio.get("texto")},
+        "historial": len(historial),
     }
 
 

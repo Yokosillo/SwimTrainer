@@ -961,6 +961,13 @@ como referencia pre-F6. Evidencia en `docs/evidencias/F6.md`.
 
 **Criterio de salida:** la acción principal se encuentra rápido; el resto no desaparece, se esconde.
 
+**Implementación F7 (2026-10-20):** tarjeta de prioridad/acción en Resumen con la primera prioridad v2 (o aviso
+si `MOTOR_RECOMENDACION` sigue en v1), detalles nativos `<details>` para por qué/medición/riesgo/alternativa/
+revisión, explorador de conocimiento con fuentes/AF/PA/reglas, comparación “qué ha cambiado” sin inventar
+histórico e historial de propuestas/decisiones/verificaciones. El panel añade `motor`, `decision`,
+`conocimiento_*`, `cambio` y `historial`; el plan v1 no cambia. Golden `f7`; `f6` queda como pre-F7.
+Evidencia en `docs/evidencias/F7.md`.
+
 ---
 
 #### F8 — LLM opcional
