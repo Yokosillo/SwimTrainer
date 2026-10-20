@@ -438,6 +438,26 @@ CREATE TABLE IF NOT EXISTS recomendacion (
 );
 CREATE INDEX IF NOT EXISTS idx_rec_fecha ON recomendacion(fecha);
 
+-- F5: las opciones que evaluó el motor v2. Se guardan todas, no solo la elegida; `descartada` y
+-- `motivo_descarte` dejan visible por qué una opción no se podía usar.
+CREATE TABLE IF NOT EXISTS recomendacion_opcion (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    recomendacion_id INTEGER NOT NULL REFERENCES recomendacion(id) ON DELETE CASCADE,
+    opcion_id        TEXT NOT NULL,              -- A, B, C, D
+    recomendada      INTEGER NOT NULL DEFAULT 0,
+    sesion_json      TEXT NOT NULL,
+    efecto_esperado  TEXT,
+    confianza        REAL,
+    riesgo           TEXT,
+    coste            TEXT,
+    porque           TEXT,
+    score            REAL,
+    descartada       INTEGER DEFAULT 0,
+    motivo_descarte  TEXT,
+    UNIQUE (recomendacion_id, opcion_id)
+);
+CREATE INDEX IF NOT EXISTS idx_recopc_rec ON recomendacion_opcion(recomendacion_id);
+
 -- Los numeros que sostienen una recomendacion. `fuente` dice de donde salen (`tabla.campo` o `modulo.funcion`).
 CREATE TABLE IF NOT EXISTS recomendacion_dato (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -650,6 +670,12 @@ MIGRACIONES = {
     "apunte": {"quien": "TEXT DEFAULT 'atleta'"},
     # F3: la procedencia de la afirmacion (evidencia, historial, pactado, metodo o criterio).
     "afirmacion": {"procedencia": "TEXT"},
+    # F5: versiones y decisión del motor v2. Aditivo: v1 sigue funcionando sin estas columnas.
+    "recomendacion": {"knowledge_version": "TEXT", "estado_id": "TEXT", "prioridad": "INTEGER DEFAULT 3",
+                      "elegida": "TEXT", "metrica_exito_json": "TEXT", "revisar_en": "TEXT",
+                      "confianza": "REAL"},
+    # F6 preparada: veredicto y aprendizaje; F5 no la rellena.
+    "verificacion": {"resultado": "TEXT", "delta": "REAL", "confianza": "TEXT", "aprendizaje": "TEXT"},
 }
 
 # Indices sobre columnas que llegan por migracion (no existian en las bases viejas al crear la tabla): hay que

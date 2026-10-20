@@ -609,6 +609,66 @@ def _estado(cn, args) -> int:
     return 0
 
 
+def _motor(cn, args) -> int:
+    """CLI de F5: v2 con opciones, v1 para comparar y dual sin tocar la base."""
+    import json
+    from . import motor
+    fecha = getattr(args, "fecha", None)
+    semana = getattr(args, "semana", None)
+    # El comando explicito usa v2; `--motor`/`MOTOR_RECOMENDACION` permiten bajar a v1 o comparar en dual.
+    modo = ("dual" if getattr(args, "dual", False)
+            else (getattr(args, "motor", None)
+                  or os.environ.get("MOTOR_RECOMENDACION") or "v2")).lower()
+    if modo not in ("v1", "v2", "dual"):
+        modo = "v2"
+    if modo == "v1":
+        salida = motor.ejecutar(cn, "v1", fecha=fecha, semana=semana)
+        if args.guardar:
+            print("v1 no se guarda desde `motor`: usa `plan --generar` para el flujo v1.")
+            return 2
+    elif modo == "dual":
+        if args.guardar:
+            print("dual no guarda en la base: genera el informe y no toca datos.")
+            return 2
+        salida = motor.ejecutar(cn, "dual", fecha=fecha, semana=semana)
+    else:
+        salida = motor.ejecutar(cn, "v2", fecha=fecha, semana=semana)
+        if args.guardar:
+            try:
+                ids = motor.guardar(cn, salida)
+            except ValueError as exc:
+                print(f"No se guarda: {exc}")
+                return 1
+            salida["ids"] = ids
+    if getattr(args, "json", False):
+        print(json.dumps(salida, ensure_ascii=False, indent=2, sort_keys=True))
+        return 0
+    if modo == "dual":
+        d = salida.get("diferencias") or {}
+        print(f"Dual {salida.get('fecha')} · v1 {d.get('v1_sesiones')} sesiones · v2 "
+              f"{d.get('v2_prioridades')} prioridades / {d.get('v2_opciones')} opciones · diferencias {d.get('n')}")
+        print(f"Informe: {salida.get('ruta')}")
+        return 0
+    if modo == "v1":
+        print(f"Motor v1 · {salida.get('semana') or 'semana'} · {len(salida.get('recomendaciones') or [])} sesiones")
+        for r in salida.get("recomendaciones") or []:
+            print(f"  {r.get('dia')}: {r.get('sesion')} ({r.get('metros')} m)")
+        return 0
+    print(f"Motor v2 · {salida.get('semana') or 'semana'} · estado {salida.get('estado_id')} · "
+          f"{len(salida.get('recomendaciones') or [])} prioridad(es)")
+    for r in salida.get("recomendaciones") or []:
+        print(f"\nP{r.get('prioridad')}: {r.get('problema')}")
+        for o in r.get("opciones") or []:
+            marca = "*" if o.get("recomendada") else ("x" if o.get("descartada") else " ")
+            print(f"  {marca} {o.get('id')} {o.get('tipo'):<10} {o.get('sesion')}"
+                  + (f" ({o.get('dia')})" if o.get("dia") else "")
+                  + f" · score {o.get('score')} · riesgo {o.get('riesgo_etiqueta')}")
+        print(f"  Explicacion: {r.get('explicacion')}")
+    if salida.get("ids"):
+        print(f"\nGuardadas: {', '.join(str(x) for x in salida['ids'])}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="entrenador", description="Gestor de entrenamientos (uso personal).")
     p.add_argument("--bd", default=db.RUTA_POR_DEFECTO, help="ruta de la base de datos SQLite")
@@ -670,6 +730,15 @@ def main(argv: list[str] | None = None) -> int:
 
     pfu = sub.add_parser("fuerza", help="la dosis preventiva del hombro (T.7), el aviso de abandono y su carga")
     pfu.add_argument("--fecha", default=None, help="la fecha del dia (por defecto, hoy)")
+
+    pmot = sub.add_parser("motor", help="motor de decision v2: prioridades, opciones, riesgo y metrica")
+    pmot.add_argument("--fecha", default=None, help="fecha de la decision (YYYY-MM-DD; por defecto, hoy)")
+    pmot.add_argument("--semana", default=None, help="etiqueta de semana (S1..S5; por defecto, la de la fecha)")
+    pmot.add_argument("--json", action="store_true", help="salida JSON valida")
+    pmot.add_argument("--guardar", action="store_true", help="persiste las recomendaciones v2 (base real si no se pasa --bd)")
+    pmot.add_argument("--dual", action="store_true", help="compara v1 y v2 sin tocar la base")
+    pmot.add_argument("--motor", choices=("v1", "v2", "dual"), default=None,
+                      help="v2 por defecto en este comando; v1/dual para comparar")
 
     pest = sub.add_parser("estado", help="la foto del atleta en una fecha: metricas, n, dispersion y confianza")
     pest.add_argument("--fecha", default=None, help="fecha de la foto (YYYY-MM-DD; por defecto, hoy)")
@@ -966,6 +1035,8 @@ def main(argv: list[str] | None = None) -> int:
         return _fuerza(cn, args)
     elif args.orden == "estado":
         return _estado(cn, args)
+    elif args.orden == "motor":
+        return _motor(cn, args)
     elif args.orden == "conocimiento":
         return _conocimiento(cn, args)
     elif args.orden == "reglas":
