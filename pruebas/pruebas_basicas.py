@@ -4662,7 +4662,7 @@ def pruebas_coach_f8() -> None:
         "prioridad": 1, "problema": "falta ritmo de prueba",
         "estado": {"clase": "ritmo_prueba", "confianza": 0.7, "metros_actuales": 0,
                    "metros_minimos": 400, "pct": 0, "grado": "historial", "seccion_T": ["T.1"]},
-        "evidencia": ["AF-002"], "parametros": ["PA-101"], "contraindicaciones": [],
+        "evidencia": ["AF-002"], "parametros": ["PA-001"], "contraindicaciones": [],
         "metrica_exito": {"tipo": "ritmo_100", "criterio": "mantener el ritmo", "medir_en": "2026-10-23"},
         "revisar_en": "2026-10-27", "explicacion": "Que veo: falta ritmo. Que propongo: 8x100.",
         "opciones": [{"id": "A", "recomendada": True, "sesion": "8x100 con 25-30 s", "dia": "jueves",
@@ -4675,7 +4675,8 @@ def pruebas_coach_f8() -> None:
         ruta = os.path.join(d, "coach.db")
         cn = db.conectar(ruta)
         # Estado por defecto: apagado y sin datos en el panel.
-        viejo = {k: os.environ.get(k) for k in ("COACH_ENABLED", "COACH_BASE_URL", "COACH_MODEL", "COACH_API_KEY")}
+        viejo = {k: os.environ.get(k) for k in ("COACH_ENABLED", "COACH_BASE_URL", "COACH_MODEL",
+                                                  "COACH_API_KEY", "COACH_MAX_LLAMADAS_MINUTO")}
         for k in viejo:
             os.environ.pop(k, None)
         try:
@@ -4689,10 +4690,15 @@ def pruebas_coach_f8() -> None:
             comprobar("F8-03: el contexto trae AF citadas, FU y PA",
                       any(a["id"] == "AF-002" for a in ctx["afirmaciones"])
                       and any(f["id"].startswith("FU-") for f in ctx["fuentes"])
-                      and any(p["id"] == "PA-101" for p in ctx["parametros"]))
+                      and any(p["id"] == "PA-001" for p in ctx["parametros"])
+                      and not any(p["id"] == "PA-101" for p in ctx["parametros"]))
             comprobar("F8-03: el contexto no incluye FIT/GPX ni actividad_id",
                       "FIT" not in ctx["texto"] and "GPX" not in ctx["texto"]
                       and "actividad_id" not in ctx["texto"])
+            ids_ctx = {a["id"] for a in ctx["afirmaciones"]}
+            comprobar("F8-R-01: el contexto solo usa conocimiento publico (sin AF locales)",
+                      "AF-209" not in ids_ctx and not any(x.startswith("AF-2") for x in ids_ctx),
+                      str(sorted(ids_ctx)))
 
             fake = coach_llm.ProveedorFalso(json.dumps(valida, ensure_ascii=False))
             r = coach_llm.explicar(cn, rec, proveedor=fake, activo=True)
@@ -4715,6 +4721,13 @@ def pruebas_coach_f8() -> None:
                 comprobar(f"F8-04: {etiqueta} -> fallback determinista",
                           rr["fuente"] == "determinista" and bool(rr["validacion"]), str(rr.get("validacion")))
 
+            for aviso in ("Toma un medicamento para el dolor.", "La mejora es 999 segundos.",
+                          "Vas a bajar la marca seguro."):
+                rr = coach_llm.explicar(cn, rec, proveedor=coach_llm.ProveedorFalso(
+                    json.dumps(dict(valida, avisos=[aviso]), ensure_ascii=False)), activo=True)
+                comprobar(f"F8-R-04: aviso invalido ({aviso[:18]}) -> fallback",
+                          rr["fuente"] == "determinista" and bool(rr["validacion"]), str(rr.get("validacion")))
+
             apagado = coach_llm.ProveedorFalso(json.dumps(valida, ensure_ascii=False))
             rr = coach_llm.explicar(cn, rec, proveedor=apagado, activo=False)
             comprobar("F8-02: apagado no llama al proveedor",
@@ -4723,23 +4736,74 @@ def pruebas_coach_f8() -> None:
             rr = coach_llm.explicar(cn, rec, proveedor=error, activo=True)
             comprobar("F8-04: error del proveedor -> fallback", rr["fuente"] == "determinista")
 
-            # Endpoint /coach con proveedor falso y sin red.
-            base = servidor._Base(ruta, ".", regenerar=False,
-                                  coach=coach_llm.ProveedorFalso(json.dumps(valida, ensure_ascii=False)))
+            # Endpoint /coach con proveedor falso y sin red. La recomendación la genera el servidor.
+            from entrenador import motor
+            actual = motor.generar(cn)["recomendaciones"][0]
+            ctx_actual = coach_llm.contexto(cn, actual)
+            cita_actual = next((a["id"] for a in ctx_actual["afirmaciones"] if a["id"].startswith("AF-")), "")
+            endpoint_valida = {"explicacion": "La recomendacion actual usa solo el contexto del servidor.",
+                               "citas": [cita_actual], "cifras": [], "avisos": [], "confianza": "media"}
+            os.environ["COACH_MAX_LLAMADAS_MINUTO"] = "100"
+            fake_http = coach_llm.ProveedorFalso(json.dumps(endpoint_valida, ensure_ascii=False))
+            base = servidor._Base(ruta, ".", regenerar=False, coach=fake_http)
             httpd = servidor.ThreadingHTTPServer(("127.0.0.1", 0), servidor._handler(base))
             hilo = threading.Thread(target=httpd.serve_forever, daemon=True)
             hilo.start()
             try:
                 puerto = httpd.server_address[1]
                 pet = urllib.request.Request(f"http://127.0.0.1:{puerto}/coach",
-                                             data=json.dumps({"recomendacion": rec}).encode(),
+                                             data=json.dumps({"recomendacion": actual}).encode(),
                                              headers={"Content-Type": "application/json"}, method="POST")
                 with urllib.request.urlopen(pet, timeout=20) as resp:
                     salida = json.loads(resp.read().decode())
                 comprobar("F8-05: endpoint /coach con proveedor falso",
                           resp.status == 200 and salida.get("fuente") == "llm", str(salida))
+                # Contexto forjado: el servidor usa la salida actual, no el texto del cliente.
+                forjada = dict(actual, explicacion="La mejora es 999 segundos.", problema=actual.get("problema"))
+                pet_forj = urllib.request.Request(f"http://127.0.0.1:{puerto}/coach",
+                                                  data=json.dumps({"recomendacion": forjada}).encode(),
+                                                  headers={"Content-Type": "application/json"}, method="POST")
+                with urllib.request.urlopen(pet_forj, timeout=20) as resp_f:
+                    salida_f = json.loads(resp_f.read().decode())
+                comprobar("F8-R-02: preview forjada no mete 999 en el contexto",
+                          resp_f.status == 200 and "999" not in fake_http.llamadas[-1][1]
+                          and salida_f.get("explicacion"), str(salida_f)[:120])
+                # JSON no objeto -> 400.
+                estados = []
+                for cuerpo in ("[]", '"texto"', "123"):
+                    pet_n = urllib.request.Request(f"http://127.0.0.1:{puerto}/coach", data=cuerpo.encode(),
+                                                   headers={"Content-Type": "application/json"}, method="POST")
+                    try:
+                        urllib.request.urlopen(pet_n, timeout=20)
+                        estados.append(200)
+                    except urllib.error.HTTPError as exc:
+                        estados.append(exc.code)
+                comprobar("F8-R-03: cuerpos no-objeto -> 400", estados == [400, 400, 400], str(estados))
             finally:
                 httpd.shutdown(); httpd.server_close()
+
+            # Rate limit local: 1 llamada/minuto -> segunda 429.
+            os.environ["COACH_MAX_LLAMADAS_MINUTO"] = "1"
+            fake_rl = coach_llm.ProveedorFalso(json.dumps(endpoint_valida, ensure_ascii=False))
+            base_rl = servidor._Base(ruta, ".", regenerar=False, coach=fake_rl)
+            httpd_rl = servidor.ThreadingHTTPServer(("127.0.0.1", 0), servidor._handler(base_rl))
+            threading.Thread(target=httpd_rl.serve_forever, daemon=True).start()
+            try:
+                puerto_rl = httpd_rl.server_address[1]
+                estados = []
+                for _ in range(2):
+                    pet_rl = urllib.request.Request(f"http://127.0.0.1:{puerto_rl}/coach",
+                                                    data=json.dumps({"recomendacion": actual}).encode(),
+                                                    headers={"Content-Type": "application/json"}, method="POST")
+                    try:
+                        with urllib.request.urlopen(pet_rl, timeout=20) as resp_rl:
+                            estados.append(resp_rl.status)
+                    except urllib.error.HTTPError as exc:
+                        estados.append(exc.code)
+                comprobar("F8-R-05: rate-limit local -> 429", estados == [200, 429], str(estados))
+            finally:
+                httpd_rl.shutdown(); httpd_rl.server_close()
+            os.environ.pop("COACH_MAX_LLAMADAS_MINUTO", None)
 
             # Endpoint apagado: 403.
             base_off = servidor._Base(ruta, ".", regenerar=False)
