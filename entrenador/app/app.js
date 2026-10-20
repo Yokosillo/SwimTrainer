@@ -3128,8 +3128,10 @@ function pintarPrioridad() {
       "<p>" + esc(r.estado && r.estado.pct !== undefined ? "En la ventana hay " + r.estado.metros_actuales
         + " m y el minimo es " + (r.estado.metros_minimos == null ? "—" : r.estado.metros_minimos) + " m."
         : "Dato de la prioridad: " + (r.estado && r.estado.clase || "sin_datos")) + "</p>"
-      + "<p>Evidencia: " + esc((r.evidencia || []).join(", ") || "criterio") + "</p>"
-      + "<p>Parametros: " + esc((r.parametros || []).join(", ") || "—") + "</p>")
+      + "<p>Evidencia: " + ((r.evidencia || []).map((id) => "<button type='button' class='chip pinza' data-conocimiento='"
+        + esc(id) + "'>" + esc(id) + "</button>").join(" ") || "criterio") + "</p>"
+      + "<p>Parametros: " + ((r.parametros || []).map((id) => "<button type='button' class='chip pinza' data-conocimiento='"
+        + esc(id) + "'>" + esc(id) + "</button>").join(" ") || "—") + "</p>")
     + detalles("Como se mide", "<p>" + esc((r.metrica_exito || {}).criterio || "—") + " · medir el "
       + esc((r.metrica_exito || {}).medir_en || "—") + ". Revision: " + esc(r.revisar_en || "—") + ".</p>")
     + detalles("Riesgo y alternativa", "<p>Riesgo: " + esc(o.riesgo_etiqueta || "—") + ".</p>"
@@ -3158,20 +3160,29 @@ function pintarCambio() {
 }
 
 function pintarConocimiento() {
-  const caja = q("conocimientoLista");
+  const caja = q("conocimientoF7Lista");
   if (!caja) return;
   const fuentes = DATOS.conocimiento_fuentes || [], af = DATOS.conocimiento_afirmaciones || [];
   const pa = DATOS.conocimiento_parametros || [], reglas = DATOS.conocimiento_reglas || [];
   const tab = (cols, filas) => tablaHTML(cols.map((n) => ({ n })), filas, { compacta: true });
+  const enlace = (id) => "<button type='button' class='chip pinza' data-conocimiento='" + esc(id) + "'>"
+    + esc(id) + "</button>";
   caja.innerHTML = "<p class='mini-txt'>Version " + esc(DATOS.conocimiento_version || "—")
     + " · " + fuentes.length + " fuentes · " + af.length + " afirmaciones · " + pa.length
     + " parametros · " + reglas.length + " reglas.</p>"
     + "<details class='f7-detalle'><summary>Fuentes (" + fuentes.length + ")</summary>"
-    + tab(["ID", "Titulo", "Tipo"], fuentes.map((x) => [esc(x.id), esc(x.titulo), esc(x.tipo)]))
+    + tab(["ID", "Titulo", "URL / cita"], fuentes.map((x) => [
+      esc(x.id), esc(x.titulo),
+      (x.url ? "<a href='" + esc(x.url) + "' target='_blank' rel='noopener'>" + esc(x.url) + "</a>" : "")
+      + (x.cita ? "<br><span class='mini-txt gris'>" + esc(x.cita) + "</span>" : "")
+      + ((x.citas || []).length > 1 ? "<br><span class='mini-txt gris'>citas: "
+        + esc((x.citas || []).join(" · ")) + "</span>" : "")]))
     + "</details>"
     + "<details class='f7-detalle'><summary>Afirmaciones (" + af.length + ")</summary>"
-    + tab(["ID", "Texto", "Estado", "Procedencia"],
-          af.map((x) => [esc(x.id), esc(x.texto), esc(x.estado), esc(x.procedencia)]))
+    + tab(["ID", "Texto", "FU", "Estado"],
+          af.map((x) => [esc(x.id), esc(x.texto),
+                         (x.fuentes || []).map(enlace).join(" ") || "—",
+                         esc(x.estado) + " · " + esc(x.procedencia || "")]))
     + "</details>"
     + "<details class='f7-detalle'><summary>Parametros (" + pa.length + ")</summary>"
     + tab(["ID", "Nombre", "Valor", "Firma"],
@@ -3179,11 +3190,33 @@ function pintarConocimiento() {
                          esc(x.firmado_por || "pendiente")]))
     + "</details>"
     + "<details class='f7-detalle'><summary>Reglas (" + reglas.length + ")</summary>"
-    + tab(["ID", "Enunciado", "Grado", "Firma"],
-          reglas.map((x) => [esc(x.id), esc(x.enunciado), esc(x.grado),
-                             esc(x.estado || "revisada")]))
+    + tab(["ID", "Enunciado", "Evidencia", "Parametros", "Grado"],
+          reglas.map((x) => [esc(x.id), esc(x.enunciado),
+                             (x.evidencia || []).map(enlace).join(" ") || "—",
+                             (x.parametros || []).map(enlace).join(" ") || "—",
+                             esc(x.grado) + " · " + esc(x.estado || "revisada")]))
     + "</details>";
 }
+
+function abrirConocimiento(id) {
+  const caja = q("conocimientoExplorador");
+  if (!caja) return;
+  caja.open = true;
+  if (caja.scrollIntoView) caja.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function montarConocimiento() {
+  document.addEventListener("click", (ev) => {
+    const b = ev.target && ev.target.closest ? ev.target.closest("[data-conocimiento]") : null;
+    if (b) abrirConocimiento(b.dataset.conocimiento);
+  });
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key !== "Enter" && ev.key !== " ") return;
+    const b = ev.target && ev.target.closest ? ev.target.closest("[data-conocimiento]") : null;
+    if (b) { ev.preventDefault(); abrirConocimiento(b.dataset.conocimiento); }
+  });
+}
+
 
 function pintarHistorialF7() {
   const caja = q("historialRecomendaciones");
@@ -3531,6 +3564,7 @@ function arrancar() {
   pintarPrioridad();
   pintarCambio();
   pintarConocimiento();
+  montarConocimiento();
   pintarHistorialF7();
   pintarPreparacion();
   pintarVolumen();

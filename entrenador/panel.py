@@ -110,7 +110,7 @@ def _conocimiento_panel() -> dict:
 
 
 def _cambio(cn, motor_data: dict) -> dict:
-    """Compara la prioridad actual con la última recomendación v2 persistida; si no hay, no inventa."""
+    """Compara prioridad, opción, título y fecha con la última v2 persistida; no inventa."""
     if not motor_data.get("activo") or not motor_data.get("primera"):
         return {"hay": False, "texto": "sin histórico"}
     fila = cn.execute("SELECT * FROM recomendacion WHERE origen = 'motor_v2' ORDER BY id DESC LIMIT 1").fetchone()
@@ -118,15 +118,29 @@ def _cambio(cn, motor_data: dict) -> dict:
         return {"hay": False, "texto": "sin histórico"}
     antes = dict(fila)
     ahora = motor_data["primera"]
-    cambio = (antes.get("titulo") or "") != (ahora.get("problema") or "")
-    return {"hay": True, "cambio": cambio,
+    elegida_ahora = (motor_data.get("elegida") or {}).get("id")
+    comparacion = {
+        "titulo": (antes.get("titulo") or "") != (ahora.get("problema") or ""),
+        "prioridad": int(antes.get("prioridad") or 0) != int(ahora.get("prioridad") or 0),
+        "elegida": (antes.get("elegida") or "") != (elegida_ahora or ""),
+        "fecha": (antes.get("fecha") or "") != (motor_data.get("fecha") or ""),
+    }
+    partes = []
+    if comparacion["titulo"]:
+        partes.append(f"título: {antes.get('titulo') or '—'} → {ahora.get('problema') or '—'}")
+    if comparacion["prioridad"]:
+        partes.append(f"prioridad: P{antes.get('prioridad') or '—'} → P{ahora.get('prioridad') or '—'}")
+    if comparacion["elegida"]:
+        partes.append(f"opción: {antes.get('elegida') or '—'} → {elegida_ahora or '—'}")
+    if comparacion["fecha"]:
+        partes.append(f"fecha: {antes.get('fecha') or '—'} → {motor_data.get('fecha') or '—'}")
+    cambio = any(comparacion.values())
+    return {"hay": True, "cambio": cambio, "comparacion": comparacion,
             "antes": {"titulo": antes.get("titulo"), "fecha": antes.get("fecha"),
                       "elegida": antes.get("elegida"), "prioridad": antes.get("prioridad")},
             "despues": {"titulo": ahora.get("problema"), "fecha": motor_data.get("fecha"),
-                        "elegida": (motor_data.get("elegida") or {}).get("id"),
-                        "prioridad": ahora.get("prioridad")},
-            "texto": ("Sin cambios en la prioridad" if not cambio else
-                      f"Antes: {antes.get('titulo')} · Ahora: {ahora.get('problema')}")}
+                        "elegida": elegida_ahora, "prioridad": ahora.get("prioridad")},
+            "texto": ("; ".join(partes) if partes else "Sin cambios en prioridad, opción, título ni fecha")}
 
 
 def datos_panel(cn) -> dict:
