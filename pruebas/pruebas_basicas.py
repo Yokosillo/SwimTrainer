@@ -4082,6 +4082,7 @@ def pruebas_estado_f4() -> None:
 def pruebas_motor_f5() -> None:
     """F5: prioridades, opciones, restricciones, scoring, seguridad, persistencia y dual."""
     print("\nF5. Motor de decision v2")
+    import copy as _copy
     import os as _os
     from dataclasses import replace
     from entrenador import db, estado, motor
@@ -4115,6 +4116,10 @@ def pruebas_motor_f5() -> None:
         comprobar("F5-02: exactamente una opcion recomendada por prioridad",
                   all(sum(1 for o in r["opciones"] if o.get("recomendada")) == 1
                       for r in salida["recomendaciones"]))
+        minimas = [o for r in salida["recomendaciones"] for o in r["opciones"] if o["tipo"] == "minima"]
+        comprobar("F5-R-01: la minima es una version reducida de la misma receta",
+                  all(o["receta"] == o["receta_base"] and "minima" in o["sesion"] for o in minimas),
+                  str([(o["receta"], o["receta_base"], o["sesion"][:30]) for o in minimas]))
         comprobar("F5-04: score = efecto*confianza - riesgo - coste (con pesos)",
                   all(abs(o["score"] - round((o["efecto"] * salida["pesos"]["efecto"])
                                              * (o["confianza"] * salida["pesos"]["confianza"])
@@ -4124,6 +4129,25 @@ def pruebas_motor_f5() -> None:
         comprobar("F5-04: ninguna recomendada esta descartada",
                   all(not next(o for o in r["opciones"] if o["recomendada"])["descartada"]
                       for r in salida["recomendaciones"]))
+        dias_rec = [next(o for o in r["opciones"] if o["recomendada"]).get("dia")
+                    for r in salida["recomendaciones"]]
+        dias_rec = [d for d in dias_rec if d]
+        comprobar("F5-R-04: las prioridades recomendadas no comparten dia",
+                  len(dias_rec) == len(set(dias_rec)), str(dias_rec))
+        malo = _copy.deepcopy(salida["recomendaciones"][0])
+        malo["estado_id"] = ""
+        malo["opciones"][0]["sesion"] = ""
+        malo["opciones"][0]["porque"] = ""
+        comprobar("F5-R-02: rechaza campos obligatorios vacios",
+                  bool(motor.validar_recomendacion(malo)))
+        malo2 = _copy.deepcopy(salida["recomendaciones"][0])
+        for o in malo2["opciones"]:
+            o["recomendada"] = False
+        no_recomendada = next(o for o in malo2["opciones"] if not o["descartada"] and o["id"] !=
+                              next(x for x in malo2["opciones"] if x["id"] == "A")["id"])
+        no_recomendada["recomendada"] = True
+        comprobar("F5-R-02: rechaza una recomendada que no es la de mayor score",
+                  any("mayor score" in e for e in motor.validar_recomendacion(malo2)))
         comprobar("F5-05: explicacion determinista y sin cifras inventadas",
                   all("999" not in r["explicacion"] and "Que veo:" in r["explicacion"]
                       and "Revision:" in r["explicacion"] for r in salida["recomendaciones"]))
@@ -4190,6 +4214,9 @@ def pruebas_motor_f5() -> None:
         comprobar("F5-06: guarda todas las opciones, no solo la elegida",
                   cn.execute("SELECT COUNT(*) FROM recomendacion_opcion").fetchone()[0]
                   == sum(len(r["opciones"]) for r in salida["recomendaciones"]))
+        comprobar("F5-R-03: guarda reglas/evidencia con su papel",
+                  cn.execute("SELECT COUNT(*) FROM recomendacion_regla").fetchone()[0] > 0
+                  and cn.execute("SELECT COUNT(*) FROM recomendacion_regla WHERE papel IN ('motiva','limita','avisa','evidencia')").fetchone()[0] > 0)
         comprobar("F5-06: la verificacion queda preparada para F6",
                   {"resultado", "delta", "confianza", "aprendizaje"}
                   <= {r[1] for r in cn.execute("PRAGMA table_info(verificacion)")})
@@ -4204,6 +4231,9 @@ def pruebas_motor_f5() -> None:
                   and os.path.isfile(dual["ruta"]), f"{antes}->{despues} {dual.get('ruta')}")
         comprobar("F5-07: dual deja diferencias auditables",
                   "v1_sesiones" in dual["diferencias"] and "v2_opciones" in dual["diferencias"])
+        comprobar("F5-R-05: dual clasifica mejora/equivalente/regresion/error",
+                  set(dual["clasificacion"]) == {"mejora", "equivalente", "regresion", "error"},
+                  str(dual["clasificacion"]))
 
         # Flag: v1 por defecto; el comando explicito usa v2.
         viejo = _os.environ.pop("MOTOR_RECOMENDACION", None)

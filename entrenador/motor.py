@@ -57,6 +57,12 @@ PARAMETROS = {
     "descarga": ["PA-106"],
 }
 
+MOTIVA = {
+    "ritmo_prueba": "R2", "velocidad_resistencia": "R2", "series_medias": "R1",
+    "series_largas": "R4", "continuo_sostenido": "R1b", "continuo_aerobico": "R1",
+    "afinar": "R7", "descarga": "R5", "pies": "R8",
+}
+
 
 def _texto(v) -> str:
     return "" if v is None else str(v).strip()
@@ -188,12 +194,32 @@ def _alternativa(clave: str) -> str:
 
 
 def _minima(clave: str) -> str:
-    # Las recetas existentes se ordenan por metros; no se inventa una sesion nueva.
-    candidatas = [(k, int(v.get("metros") or 10**9)) for k, v in estimulos.RECETAS.items()
-                  if k not in (clave, "afinar")]
-    if not candidatas:
-        return "descarga"
-    return min(candidatas, key=lambda x: (x[1], x[0]))[0]
+    """Compatibilidad: la clave base de la receta mínima (que ahora es la misma receta)."""
+    return clave
+
+
+def receta_minima(clave: str, objetivo: float) -> dict:
+    """Versión reducida de la MISMA receta: mismos estímulo y clave, menos dosis.
+
+    No se cambia a otra clase (un 8x50 de velocidad no es el mínimo de un continuo): se reduce la
+    serie principal de la receta base y se declara `variante="minima"`.
+    """
+    base = _receta(clave, objetivo)
+    if not base:
+        return {}
+    r = estimulos.RECETAS.get(base.get("clave") or clave) or {}
+    reps = int(r.get("reps") or 1)
+    metros = int(base.get("metros") or 0)
+    dist = int(r.get("dist_m") or 0)
+    if reps > 1:
+        reps_min = max(1, reps // 2)
+        metros_min = max(600, int(round(metros * 0.60)))
+        detalle = f"{reps_min}x{dist} m (mitad de la serie principal de {base['nombre']})"
+    else:
+        metros_min = max(600, int(round(metros * 0.55)))
+        detalle = f"{metros_min} m continuos (version reducida de {base['nombre']})"
+    return {**base, "sesion": f"{base['nombre']} (minima): {detalle}",
+            "metros": metros_min, "variante": "minima", "receta_base": base.get("clave") or clave}
 
 
 def _opcion(opcion_id: str, receta: dict, dia: str | None, tipo: str, *,
@@ -214,8 +240,14 @@ def _opcion(opcion_id: str, receta: dict, dia: str | None, tipo: str, *,
         "coste": coste, "coste_etiqueta": coste_label,
         "porque": porque, "score": score,
         "descartada": bool(descartada), "motivo_descarte": motivo,
-        "receta": receta.get("clave") or "",
+        "receta": receta.get("clave") or "", "variante": receta.get("variante") or "",
+        "receta_base": receta.get("receta_base") or receta.get("clave") or "",
     }
+
+
+def _clave_opcion(o: dict) -> tuple:
+    return (-float(o.get("score") or 0), float(o.get("riesgo") or 99),
+            float(o.get("coste") or 99), str(o.get("id")))
 
 
 def _elegir(opciones: list[dict]) -> dict:
@@ -224,40 +256,39 @@ def _elegir(opciones: list[dict]) -> dict:
         validas = [o for o in opciones if o.get("tipo") == "mantener"]
     if not validas:
         raise ValueError("no hay ninguna opcion valida")
-    validas = sorted(validas, key=lambda o: (-float(o.get("score") or 0),
-                                             float(o.get("riesgo") or 99),
-                                             float(o.get("coste") or 99),
-                                             str(o.get("id"))))
+    validas = sorted(validas, key=_clave_opcion)
     for o in opciones:
         o["recomendada"] = o is validas[0]
     return validas[0]
 
 
-def _dias_libres(fecha: str, tests, ocupados, cargados) -> list[str]:
+def _dias_libres(fecha: str, tests, ocupados, cargados, usados_global=()) -> list[str]:
     tests = set(tests or ())
     ocupados = set(ocupados or ())
     cargados = set(cargados or ())
+    usados_global = set(usados_global or ())
     entrenador = set(planificador.DIAS_ENTRENADOR)
     bici = planificador.DIA_BICI
     vetados = {planificador.DIAS[(planificador.DIAS.index(t) - 1) % 7] for t in tests} - tests
     fuera = []
     for d in planificador.DIAS_PROPIOS:
-        if d in entrenador or d == bici or d in tests or d in vetados or d in ocupados or d in cargados:
+        if (d in entrenador or d == bici or d in tests or d in vetados or d in ocupados
+                or d in cargados or d in usados_global):
             continue
         fuera.append(d)
     return fuera
 
 
 def _opciones_prioridad(deficit: dict, fecha: str, tests, ocupados, cargados, objetivo: float,
-                        pesos: dict) -> tuple[list[dict], list[dict]]:
+                        pesos: dict, dias_globales=()) -> tuple[list[dict], list[dict]]:
     clase = _texto(deficit.get("id"))
     base_clave = _texto(deficit.get("receta")) or clase
     base = _receta(base_clave, objetivo)
     if not base:
         base = _receta("series_medias", objetivo)
     alt = _receta(_alternativa(base.get("clave") or clase), objetivo)
-    mini = _receta(_minima(base.get("clave") or clase), objetivo)
-    dias = _dias_libres(fecha, tests, ocupados, cargados)
+    mini = receta_minima(base.get("clave") or clase, objetivo)
+    dias = _dias_libres(fecha, tests, ocupados, cargados, dias_globales)
     usados: set[str] = set()
 
     def dame(preferido: str | None) -> str | None:
@@ -308,9 +339,10 @@ def _opciones_prioridad(deficit: dict, fecha: str, tests, ocupados, cargados, ob
 
 
 def _recomendacion(prioridad: int, deficit: dict, e: estado.EstadoAtleta, fecha: str, semana: str | None,
-                   tests, ocupados, cargados, objetivo: float, pesos: dict) -> dict:
+                   tests, ocupados, cargados, objetivo: float, pesos: dict, dias_globales=()) -> dict:
     clase = _texto(deficit.get("id"))
-    opciones, restricciones = _opciones_prioridad(deficit, fecha, tests, ocupados, cargados, objetivo, pesos)
+    opciones, restricciones = _opciones_prioridad(deficit, fecha, tests, ocupados, cargados, objetivo,
+                                                  pesos, dias_globales)
     elegida = next(o for o in opciones if o.get("recomendada"))
     alternativa = next((o for o in opciones if o is not elegida and not o.get("descartada")), None)
     contra = []
@@ -387,7 +419,9 @@ def _sin_datos(e: estado.EstadoAtleta, fecha: str, semana: str | None, pesos: di
                         "decir que falta. Que propongo: no prescribir. Como lo medimos: que haya parte/series en la "
                         "ventana. Riesgo: bajo; alternativa: mantener. Revision: " + _fecha_mas(fecha, 7) + "."),
         "confianza": 0.9, "restricciones": [{"tipo": "sin_datos", "descripcion": "faltan datos en la ventana",
-                                              "fuente": "estado"}], "pesos": dict(pesos), "datos": [],
+                                              "fuente": "estado"}], "pesos": dict(pesos),
+        "datos": [{"fuente": "estado", "ref": "ventana", "valor": "sin datos",
+                   "nota": "no hay series/partes en la ventana para sostener una sesion"}],
     }
 
 
@@ -416,7 +450,9 @@ def _derivar(e: estado.EstadoAtleta, fecha: str, semana: str | None, pesos: dict
                         "sesion prescrita. Riesgo: alto si se fuerza; alternativa: no prescribir carga. Revision: "
                         + _fecha_mas(fecha, 7) + "."),
         "confianza": 0.95, "restricciones": [{"tipo": "dolor_lesion", "descripcion": "dolor o lesion declarada",
-                                               "fuente": "estado"}], "pesos": dict(pesos), "datos": [],
+                                               "fuente": "estado"}], "pesos": dict(pesos),
+        "datos": [{"fuente": "estado", "ref": "dolor_lesion", "valor": "si",
+                   "nota": "dolor/lesion declarada: seguridad antes que entrenamiento (T.7)"}],
     }
 
 
@@ -442,7 +478,9 @@ def _mantener(e: estado.EstadoAtleta, fecha: str, semana: str | None, pesos: dic
         "explicacion": ("Que veo: no hay un deficit que exija cambiar la semana. Por que importa: no se anade carga "
                         "sin motivo. Que propongo: mantener. Como lo medimos: mantener el volumen. Riesgo: bajo; "
                         "alternativa: descarga. Revision: " + _fecha_mas(fecha, 7) + "."),
-        "confianza": 0.9, "restricciones": [], "pesos": dict(pesos), "datos": [],
+        "confianza": 0.9, "restricciones": [], "pesos": dict(pesos),
+        "datos": [{"fuente": "estado", "ref": "deficits", "valor": "ninguno",
+                   "nota": "no hay un deficit que exija cambiar la semana"}],
     }
 
 
@@ -484,9 +522,15 @@ def generar(cn: sqlite3.Connection, fecha: str | None = None, semana: str | None
         elif not deficits:
             recs = [_mantener(e, fecha, semana, pesos)]
         else:
-            recs = [_recomendacion(i, d, e, fecha, semana, tests, ocupados, cargados,
-                                   _objetivo_100(), pesos)
-                    for i, d in enumerate(deficits[:3], 1)]
+            recs = []
+            dias_usados: set[str] = set()
+            for i, d in enumerate(deficits[:3], 1):
+                rec = _recomendacion(i, d, e, fecha, semana, tests, ocupados, cargados,
+                                     _objetivo_100(), pesos, dias_usados)
+                recs.append(rec)
+                elegida = next(o for o in rec["opciones"] if o.get("recomendada"))
+                if elegida.get("dia"):
+                    dias_usados.add(elegida["dia"])
     restricciones_globales = []
     piscina_estado = _metrica_estado(e, "piscina_habitual")
     piscina_efectiva = piscina if piscina is not None else (
@@ -547,17 +591,24 @@ def dual(cn: sqlite3.Connection, fecha: str | None = None, semana: str | None = 
     a = v1(cn, fecha, semana, deficits=deficits, estado_obj=estado_obj, tests=tests, cargados=cargados)
     b = generar(cn, fecha, semana, deficits=deficits, estado_obj=estado_obj, tests=tests, cargados=cargados)
     v1_pares = {(x.get("dia"), x.get("clase")) for x in a.get("recomendaciones") or []}
-    v2_pares = {(p.get("estado", {}).get("clase"), None) for p in b.get("recomendaciones") or []}
-    v2_clases = {p.get("estado", {}).get("clase") for p in b.get("recomendaciones") or []}
+    v1_clases = {x.get("clase") for x in a.get("recomendaciones") or [] if x.get("clase")}
+    v2_clases = {p.get("estado", {}).get("clase") for p in b.get("recomendaciones") or []
+                 if p.get("estado", {}).get("clase")}
+    clasificacion = {"mejora": sorted(v2_clases - v1_clases),
+                     "equivalente": sorted(v2_clases & v1_clases),
+                     "regresion": sorted(v1_clases - v2_clases),
+                     "error": []}
     dif = {"v1_sesiones": len(a.get("recomendaciones") or []),
            "v2_prioridades": len(b.get("recomendaciones") or []),
            "v2_opciones": sum(len(p.get("opciones") or []) for p in b.get("recomendaciones") or []),
-           "solo_v1": sorted(str(x) for x in v1_pares - v2_pares),
-           "solo_v2": sorted(c for c in v2_clases if c and c not in {x[1] for x in v1_pares}),
+           "solo_v1": sorted(str(x) for x in v1_pares if x not in {(y.get("estado", {}).get("clase"), None)
+                                                                    for y in b.get("recomendaciones") or []}),
+           "solo_v2": clasificacion["mejora"],
+           "clasificacion": clasificacion,
            "n": 0}
     dif["n"] = len(dif["solo_v1"]) + len(dif["solo_v2"])
-    salida = {"fecha": fecha, "semana": b.get("semana"), "v1": a, "v2": b, "diferencias": dif,
-              "formula_score": FORMULA_SCORE}
+    salida = {"fecha": fecha, "semana": b.get("semana"), "v1": a, "v2": b,
+              "clasificacion": clasificacion, "diferencias": dif, "formula_score": FORMULA_SCORE}
     destino = carpeta or os.path.join("data", "derived", "recomendacion")
     os.makedirs(destino, exist_ok=True)
     ruta = os.path.join(destino, f"dual_{fecha}.json")
@@ -592,6 +643,13 @@ def validar_recomendacion(r: dict) -> list[str]:
             errores.append(f"falta {k}")
     if r.get("ambito") not in ("sesion", "semana", "bloque"):
         errores.append("ambito invalido")
+    for k in ("fecha", "knowledge_version", "estado_id", "problema", "revisar_en", "explicacion"):
+        if not str(r.get(k) or "").strip():
+            errores.append(f"{k} no puede estar vacio")
+    if r.get("id") is None or not str(r.get("id")).strip():
+        errores.append("id no puede estar vacio")
+    if not isinstance(r.get("estado"), dict) or not r.get("estado"):
+        errores.append("estado debe ser un objeto con datos")
     if not isinstance(r.get("prioridad"), int) or not 1 <= r["prioridad"] <= 3:
         errores.append("prioridad debe ser 1-3")
     opciones = r.get("opciones")
@@ -612,6 +670,9 @@ def validar_recomendacion(r: dict) -> list[str]:
                   "riesgo", "coste", "porque"):
             if k not in o:
                 errores.append(f"opcion {o.get('id')}: falta {k}")
+        for k in ("id", "sesion", "porque"):
+            if not str(o.get(k) or "").strip():
+                errores.append(f"opcion {o.get('id')}: {k} no puede estar vacio")
         if not isinstance(o.get("metros"), (int, float)) or o.get("metros") < 0:
             errores.append(f"opcion {o.get('id')}: metros invalido")
         if not isinstance(o.get("confianza"), (int, float)) or not 0 <= o["confianza"] <= 1:
@@ -619,6 +680,15 @@ def validar_recomendacion(r: dict) -> list[str]:
         for k in ("efecto", "riesgo", "coste", "score"):
             if not isinstance(o.get(k), (int, float)):
                 errores.append(f"opcion {o.get('id')}: {k} no numerico")
+    validas = [o for o in opciones if isinstance(o, dict) and not o.get("descartada")]
+    if recomendadas:
+        elegida = recomendadas[0]
+        if elegida.get("descartada"):
+            errores.append("la opcion recomendada no puede estar descartada")
+        if validas:
+            mejor = min(validas, key=_clave_opcion)
+            if _clave_opcion(elegida) != _clave_opcion(mejor):
+                errores.append("la opcion recomendada no es la de mayor score entre las validas")
     if not isinstance(r.get("evidencia"), list) or not r.get("evidencia"):
         errores.append("evidencia debe ser una lista con al menos un ID")
     if not isinstance(r.get("parametros"), list):
@@ -626,7 +696,8 @@ def validar_recomendacion(r: dict) -> list[str]:
     if not isinstance(r.get("contraindicaciones"), list):
         errores.append("contraindicaciones debe ser lista")
     met = r.get("metrica_exito")
-    if not isinstance(met, dict) or not met.get("tipo") or not met.get("criterio") or not met.get("medir_en"):
+    if not isinstance(met, dict) or any(not str(met.get(k) or "").strip()
+                                        for k in ("tipo", "criterio", "medir_en")):
         errores.append("metrica_exito incompleta")
     if not isinstance(r.get("explicacion"), str) or not r["explicacion"].strip():
         errores.append("explicacion vacia")
@@ -675,6 +746,20 @@ def guardar(cn: sqlite3.Connection, salida: dict) -> list[int]:
                 (rid, o["id"], 1 if o.get("recomendada") else 0, json.dumps(o, ensure_ascii=False, sort_keys=True),
                  o.get("efecto_esperado"), o.get("confianza"), o.get("riesgo_etiqueta"), o.get("coste_etiqueta"),
                  o.get("porque"), o.get("score"), 1 if o.get("descartada") else 0, o.get("motivo_descarte")))
+        reglas = {}
+        clase = (r.get("estado") or {}).get("clase")
+        if clase in MOTIVA:
+            reglas[MOTIVA[clase]] = "motiva"
+        for ev in r.get("evidencia") or []:
+            reglas.setdefault(str(ev), "evidencia")
+        reglas.setdefault("R6", "limita")
+        if any(x.get("tipo") == "prueba" for x in r.get("restricciones") or []):
+            reglas["R7"] = "avisa"
+        if any(x.get("tipo") == "material" for x in r.get("restricciones") or []):
+            reglas["R8"] = "avisa"
+        for regla_id, papel in reglas.items():
+            cn.execute("INSERT OR REPLACE INTO recomendacion_regla (recomendacion_id, regla_id, papel) VALUES (?,?,?)",
+                       (rid, regla_id, papel))
     cn.commit()
     return ids
 
