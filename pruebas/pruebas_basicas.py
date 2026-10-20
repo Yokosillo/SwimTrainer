@@ -4289,20 +4289,32 @@ def pruebas_resultados_f6() -> None:
     deficits = [{"id": "ritmo_prueba", "titulo": "falta ritmo de prueba", "receta": "ritmo_prueba",
                  "porque": "hay 0 m y el minimo son 400 m", "metros_actuales": 0.0,
                  "metros_minimos": 400.0, "pct": 0.0, "grado": "historial", "seccion_T": ["T.1"]}]
+    deficits_sesion = [{"id": "series_medias", "titulo": "faltan series medias", "receta": "series_medias",
+                        "porque": "es lo que separa las buenas semanas", "metros_actuales": 0.0,
+                        "metros_minimos": 600.0, "pct": 0.0, "grado": "historial", "seccion_T": []}]
 
     with tempfile.TemporaryDirectory() as d:
         ruta = os.path.join(d, "resultados.db")
         cn = db.conectar(ruta)
         e = estado.calcular(cn, "2026-10-20")
 
-        def actividad(aid, fecha, dist=1700.0):
+        def actividad(aid, fecha, dist=1700.0, disciplina="natacion"):
             cn.execute("""INSERT INTO actividad (id, fichero, hash, fuente, disciplina, nombre, inicio_local,
                           duracion_s, distancia_m, importado_en) VALUES (?,?,?,?,?,?,?,?,?,?)""",
-                       (aid, f"a{aid}.fit", f"ha{aid}", "test", "natacion", f"sesion {aid}",
+                       (aid, f"a{aid}.fit", f"ha{aid}", "test", disciplina, f"sesion {aid}",
                         f"{fecha} 10:00:00", 1800.0, dist, "2026-10-20T00:00:00"))
-            cn.execute("""INSERT INTO natacion_sesion (actividad_id, largo_piscina_m, n_largos, n_largos_activos,
-                          n_laps, fc_media, fc_max) VALUES (?,?,?,?,?,?,?)""",
-                       (aid, 25.0, int(dist / 25), int(dist / 25), 1, 140.0, 180.0))
+            if disciplina == "natacion":
+                cn.execute("""INSERT INTO natacion_sesion (actividad_id, largo_piscina_m, n_largos, n_largos_activos,
+                              n_laps, fc_media, fc_max) VALUES (?,?,?,?,?,?,?)""",
+                           (aid, 25.0, int(dist / 25), int(dist / 25), 1, 140.0, 180.0))
+
+        def oficial(i, fecha, segundos, piscina=25):
+            cn.execute("""INSERT INTO competicion (fuente, clave, fecha, lugar, club, estilo, distancia_m,
+                          piscina_m, marca, segundos, ritmo_100, valida, tipo, importado_en)
+                          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                       ("test", f"c{i}", fecha, "test", "test", "libre", 400, piscina,
+                        f"{segundos // 60}:{segundos % 60:05.2f}", float(segundos),
+                        round(float(segundos) / 4.0, 2), 1, "prueba", "2026-10-20T00:00:00"))
 
         def parte(pid, fecha, ritmo, material=""):
             cn.execute("""INSERT INTO parte (id, clave, fecha, actividad_id, piscina_m, metros, minutos,
@@ -4331,6 +4343,8 @@ def pruebas_resultados_f6() -> None:
                    ((date.fromisoformat(fecha) - timedelta(days=3)).isoformat(), 7.0, 80, "test"))
         cn.execute("INSERT INTO sueno (fecha, horas, puntuacion, fuente) VALUES (?,?,?,?)",
                    ((date.fromisoformat(fecha) + timedelta(days=3)).isoformat(), 7.0, 80, "test"))
+        oficial(1, (date.fromisoformat(fecha) - timedelta(days=7)).isoformat(), 300)
+        oficial(2, (date.fromisoformat(fecha) + timedelta(days=7)).isoformat(), 298)
         cn.commit()
         from entrenador import decision
         decision.decidir(cn, rid1, "aceptada")
@@ -4340,17 +4354,55 @@ def pruebas_resultados_f6() -> None:
                   and resultados.enlazar(cn, rid1, actividad_id=1)["actividad_id"] == 1
                   and cn.execute("SELECT COUNT(*) FROM recomendacion_enlace").fetchone()[0] == 1)
         v1 = resultados.evaluar(cn, rid1)
-        comprobar("F6-03: antes/despues y delta con veredicto",
-                  v1["veredicto"] == "a_favor" and v1["antes"] == 80.0 and v1["despues"] == 78.0
-                  and v1["delta"] == -2.0, str(v1))
+        comprobar("F6-R-03: R2 se evalua con el 400 oficial",
+                  v1["veredicto"] == "a_favor" and v1["antes"] == 300.0 and v1["despues"] == 298.0
+                  and v1["delta"] == -2.0 and v1["metrica"].startswith("mejor 400"),
+                  str(v1))
+        comprobar("F6-R-04: n_antes/n_despues/ventana en el resultado",
+                  v1["n_antes"] == 1 and v1["n_despues"] == 1 and ".." in v1["ventana"], str(v1))
+        comprobar("F6-R-06: multi-regla -> una verificacion por regla",
+                  len(v1.get("verificaciones") or []) >= 2
+                  and {x["regla_id"] for x in v1["verificaciones"]} >= {"R2", "R6"},
+                  str([x["regla_id"] for x in v1.get("verificaciones") or []]))
         n_ver = cn.execute("SELECT COUNT(*) FROM verificacion WHERE recomendacion_id = ?", (rid1,)).fetchone()[0]
         resultados.evaluar(cn, rid1)
         comprobar("F6-03: evaluar es idempotente",
                   cn.execute("SELECT COUNT(*) FROM verificacion WHERE recomendacion_id = ?", (rid1,)).fetchone()[0] == n_ver)
+        # Enlace manual incorrecto: disciplina y fecha.
+        actividad(4, fecha, disciplina="ciclismo")
+        actividad(5, (date.fromisoformat(fecha) - timedelta(days=1)).isoformat())
+        mal_disc = mal_fecha = False
+        try:
+            resultados.enlazar(cn, rid1, actividad_id=4)
+        except ValueError:
+            mal_disc = True
+        try:
+            resultados.enlazar(cn, rid1, actividad_id=5)
+        except ValueError:
+            mal_fecha = True
+        comprobar("F6-R-01: rechaza enlace a ciclismo o fecha incorrecta",
+                  mal_disc and mal_fecha)
+        # Pool 25/50 en competicion: filtro y confounder.
+        oficial(3, (date.fromisoformat(fecha) - timedelta(days=7)).isoformat(), 310, piscina=50)
+        cn.commit()
+        v_pool = resultados.evaluar(cn, rid1)
+        comprobar("F6-R-05: 25/50 en competicion -> no_concluyente",
+                  v_pool["veredicto"] == "no_concluyente"
+                  and any(c["tipo"] == "piscina_competicion" for c in v_pool["confounders"]), str(v_pool))
+        cn.execute("DELETE FROM competicion WHERE piscina_m = 50")
+        cn.commit()
+        resultados.evaluar(cn, rid1)
+        # El manual no se pierde al evaluar todas.
+        resultados.enlazar(cn, rid1, actividad_id=1)
+        manual = resultados.enlace(cn, rid1)
+        resultados.evaluar_todas(cn)
+        comprobar("F6-R-02: evaluar_todas conserva el enlace manual",
+                  resultados.enlace(cn, rid1)["actividad_id"] == 1
+                  and resultados.enlace(cn, rid1)["metodo"] == "manual", str(manual))
 
         # Ambiguedad: dos sesiones el mismo dia no se eligen a ciegas.
         actividad(2, fecha)
-        s2 = motor.generar(cn, "2026-10-20", deficits=deficits, estado_obj=e)
+        s2 = motor.generar(cn, "2026-10-20", deficits=deficits_sesion, estado_obj=e)
         motor.guardar(cn, s2)
         rid2 = s2["recomendaciones"][0]["id"]
         enl2 = resultados.enlazar(cn, rid2)
@@ -4359,7 +4411,7 @@ def pruebas_resultados_f6() -> None:
 
         # Sin parte -> sin_datos.
         actividad(3, fecha)
-        s3 = motor.generar(cn, "2026-10-20", deficits=deficits, estado_obj=e)
+        s3 = motor.generar(cn, "2026-10-20", deficits=deficits_sesion, estado_obj=e)
         motor.guardar(cn, s3)
         rid3 = s3["recomendaciones"][0]["id"]
         decision.decidir(cn, rid3, "aceptada")
@@ -4368,7 +4420,7 @@ def pruebas_resultados_f6() -> None:
         comprobar("F6-03: sesion sin parte -> sin_datos", v3["veredicto"] == "sin_datos", str(v3))
 
         # Cambiada/ignorada no se evaluan como si se hubiera seguido.
-        s4 = motor.generar(cn, "2026-10-20", deficits=deficits, estado_obj=e)
+        s4 = motor.generar(cn, "2026-10-20", deficits=deficits_sesion, estado_obj=e)
         motor.guardar(cn, s4)
         rid4 = s4["recomendaciones"][0]["id"]
         decision.decidir(cn, rid4, "cambiada", motivo="trabajo")
@@ -4377,7 +4429,7 @@ def pruebas_resultados_f6() -> None:
         comprobar("F6-03: recomendacion cambiada -> sin_datos",
                   v4["veredicto"] == "sin_datos" and "cambiada" in v4["notas"], str(v4))
 
-        s5 = motor.generar(cn, "2026-10-20", deficits=deficits, estado_obj=e)
+        s5 = motor.generar(cn, "2026-10-20", deficits=deficits_sesion, estado_obj=e)
         motor.guardar(cn, s5)
         rid5 = s5["recomendaciones"][0]["id"]
         decision.decidir(cn, rid5, "ignorada")
@@ -4388,7 +4440,7 @@ def pruebas_resultados_f6() -> None:
         # Confounder de material: no se declara causalidad.
         cn.execute("UPDATE parte_serie SET material = 'palas' WHERE parte_id = 3")
         cn.commit()
-        s6 = motor.generar(cn, "2026-10-20", deficits=deficits, estado_obj=e)
+        s6 = motor.generar(cn, "2026-10-20", deficits=deficits_sesion, estado_obj=e)
         motor.guardar(cn, s6)
         rid6 = s6["recomendaciones"][0]["id"]
         decision.decidir(cn, rid6, "aceptada")
@@ -4399,9 +4451,12 @@ def pruebas_resultados_f6() -> None:
                   and any(c["tipo"] == "material" for c in v6["confounders"]), str(v6))
         comprobar("F6-02: catalogo R2 y metrica de sesion",
                   resultados.catalogo("R2")["tipo"] == "oficial_400"
-                  and resultados.catalogo("R1")["tipo"] == "ritmo_sesion")
+                  and resultados.catalogo("R2")["piscina_m"] == 25
+                  and resultados.catalogo("R1")["tipo"] == "ritmo_sesion"
+                  and resultados.metrica_de(cn, rid1)["tipo"] == "oficial_400")
         comprobar("F6-04: verificacion guarda delta/confianza/aprendizaje/confounders",
-                  {"resultado", "delta", "confianza", "aprendizaje", "confounders_json"}
+                  {"resultado", "delta", "confianza", "aprendizaje", "confounders_json",
+                   "n_antes", "n_despues", "ventana"}
                   <= {r[1] for r in cn.execute("PRAGMA table_info(verificacion)")})
 
         res = resultados.resumen(cn)
