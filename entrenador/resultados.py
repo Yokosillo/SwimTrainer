@@ -233,12 +233,14 @@ def metrica_para(cn: sqlite3.Connection, rid: int, regla_id: str) -> dict | None
     """
     m = _metrica_json(cn, rid)
     tipo = _texto(m.get("tipo")).lower()
-    if tipo == "sin_datos":
+    # Estas declaraciones NO son métricas de rendimiento: no se pueden convertir al catálogo.
+    if tipo in ("sin_datos", "seguridad", "datos", "adherencia"):
         return {"tipo": "sin_datos", "tabla": "", "campo": "", "ventana": 0, "mejor": "menor",
-                "umbral": 0, "descripcion": _texto(m.get("criterio")) or "la recomendacion declara sin_datos"}
-    if regla_id == "R2":
-        # R2 se mide siempre con el 400 oficial de 25 m, aunque la recomendación traiga un criterio
-        # de sesión genérico.
+                "umbral": 0,
+                "descripcion": _texto(m.get("criterio")) or f"la recomendacion declara {tipo}: no evaluable"}
+    # Solo R2 impone el 400 oficial cuando la métrica declarada es de rendimiento (o no hay
+    # declaración explícita).
+    if regla_id == "R2" and (not tipo or tipo in ("oficial_400", "ritmo_100", "ritmo_sesion")):
         return dict(CATALOGO["R2"])
     if tipo in ("oficial_400", "ritmo_100", "ritmo_sesion"):
         base = dict(CATALOGO["R2" if tipo == "oficial_400" else "R1"])

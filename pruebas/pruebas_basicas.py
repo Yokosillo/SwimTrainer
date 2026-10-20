@@ -4468,6 +4468,22 @@ def pruebas_resultados_f6() -> None:
                   v7["veredicto"] == "sin_datos"
                   and all(x["veredicto"] == "sin_datos" for x in v7["verificaciones"]), str(v7))
 
+        # Declaraciones no evaluables: no se convierten al catalogo de rendimiento, ni en R1 ni en R2.
+        for tipo_metrica in ("adherencia", "seguridad", "datos"):
+            for defs, etiqueta in ((deficits_sesion, "R1"), (deficits, "R2")):
+                sx = motor.generar(cn, "2026-10-20", deficits=defs, estado_obj=e)
+                motor.guardar(cn, sx)
+                ridx = sx["recomendaciones"][0]["id"]
+                cn.execute("UPDATE recomendacion SET metrica_exito_json = ? WHERE id = ?",
+                           (json.dumps({"tipo": tipo_metrica, "criterio": "no evaluable"}), ridx))
+                decision.decidir(cn, ridx, "aceptada")
+                resultados.enlazar(cn, ridx, actividad_id=1)
+                vx = resultados.evaluar(cn, ridx)
+                comprobar(f"F6-R-10: {etiqueta} con metrica {tipo_metrica} no se evalua como rendimiento",
+                          vx["veredicto"] == "sin_datos"
+                          and all(x["veredicto"] == "sin_datos" for x in vx["verificaciones"]),
+                          f"{tipo_metrica}/{etiqueta}: {vx['veredicto']}")
+
         # v1 con actividad_id y sin fecha_objetivo: se enlaza por la actividad.
         cur = cn.execute("""INSERT INTO recomendacion
                             (fecha, ambito, semana, actividad_id, titulo, cuerpo, origen, creada_en,
