@@ -30,8 +30,8 @@ from . import db, fuerza, plan, planificador, reglas
 # quedan en sin_datos con el motivo, no se inventa una consulta.
 CATALOGO = {
     "R2": {"tipo": "oficial_400", "tabla": "competicion", "campo": "segundos", "ventana": 28,
-           "mejor": "menor", "umbral": 1.0,
-           "descripcion": "mejor 400 libre oficial (menor es mejor)"},
+           "mejor": "menor", "umbral": 1.0, "piscina_m": 25,
+           "descripcion": "mejor 400 libre oficial de 25 m (menor es mejor)"},
     "R1": {"tipo": "ritmo_sesion", "tabla": "parte_serie", "campo": "ritmo_100", "ventana": 14,
            "mejor": "menor", "umbral": 0.5,
            "descripcion": "ritmo mediano de las series del parte (menor es mejor)"},
@@ -170,10 +170,18 @@ def enlazar(cn: sqlite3.Connection, rid: int, actividad_id: int | None = None) -
     if actividad_id is None and r.get("actividad_id"):
         actividad_id = int(r["actividad_id"])
     if actividad_id is not None:
-        a = cn.execute("SELECT id, inicio_local FROM actividad WHERE id = ?", (actividad_id,)).fetchone()
+        a = cn.execute("SELECT id, disciplina, inicio_local FROM actividad WHERE id = ?", (actividad_id,)).fetchone()
         if not a:
             raise ValueError(f"no existe la actividad {actividad_id}")
-        return _guardar_enlace(cn, rid, (a["inicio_local"] or "")[:10], metodo="manual", estado="enlazado",
+        if a["disciplina"] != "natacion":
+            raise ValueError(f"la actividad {actividad_id} no es de natacion ({a['disciplina']})")
+        objetivo = fecha_objetivo(cn, rid)
+        fecha_act = (a["inicio_local"] or "")[:10]
+        if not objetivo:
+            raise ValueError("la recomendacion no tiene fecha objetivo: no se puede validar el enlace")
+        if fecha_act != objetivo:
+            raise ValueError(f"la actividad {actividad_id} es del {fecha_act}, no del dia de la recomendacion ({objetivo})")
+        return _guardar_enlace(cn, rid, fecha_act, metodo="manual", estado="enlazado",
                                actividad_id=int(a["id"]), parte_id=_parte_de_actividad(cn, a["id"]),
                                confianza="alta", candidatos=[])
     fecha = fecha_objetivo(cn, rid)
@@ -211,6 +219,15 @@ def metrica_de(cn: sqlite3.Connection, rid: int) -> dict | None:
     r = _rec(cn, rid)
     if not r:
         return None
+    ids_reglas = reglas_de(cn, rid)
+    if "R2" in ids_reglas:
+        base = dict(CATALOGO["R2"])
+        try:
+            m = json.loads(r.get("metrica_exito_json") or "{}")
+            base["descripcion"] = _texto(m.get("criterio")) or base["descripcion"]
+        except (TypeError, ValueError):
+            pass
+        return base
     crudo = r.get("metrica_exito_json")
     try:
         m = json.loads(crudo or "{}") if isinstance(crudo, str) else (crudo or {})
@@ -224,20 +241,25 @@ def metrica_de(cn: sqlite3.Connection, rid: int) -> dict | None:
     if tipo in ("sin_datos", "seguridad", "datos", "adherencia"):
         return {"tipo": "sin_datos", "tabla": "", "campo": "", "ventana": 0, "mejor": "menor",
                 "umbral": 0, "descripcion": _texto(m.get("criterio")) or "sin metrica de rendimiento"}
-    for rid_regla in reglas_de(cn, rid):
+    for rid_regla in ids_reglas:
         if rid_regla in CATALOGO:
             return dict(CATALOGO[rid_regla])
     return None
 
 
-def _valor_ventana(cn: sqlite3.Connection, tipo: str, desde: str, hasta: str) -> tuple[float | None, int, dict]:
+def _valor_ventana(cn: sqlite3.Connection, tipo: str, desde: str, hasta: str,
+                   piscina: int | None = None) -> tuple[float | None, int, dict]:
     if tipo == "oficial_400":
-        filas = [float(f["segundos"]) for f in cn.execute(
-            """SELECT segundos FROM competicion WHERE estilo = 'libre' AND distancia_m = 400
-               AND valida = 1 AND segundos IS NOT NULL AND fecha BETWEEN ? AND ?""", (desde, hasta))]
+        sql = ("""SELECT segundos FROM competicion WHERE estilo = 'libre' AND distancia_m = 400
+                  AND valida = 1 AND segundos IS NOT NULL AND fecha BETWEEN ? AND ?""")
+        args = [desde, hasta]
+        if piscina is not None:
+            sql += " AND piscina_m = ?"
+            args.append(int(piscina))
+        filas = [float(f["segundos"]) for f in cn.execute(sql, args)]
         if not filas:
             return None, 0, {}
-        return round(min(filas), 2), len(filas), {"mejor": "menor"}
+        return round(min(filas), 2), len(filas), {"mejor": "menor", "piscina_m": piscina}
     if tipo == "ritmo_sesion":
         filas = [float(f["ritmo_100"]) for f in cn.execute(
             """SELECT ps.ritmo_100 FROM parte_serie ps JOIN parte p ON p.id = ps.parte_id
@@ -283,6 +305,12 @@ def _confounders(cn: sqlite3.Connection, fecha: str, tipo: str, enl: dict) -> li
         (a1, b2))]
     if len(set(piscinas)) > 1:
         fuera.append({"tipo": "piscina", "detalle": f"piscinas {sorted(set(piscinas))}"})
+    piscinas_comp = [r["piscina_m"] for r in cn.execute(
+        """SELECT DISTINCT piscina_m FROM competicion
+           WHERE estilo = 'libre' AND distancia_m = 400 AND valida = 1 AND fecha BETWEEN ? AND ?
+             AND piscina_m IS NOT NULL""", (a1, b2))]
+    if len(set(piscinas_comp)) > 1:
+        fuera.append({"tipo": "piscina_competicion", "detalle": f"piscinas oficiales {sorted(set(piscinas_comp))}"})
     sueno_a = [float(r["horas"]) for r in cn.execute("SELECT horas FROM sueno WHERE fecha BETWEEN ? AND ?", (a1, a2))
                if r["horas"] is not None]
     sueno_b = [float(r["horas"]) for r in cn.execute("SELECT horas FROM sueno WHERE fecha BETWEEN ? AND ?", (b1, b2))
@@ -307,75 +335,52 @@ def _confounders(cn: sqlite3.Connection, fecha: str, tipo: str, enl: dict) -> li
 
 def _guardar_verificacion(cn: sqlite3.Connection, rid: int, regla_id: str, fecha: str, *, metrica: str,
                           antes, despues, veredicto: str, delta, confianza: str, aprendizaje: str,
-                          confounders: list[dict], notas: str) -> dict:
+                          confounders: list[dict], notas: str, n_antes: int = 0, n_despues: int = 0,
+                          ventana: str = "") -> dict:
     cn.execute("DELETE FROM verificacion WHERE recomendacion_id = ? AND regla_id = ?", (rid, regla_id))
     cn.execute("""INSERT INTO verificacion
                   (recomendacion_id, regla_id, fecha, metrica, antes, despues, veredicto, notas,
-                   resultado, delta, confianza, aprendizaje, confounders_json)
-                  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                   resultado, delta, confianza, aprendizaje, confounders_json, n_antes, n_despues, ventana)
+                  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                (rid, regla_id, fecha, metrica, antes, despues, veredicto, notas,
                 veredicto, delta, confianza, aprendizaje,
-                json.dumps(confounders, ensure_ascii=False, sort_keys=True)))
+                json.dumps(confounders, ensure_ascii=False, sort_keys=True),
+                int(n_antes or 0), int(n_despues or 0), ventana))
     cn.commit()
     return {"recomendacion_id": rid, "regla_id": regla_id, "fecha": fecha, "metrica": metrica,
-            "antes": antes, "despues": despues, "delta": delta, "veredicto": veredicto,
-            "resultado": veredicto, "confianza": confianza, "aprendizaje": aprendizaje,
-            "confounders": confounders, "notas": notas}
+            "antes": antes, "despues": despues, "delta": delta, "n_antes": int(n_antes or 0),
+            "n_despues": int(n_despues or 0), "ventana": ventana,
+            "veredicto": veredicto, "resultado": veredicto, "confianza": confianza,
+            "aprendizaje": aprendizaje, "confounders": confounders, "notas": notas}
 
 
-def evaluar(cn: sqlite3.Connection, rid: int) -> dict:
-    """Evalúa una recomendación aceptada; idempotente por (recomendación, regla)."""
-    r = _rec(cn, rid)
-    if not r:
-        raise ValueError(f"no existe la recomendacion {rid}")
-    reglas_ids = reglas_de(cn, rid) or ["R?"]
-    regla_id = reglas_ids[0]
-    enl = enlace(cn, rid) or enlazar(cn, rid)
-    if enl.get("estado") != "enlazado":
-        motivo = (f"enlace {enl.get('estado')}: no hay una sesion unica para evaluar"
-                  if enl.get("estado") != "sin_enlace" else "sin enlace con una sesion")
-        return _guardar_verificacion(cn, rid, regla_id, enl.get("fecha") or r.get("fecha") or "", metrica="",
-                                     antes=None, despues=None, veredicto="sin_datos", delta=None,
-                                     confianza="baja", aprendizaje=f"{regla_id}: sin_datos; {motivo}.",
-                                     confounders=[], notas=motivo)
-    d = cn.execute("SELECT tomada, motivo FROM decision WHERE recomendacion_id = ?", (rid,)).fetchone()
-    if not d or d["tomada"] != "aceptada":
-        estado = d["tomada"] if d else "sin decision"
-        motivo = f"decision {estado}: no se evalua la recomendacion original"
-        return _guardar_verificacion(cn, rid, regla_id, enl.get("fecha") or r.get("fecha") or "", metrica="",
-                                     antes=None, despues=None, veredicto="sin_datos", delta=None,
-                                     confianza="baja", aprendizaje=f"{regla_id}: sin_datos; {motivo}.",
-                                     confounders=[], notas=motivo)
-    fecha = enl.get("fecha") or r.get("fecha")
-    if not fecha:
-        return _guardar_verificacion(cn, rid, regla_id, "", metrica="", antes=None, despues=None,
-                                     veredicto="sin_datos", delta=None, confianza="baja",
-                                     aprendizaje=f"{regla_id}: sin_datos; falta fecha.",
-                                     confounders=[], notas="falta fecha")
-    met = metrica_de(cn, rid)
-    if met and met.get("tipo") == "ritmo_sesion" and enl.get("actividad_id") \
-            and not _parte_de_actividad(cn, enl.get("actividad_id")):
-        motivo = "la sesion enlazada no tiene parte: no se puede medir el estimulo"
-        return _guardar_verificacion(cn, rid, regla_id, fecha, metrica=met.get("descripcion") or "ritmo_sesion",
-                                     antes=None, despues=None, veredicto="sin_datos", delta=None,
-                                     confianza="baja", aprendizaje=f"{regla_id}: sin_datos; {motivo}.",
-                                     confounders=[], notas=motivo)
+def _sin_datos(cn: sqlite3.Connection, rid: int, regla_id: str, fecha: str, motivo: str) -> dict:
+    return _guardar_verificacion(
+        cn, rid, regla_id, fecha, metrica="", antes=None, despues=None, veredicto="sin_datos",
+        delta=None, confianza="baja", aprendizaje=f"{regla_id}: sin_datos; {motivo}.",
+        confounders=[], notas=motivo)
+
+
+def _evaluar_regla(cn: sqlite3.Connection, rid: int, regla_id: str, met: dict | None,
+                   enl: dict, fecha: str) -> dict:
     if not met or met.get("tipo") == "sin_datos":
         motivo = (met or {}).get("descripcion") or "la regla no declara una metrica evaluable"
-        return _guardar_verificacion(cn, rid, regla_id, fecha, metrica=motivo, antes=None, despues=None,
-                                     veredicto="sin_datos", delta=None, confianza="baja",
-                                     aprendizaje=f"{regla_id}: sin_datos; {motivo}.",
-                                     confounders=[], notas=motivo)
+        return _sin_datos(cn, rid, regla_id, fecha, motivo)
+    if met.get("tipo") == "ritmo_sesion" and enl.get("actividad_id") \
+            and not _parte_de_actividad(cn, enl.get("actividad_id")):
+        return _sin_datos(cn, rid, regla_id, fecha,
+                          "la sesion enlazada no tiene parte: no se puede medir el estimulo")
     (a1, a2), (b1, b2) = _ventanas(fecha, int(met.get("ventana") or 28))
-    antes, n_a, _ = _valor_ventana(cn, met["tipo"], a1, a2)
-    despues, n_b, _ = _valor_ventana(cn, met["tipo"], b1, b2)
+    antes, n_a, _ = _valor_ventana(cn, met["tipo"], a1, a2, met.get("piscina_m"))
+    despues, n_b, _ = _valor_ventana(cn, met["tipo"], b1, b2, met.get("piscina_m"))
     if antes is None or despues is None:
         falta = "antes" if antes is None else "despues"
         motivo = f"sin datos {falta} de la ventana para {met.get('descripcion') or met['tipo']}"
-        return _guardar_verificacion(cn, rid, regla_id, fecha, metrica=met.get("descripcion") or met["tipo"],
-                                     antes=antes, despues=despues, veredicto="sin_datos", delta=None,
-                                     confianza="baja", aprendizaje=f"{regla_id}: sin_datos; {motivo}.",
-                                     confounders=[], notas=motivo)
+        return _guardar_verificacion(
+            cn, rid, regla_id, fecha, metrica=met.get("descripcion") or met["tipo"],
+            antes=antes, despues=despues, veredicto="sin_datos", delta=None, confianza="baja",
+            aprendizaje=f"{regla_id}: sin_datos; {motivo}.", confounders=[], notas=motivo,
+            n_antes=n_a, n_despues=n_b, ventana=f"{a1}..{b2}")
     conf = _confounders(cn, fecha, met["tipo"], enl)
     delta = round(float(despues) - float(antes), 2)
     umbral = float(met.get("umbral") or 0.5)
@@ -396,18 +401,62 @@ def evaluar(cn: sqlite3.Connection, rid: int) -> dict:
     aprendizaje = (f"{regla_id}: {veredicto}; delta {delta:+.2f} ({n_a} antes, {n_b} despues)"
                    + (f"; confounders: {', '.join(c['tipo'] for c in conf)}" if conf else "")
                    + ". No se cambia la regla automaticamente.")
-    return _guardar_verificacion(cn, rid, regla_id, fecha, metrica=met.get("descripcion") or met["tipo"],
-                                 antes=antes, despues=despues, veredicto=veredicto, delta=delta,
-                                 confianza=confianza, aprendizaje=aprendizaje, confounders=conf,
-                                 notas=notas)
+    return _guardar_verificacion(
+        cn, rid, regla_id, fecha, metrica=met.get("descripcion") or met["tipo"],
+        antes=antes, despues=despues, veredicto=veredicto, delta=delta, confianza=confianza,
+        aprendizaje=aprendizaje, confounders=conf, notas=notas,
+        n_antes=n_a, n_despues=n_b, ventana=f"{a1}..{b2}")
 
+
+def _resumen_evaluacion(rid: int, vs: list[dict]) -> dict:
+    if not vs:
+        return {"recomendacion_id": rid, "verificaciones": [], "veredicto": "sin_datos"}
+    d = dict(vs[0])
+    d["verificaciones"] = vs
+    return d
+
+
+def evaluar(cn: sqlite3.Connection, rid: int) -> dict:
+    """Evalúa todas las reglas con métrica de una recomendación aceptada.
+
+    Una fila por regla (R2 oficial, R1/R1b/R3/R4 de parte; R5/R6/R7/R8 quedan sin_datos con motivo).
+    Idempotente por (recomendación, regla). No declara causalidad.
+    """
+    r = _rec(cn, rid)
+    if not r:
+        raise ValueError(f"no existe la recomendacion {rid}")
+    reglas_ids = reglas_de(cn, rid) or ["R?"]
+    enl = enlace(cn, rid) or enlazar(cn, rid)
+    if enl.get("estado") != "enlazado":
+        motivo = (f"enlace {enl.get('estado')}: no hay una sesion unica para evaluar"
+                  if enl.get("estado") != "sin_enlace" else "sin enlace con una sesion")
+        fecha = enl.get("fecha") or r.get("fecha") or ""
+        vs = [_sin_datos(cn, rid, rid_regla, fecha, motivo) for rid_regla in reglas_ids]
+        return _resumen_evaluacion(rid, vs)
+    d = cn.execute("SELECT tomada, motivo FROM decision WHERE recomendacion_id = ?", (rid,)).fetchone()
+    if not d or d["tomada"] != "aceptada":
+        estado = d["tomada"] if d else "sin decision"
+        motivo = f"decision {estado}: no se evalua la recomendacion original"
+        fecha = enl.get("fecha") or r.get("fecha") or ""
+        vs = [_sin_datos(cn, rid, rid_regla, fecha, motivo) for rid_regla in reglas_ids]
+        return _resumen_evaluacion(rid, vs)
+    fecha = enl.get("fecha") or r.get("fecha")
+    if not fecha:
+        vs = [_sin_datos(cn, rid, rid_regla, "", "falta fecha") for rid_regla in reglas_ids]
+        return _resumen_evaluacion(rid, vs)
+    vs = []
+    for rid_regla in reglas_ids:
+        met = catalogo(rid_regla)
+        vs.append(_evaluar_regla(cn, rid, rid_regla, met, enl, fecha))
+    return _resumen_evaluacion(rid, vs)
 
 def evaluar_todas(cn: sqlite3.Connection) -> dict:
     salida = []
     for f in cn.execute("SELECT id FROM recomendacion ORDER BY id"):
         rid = int(f["id"])
         try:
-            enlazar(cn, rid)
+            if not enlace(cn, rid):
+                enlazar(cn, rid)
             salida.append(evaluar(cn, rid))
         except Exception as exc:
             salida.append({"recomendacion_id": rid, "veredicto": "sin_datos", "notas": str(exc)})
@@ -417,7 +466,8 @@ def evaluar_todas(cn: sqlite3.Connection) -> dict:
 # --------------------------------------------------------------------------- informe / panel
 
 def _verif(cn: sqlite3.Connection, rid: int) -> dict | None:
-    f = cn.execute("SELECT * FROM verificacion WHERE recomendacion_id = ? ORDER BY id DESC LIMIT 1", (rid,)).fetchone()
+    # La primera fila es la regla principal (R2/R1); las demas son limitantes/avisos.
+    f = cn.execute("SELECT * FROM verificacion WHERE recomendacion_id = ? ORDER BY id ASC LIMIT 1", (rid,)).fetchone()
     if not f:
         return None
     d = dict(f)
@@ -462,7 +512,7 @@ def resumen(cn: sqlite3.Connection) -> dict:
     por = {"enlazado": 0, "sin_enlace": 0, "ambiguo": 0}
     for r in recs:
         por[r["enlace"].get("estado") or "sin_enlace"] = por.get(r["enlace"].get("estado") or "sin_enlace", 0) + 1
-    ver = [r["verificacion"] for r in recs if r.get("verificacion")]
+    ver = [dict(x) for x in cn.execute("SELECT * FROM verificacion ORDER BY id")]
     return {"recomendaciones": len(recs), "enlaces": por,
             "con_decision": sum(1 for r in recs if r.get("decision")),
             "aceptadas": sum(1 for r in recs if (r.get("decision") or {}).get("tomada") == "aceptada"),
@@ -488,8 +538,11 @@ def informe(cn: sqlite3.Connection) -> dict:
         for p in props:
             d = (p.get("decision") or {}).get("tomada") or "sin_registrar"
             dec[d] = dec.get(d, 0) + 1
-            if p.get("verificacion"):
-                v = p["verificacion"].get("veredicto")
+            vf = cn.execute("""SELECT veredicto FROM verificacion
+                               WHERE recomendacion_id = ? AND regla_id = ? ORDER BY id DESC LIMIT 1""",
+                            (p["id"], rid)).fetchone()
+            if vf:
+                v = vf["veredicto"]
                 ver[v] = ver.get(v, 0) + 1
         salida.append({"regla_id": rid, "enunciado": r.get("enunciado"), "propuestas": len(props),
                        "decisiones": dec, "verificaciones": ver,

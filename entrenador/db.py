@@ -694,7 +694,8 @@ MIGRACIONES = {
                       "confianza": "REAL"},
     # F6 preparada: veredicto y aprendizaje; F5 no la rellena.
     "verificacion": {"resultado": "TEXT", "delta": "REAL", "confianza": "TEXT", "aprendizaje": "TEXT",
-                     "confounders_json": "TEXT"},
+                     "confounders_json": "TEXT", "n_antes": "INTEGER", "n_despues": "INTEGER",
+                     "ventana": "TEXT"},
 }
 
 # Indices sobre columnas que llegan por migracion (no existian en las bases viejas al crear la tabla): hay que
