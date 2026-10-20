@@ -935,6 +935,13 @@ es una plantilla determinista. `recomendacion_opcion` guarda todas las opciones 
 
 **Criterio de salida:** una recomendación se puede seguir de principio a fin y decir si funcionó o no.
 
+**Implementación F6 (2026-10-20):** `entrenador/resultados.py` enlaza recomendación → actividad/parte/apunte
+(tabla `recomendacion_enlace`), evalúa antes/después con el catálogo de métricas, guarda `verificacion`
+(`delta`, `confianza`, `aprendizaje`, `confounders_json`) y genera el informe por regla. Si hay ambigüedad,
+confounders o falta de parte, no elige a ciegas y no declara causalidad. `cli resultados` y una tarjeta del
+panel muestran el bucle; el motor v1 y las recomendaciones por defecto no cambian. Golden `f6`; `f4` queda
+como referencia pre-F6. Evidencia en `docs/evidencias/F6.md`.
+
 ---
 
 #### F7 — Interfaz

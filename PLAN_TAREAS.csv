@@ -47,13 +47,13 @@ F5-06,F5,Motor de decisión v2,Tablas y guardado de opciones/versiones,F5-01,Tod
 F5-07,F5,Motor de decisión v2,`dual-run` v1/v2,F5-06,Se pueden comparar sin mostrar v2,Script,hecha
 F5-08,F5,Motor de decisión v2,Seguridad y derivación,F5-03,Dolor/lesión ⇒ parar,Test,hecha
 F5-09,F5,Motor de decisión v2,"Tests de prioridad, mínimo eficaz y alternativas",F5-02..05,Cobertura de casos,Suite,hecha
-F6-01,F6,Bucle de resultados,Enlace recomendación → sesión/parte/apunte,F5,Integridad referencial,Test,pendiente
-F6-02,F6,Bucle de resultados,Catálogo de métricas por regla,F5,Cada regla tiene métrica o `sin_datos`,Validación,pendiente
-F6-03,F6,Bucle de resultados,Evaluación antes/después con confounders,F6-01,Informa de limitaciones,Test,pendiente
-F6-04,F6,Bucle de resultados,Ampliar `verificacion`,F6-03,"Guarda resultado, delta, confianza",Test,pendiente
-F6-05,F6,Bucle de resultados,Informe de aprendizaje,F6-04,Aciertos/fallos por regla,CLI,pendiente
-F6-06,F6,Bucle de resultados,`cli resultados` y tarjeta de panel,F6-05,Visible,Manual,pendiente
-F6-07,F6,Bucle de resultados,Tests de aceptada/cambiada/ignorada y resultado,F6-04,Sin causalidad falsa,Suite,pendiente
+F6-01,F6,Bucle de resultados,Enlace recomendación → sesión/parte/apunte,F5,Integridad referencial,Test,hecha
+F6-02,F6,Bucle de resultados,Catálogo de métricas por regla,F5,Cada regla tiene métrica o `sin_datos`,Validación,hecha
+F6-03,F6,Bucle de resultados,Evaluación antes/después con confounders,F6-01,Informa de limitaciones,Test,hecha
+F6-04,F6,Bucle de resultados,Ampliar `verificacion`,F6-03,"Guarda resultado, delta, confianza",Test,hecha
+F6-05,F6,Bucle de resultados,Informe de aprendizaje,F6-04,Aciertos/fallos por regla,CLI,hecha
+F6-06,F6,Bucle de resultados,`cli resultados` y tarjeta de panel,F6-05,Visible,Manual,hecha
+F6-07,F6,Bucle de resultados,Tests de aceptada/cambiada/ignorada y resultado,F6-04,Sin causalidad falsa,Suite,hecha
 F7-01,F7,Interfaz,Tarjeta de prioridad/acción,F5,Una prioridad visible,JS,pendiente
 F7-02,F7,Interfaz,"Desplegables de por qué, medición, riesgo, alternativa",F7-01,No satura,JS,pendiente
 F7-03,F7,Interfaz,Explorador de conocimiento (AF/FU/revisión),F2,Se puede auditar,JS,pendiente

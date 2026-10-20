@@ -3815,7 +3815,8 @@ def pruebas_motor_conocimiento_f3() -> None:
               == golden._normalizar_salida("Plan recalculado el 2026-10-20 (x)")
               and golden._normalizar_salida("Quedan 26 dias")
               == golden._normalizar_salida("Quedan 27 dias"))
-    carpeta_golden = "data/derived/golden/f4"
+    carpeta_golden = ("data/derived/golden/f6" if os.path.isdir("data/derived/golden/f6")
+                      else "data/derived/golden/f4")
     if os.path.isdir(carpeta_golden):
         # El golden de F4 es una foto con fecha: solo se compara si es la de hoy. El de F1 es pre-F4 y
         # su panel no lleva estado; se conserva como referencia historica, no como prueba diaria.
@@ -3830,7 +3831,7 @@ def pruebas_motor_conocimiento_f3() -> None:
             proc = subprocess.run([sys.executable, "scripts/golden.py", "--comparar",
                                    "--dir", carpeta_golden],
                                   cwd=os.getcwd(), capture_output=True, text=True)
-            comprobar("F4-07: golden f4 5/5 con la fecha de hoy",
+            comprobar(f"F4/F6: golden {os.path.basename(carpeta_golden)} 5/5 con la fecha de hoy",
                       proc.returncode == 0, (proc.stdout or proc.stderr)[-300:])
 
     with tempfile.TemporaryDirectory() as d:
@@ -4277,6 +4278,151 @@ def pruebas_motor_f5() -> None:
         comprobar("F5-01: rechaza una recomendacion sin opciones", bool(motor.validar_salida(mal)))
 
 
+def pruebas_resultados_f6() -> None:
+    """F6: enlace, evaluacion antes/despues, confounders, sin datos, idempotencia y panel/CLI."""
+    print("\nF6. Bucle de resultados")
+    import contextlib
+    import io
+    from datetime import date, timedelta
+    from entrenador import cli, db, estado, motor, panel, resultados
+
+    deficits = [{"id": "ritmo_prueba", "titulo": "falta ritmo de prueba", "receta": "ritmo_prueba",
+                 "porque": "hay 0 m y el minimo son 400 m", "metros_actuales": 0.0,
+                 "metros_minimos": 400.0, "pct": 0.0, "grado": "historial", "seccion_T": ["T.1"]}]
+
+    with tempfile.TemporaryDirectory() as d:
+        ruta = os.path.join(d, "resultados.db")
+        cn = db.conectar(ruta)
+        e = estado.calcular(cn, "2026-10-20")
+
+        def actividad(aid, fecha, dist=1700.0):
+            cn.execute("""INSERT INTO actividad (id, fichero, hash, fuente, disciplina, nombre, inicio_local,
+                          duracion_s, distancia_m, importado_en) VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                       (aid, f"a{aid}.fit", f"ha{aid}", "test", "natacion", f"sesion {aid}",
+                        f"{fecha} 10:00:00", 1800.0, dist, "2026-10-20T00:00:00"))
+            cn.execute("""INSERT INTO natacion_sesion (actividad_id, largo_piscina_m, n_largos, n_largos_activos,
+                          n_laps, fc_media, fc_max) VALUES (?,?,?,?,?,?,?)""",
+                       (aid, 25.0, int(dist / 25), int(dist / 25), 1, 140.0, 180.0))
+
+        def parte(pid, fecha, ritmo, material=""):
+            cn.execute("""INSERT INTO parte (id, clave, fecha, actividad_id, piscina_m, metros, minutos,
+                          sensacion, notas, compania, fuente, importado_en)
+                          VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                       (pid, f"p{pid}", fecha, 1 if pid == 1 else None, 25.0, 1700.0, 30.0, 7.0, "",
+                        "solo", "test", "2026-10-20T00:00:00"))
+            cn.execute("""INSERT INTO parte_serie (parte_id, orden, tipo, rep_m, n_reps, metros, tiempo_s,
+                          ritmo_100, descanso_s, estilo, material, intensidad)
+                          VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                       (pid, 1, "serie", 100.0, 8, 800.0, ritmo * 8, ritmo, 25.0, "libre", material, "ae2"))
+
+        # Una recomendacion aceptada y su sesion.
+        s1 = motor.generar(cn, "2026-10-20", deficits=deficits, estado_obj=e)
+        motor.guardar(cn, s1)
+        rid1 = s1["recomendaciones"][0]["id"]
+        fecha = resultados.fecha_objetivo(cn, rid1)
+        comprobar("F6-01: la recomendacion tiene fecha objetivo por semana/dia", bool(fecha), str(fecha))
+        if not fecha:
+            return
+        actividad(1, fecha)
+        parte(1, fecha, 80.0)
+        parte(2, (date.fromisoformat(fecha) - timedelta(days=7)).isoformat(), 80.0)
+        parte(3, (date.fromisoformat(fecha) + timedelta(days=7)).isoformat(), 78.0)
+        cn.execute("INSERT INTO sueno (fecha, horas, puntuacion, fuente) VALUES (?,?,?,?)",
+                   ((date.fromisoformat(fecha) - timedelta(days=3)).isoformat(), 7.0, 80, "test"))
+        cn.execute("INSERT INTO sueno (fecha, horas, puntuacion, fuente) VALUES (?,?,?,?)",
+                   ((date.fromisoformat(fecha) + timedelta(days=3)).isoformat(), 7.0, 80, "test"))
+        cn.commit()
+        from entrenador import decision
+        decision.decidir(cn, rid1, "aceptada")
+        enl1 = resultados.enlazar(cn, rid1, actividad_id=1)
+        comprobar("F6-01: enlace explicito unico e idempotente",
+                  enl1["estado"] == "enlazado" and enl1["actividad_id"] == 1
+                  and resultados.enlazar(cn, rid1, actividad_id=1)["actividad_id"] == 1
+                  and cn.execute("SELECT COUNT(*) FROM recomendacion_enlace").fetchone()[0] == 1)
+        v1 = resultados.evaluar(cn, rid1)
+        comprobar("F6-03: antes/despues y delta con veredicto",
+                  v1["veredicto"] == "a_favor" and v1["antes"] == 80.0 and v1["despues"] == 78.0
+                  and v1["delta"] == -2.0, str(v1))
+        n_ver = cn.execute("SELECT COUNT(*) FROM verificacion WHERE recomendacion_id = ?", (rid1,)).fetchone()[0]
+        resultados.evaluar(cn, rid1)
+        comprobar("F6-03: evaluar es idempotente",
+                  cn.execute("SELECT COUNT(*) FROM verificacion WHERE recomendacion_id = ?", (rid1,)).fetchone()[0] == n_ver)
+
+        # Ambiguedad: dos sesiones el mismo dia no se eligen a ciegas.
+        actividad(2, fecha)
+        s2 = motor.generar(cn, "2026-10-20", deficits=deficits, estado_obj=e)
+        motor.guardar(cn, s2)
+        rid2 = s2["recomendaciones"][0]["id"]
+        enl2 = resultados.enlazar(cn, rid2)
+        comprobar("F6-01: dos sesiones -> ambiguo con candidatos",
+                  enl2["estado"] == "ambiguo" and len(enl2["candidatos"]) >= 2, str(enl2))
+
+        # Sin parte -> sin_datos.
+        actividad(3, fecha)
+        s3 = motor.generar(cn, "2026-10-20", deficits=deficits, estado_obj=e)
+        motor.guardar(cn, s3)
+        rid3 = s3["recomendaciones"][0]["id"]
+        decision.decidir(cn, rid3, "aceptada")
+        resultados.enlazar(cn, rid3, actividad_id=3)
+        v3 = resultados.evaluar(cn, rid3)
+        comprobar("F6-03: sesion sin parte -> sin_datos", v3["veredicto"] == "sin_datos", str(v3))
+
+        # Cambiada/ignorada no se evaluan como si se hubiera seguido.
+        s4 = motor.generar(cn, "2026-10-20", deficits=deficits, estado_obj=e)
+        motor.guardar(cn, s4)
+        rid4 = s4["recomendaciones"][0]["id"]
+        decision.decidir(cn, rid4, "cambiada", motivo="trabajo")
+        resultados.enlazar(cn, rid4, actividad_id=1)
+        v4 = resultados.evaluar(cn, rid4)
+        comprobar("F6-03: recomendacion cambiada -> sin_datos",
+                  v4["veredicto"] == "sin_datos" and "cambiada" in v4["notas"], str(v4))
+
+        s5 = motor.generar(cn, "2026-10-20", deficits=deficits, estado_obj=e)
+        motor.guardar(cn, s5)
+        rid5 = s5["recomendaciones"][0]["id"]
+        decision.decidir(cn, rid5, "ignorada")
+        resultados.enlazar(cn, rid5, actividad_id=1)
+        v5 = resultados.evaluar(cn, rid5)
+        comprobar("F6-03: recomendacion ignorada -> sin_datos", v5["veredicto"] == "sin_datos", str(v5))
+
+        # Confounder de material: no se declara causalidad.
+        cn.execute("UPDATE parte_serie SET material = 'palas' WHERE parte_id = 3")
+        cn.commit()
+        s6 = motor.generar(cn, "2026-10-20", deficits=deficits, estado_obj=e)
+        motor.guardar(cn, s6)
+        rid6 = s6["recomendaciones"][0]["id"]
+        decision.decidir(cn, rid6, "aceptada")
+        resultados.enlazar(cn, rid6, actividad_id=1)
+        v6 = resultados.evaluar(cn, rid6)
+        comprobar("F6-03: confounder -> no_concluyente",
+                  v6["veredicto"] == "no_concluyente"
+                  and any(c["tipo"] == "material" for c in v6["confounders"]), str(v6))
+        comprobar("F6-02: catalogo R2 y metrica de sesion",
+                  resultados.catalogo("R2")["tipo"] == "oficial_400"
+                  and resultados.catalogo("R1")["tipo"] == "ritmo_sesion")
+        comprobar("F6-04: verificacion guarda delta/confianza/aprendizaje/confounders",
+                  {"resultado", "delta", "confianza", "aprendizaje", "confounders_json"}
+                  <= {r[1] for r in cn.execute("PRAGMA table_info(verificacion)")})
+
+        res = resultados.resumen(cn)
+        comprobar("F6-05: resumen coherente",
+                  res["enlaces"].get("ambiguo", 0) >= 1 and res["a_favor"] >= 1
+                  and res["sin_datos"] >= 1 and res["no_concluyente"] >= 1)
+
+        dp = panel.datos_panel(cn)
+        comprobar("F6-06: el panel recibe resultados", bool(dp.get("resultados")))
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = cli.main(["--bd", ruta, "resultados", "--json"])
+        try:
+            salida = json.loads(buf.getvalue())
+        except ValueError:
+            salida = {}
+        comprobar("F6-06: cli resultados --json valido",
+                  rc == 0 and salida.get("resumen", {}).get("recomendaciones", 0) >= 1,
+                  buf.getvalue()[:120])
+
+
 if __name__ == "__main__":
     pruebas_unitarias()
     pruebas_base_de_datos()
@@ -4298,6 +4444,7 @@ if __name__ == "__main__":
     pruebas_motor_conocimiento_f3()
     pruebas_estado_f4()
     pruebas_motor_f5()
+    pruebas_resultados_f6()
     pruebas_reparto_por_dia()
     pruebas_motor_en_el_discurso()
     pruebas_plan_vivo()
